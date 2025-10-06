@@ -42,7 +42,8 @@
       "Bash(npm run installer:stage:*)",
       "Bash(\"C:/Program Files (x86)/NSIS/makensis.exe\" -DVERSION=v0.5.0 -DOUTFILE=\"D:/Projects/foundry-vtt-mcp/installer/build/FoundryMCPServer-Setup-v0.5.0.exe\" \"D:/Projects/foundry-vtt-mcp/installer/build/installer-files/foundry-mcp-server.nsi\")",
       "Bash(npm run installer:build:*)",
-      "Bash(npm run:*)"
+      "Bash(npm run:*)",
+      "Read(//Users/christopherallbritton/Library/**)"
     ],
     "deny": [],
     "ask": [],

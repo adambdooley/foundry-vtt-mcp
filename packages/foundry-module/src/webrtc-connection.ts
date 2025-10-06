@@ -19,10 +19,14 @@ export class WebRTCConnection {
   private connectionState: string = CONNECTION_STATES.DISCONNECTED;
   private signalingWs: WebSocket | null = null;
   private messageHandler: ((message: any) => Promise<void>) | null = null;
+  private onConnectedCallback: (() => void) | null = null;
 
   constructor(private config: WebRTCConfig) {}
 
-  async connect(onMessage: (message: any) => Promise<void>): Promise<void> {
+  async connect(
+    onMessage: (message: any) => Promise<void>,
+    onConnected?: () => void
+  ): Promise<void> {
     if (this.connectionState === CONNECTION_STATES.CONNECTED ||
         this.connectionState === CONNECTION_STATES.CONNECTING) {
       return;
@@ -30,6 +34,7 @@ export class WebRTCConnection {
 
     this.connectionState = CONNECTION_STATES.CONNECTING;
     this.messageHandler = onMessage;
+    this.onConnectedCallback = onConnected ?? null;
     this.log('Starting WebRTC connection...');
 
     try {
@@ -77,6 +82,10 @@ export class WebRTCConnection {
       if (this.signalingWs) {
         this.signalingWs.close();
         this.signalingWs = null;
+      }
+
+      if (this.onConnectedCallback) {
+        this.onConnectedCallback();
       }
     };
 

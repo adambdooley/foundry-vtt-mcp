@@ -57,9 +57,13 @@ export class FoundryConnector {
     this.wss.on('connection', (ws) => {
       this.logger.info('Client connected via WebSocket');
 
+      // Optimistically treat as direct WebSocket connection until we receive a WebRTC offer.
+      this.foundrySocket = ws;
+      this.activeConnectionType = 'websocket';
+
       ws.on('close', () => {
         this.logger.info('Client disconnected');
-        if (this.activeConnectionType === 'websocket') {
+        if (this.activeConnectionType === 'websocket' && this.foundrySocket === ws) {
           this.foundrySocket = null;
           this.activeConnectionType = null;
           // Reject all pending queries
@@ -77,6 +81,11 @@ export class FoundryConnector {
 
           // Check if this is WebRTC signaling
           if (message.type === 'webrtc-offer') {
+            if (this.foundrySocket === ws) {
+              // Revert optimistic WebSocket assignment when switching to WebRTC mode
+              this.foundrySocket = null;
+              this.activeConnectionType = null;
+            }
             await this.handleWebRTCOffer(message.offer, ws);
           } else {
             // Regular WebSocket message
@@ -174,6 +183,17 @@ export class FoundryConnector {
         this.pendingQueries.delete(message.id);
         pending.resolve(message.data);
       }
+      return;
+    }
+
+    if (message.type === 'bridge-ready') {
+      const { userId, userName, worldId, worldName } = message.data || {};
+      this.logger.info('Foundry module ready', {
+        userId,
+        userName,
+        worldId,
+        worldName
+      });
       return;
     }
 

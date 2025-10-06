@@ -82,7 +82,10 @@ export class SocketBridge {
     this.webrtc = new WebRTCConnection(webrtcConfig);
 
     try {
-      await this.webrtc.connect(this.handleMessage.bind(this));
+      await this.webrtc.connect(
+        this.handleMessage.bind(this),
+        this.announceBridgeReady.bind(this)
+      );
       this.connectionState = CONNECTION_STATES.CONNECTED;
       this.reconnectAttempts = 0;
       this.log('Connected via WebRTC');
@@ -119,6 +122,7 @@ export class SocketBridge {
           this.reconnectAttempts = 0;
           this.log('Connected to MCP server via WebSocket');
           this.setupEventHandlers();
+          this.announceBridgeReady();
           resolve();
         };
 
@@ -444,6 +448,25 @@ export class SocketBridge {
     } catch (error) {
       this.log(`Failed to send message: ${error}`);
     }
+  }
+
+  private announceBridgeReady(): void {
+    const gameInstance = (globalThis as any).game;
+    const user = gameInstance?.user;
+    const world = gameInstance?.world;
+
+    const payload = {
+      type: 'bridge-ready',
+      data: {
+        userId: user?.id ?? null,
+        userName: user?.name ?? null,
+        worldId: world?.id ?? null,
+        worldName: world?.title ?? null,
+        timestamp: Date.now()
+      }
+    };
+
+    this.sendMessage(payload);
   }
 
   emitToServer(event: string, data?: any): void {
