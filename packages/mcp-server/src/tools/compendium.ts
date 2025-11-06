@@ -36,13 +36,13 @@ export class CompendiumTools {
     return [
       {
         name: 'search-compendium',
-        description: 'MULTI-SYSTEM: Enhanced search through compendium packs for items, spells, monsters, and other content. Supports D&D 5e (Challenge Rating, creature types) and Pathfinder 2e (Level, traits, rarity) with automatic system detection. Perfect for encounter building and creature discovery. OPTIMIZATION TIPS: Start with broad searches using level/CR ranges (e.g., {min: 10, max: 15}) rather than exact values. Use minimal query terms initially and rely on filters. The default limit of 50 is optimal for discovery - avoid reducing it. Search results now include key stats to reduce need for detailed lookups.',
+        description: 'Search through compendium packs by name. IMPORTANT LIMITATIONS: (1) Text search only matches entity NAMES - descriptions and traits are NOT searchable. (2) Filters use name heuristics only (not actual system data) and only work on Actor packs - challengeRating and creatureType filters search for keywords like "ancient", "legendary", "humanoid", etc. in entity names. For accurate filtering by level/CR, traits, or rarity, use list-creatures-by-criteria instead. For best results, use broad name-based searches (e.g., "dragon", "knight") and inspect individual items with get-compendium-item.',
         inputSchema: {
           type: 'object',
           properties: {
             query: {
               type: 'string',
-              description: 'Search query to find items in compendiums (searches names and descriptions). TIP: For creature discovery, use broad terms like "knight", "warrior", or even "*" and rely primarily on filters for specificity.',
+              description: 'Search query to find items in compendiums by name only. Use broad, simple terms (e.g., "dragon", "sword", "feat"). Descriptions and traits are NOT searchable.',
             },
             packType: {
               type: 'string',
@@ -50,7 +50,7 @@ export class CompendiumTools {
             },
             filters: {
               type: 'object',
-              description: 'Advanced filters for creatures/actors. D&D 5e: Use challengeRating, creatureType, hasLegendaryActions, spellcaster. Pathfinder 2e: Use level, traits, rarity, hasSpells. System is auto-detected.',
+              description: 'LIMITED FUNCTIONALITY: Only works on Actor packs using name-based heuristics. challengeRating searches for keywords like "ancient" (CR 15+), "adult" (CR 10+), "captain" (CR 5+). creatureType searches for type keywords in names. Does NOT check actual system data. For accurate filtering, use list-creatures-by-criteria instead.',
               properties: {
                 challengeRating: {
                   oneOf: [
