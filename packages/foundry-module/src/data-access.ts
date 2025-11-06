@@ -10,6 +10,9 @@ interface CharacterInfo {
   system: Record<string, unknown>;
   items: CharacterItem[];
   effects: CharacterEffect[];
+  actions?: any[]; // PF2e actions (strikes, spells, etc.)
+  itemVariants?: any[]; // Item rule element variants (ChoiceSet, etc.)
+  itemToggles?: any[]; // Item rule element toggles (RollOption, ToggleProperty, equipped)
 }
 
 interface CharacterItem {
@@ -1125,13 +1128,15 @@ export class FoundryDataAccess {
       type: actor.type,
       ...(actor.img ? { img: actor.img } : {}),
       system: this.sanitizeData((actor as any).system),
-      items: actor.items.map(item => ({
-        id: item.id,
-        name: item.name,
-        type: item.type,
-        ...(item.img ? { img: item.img } : {}),
-        system: this.sanitizeData(item.system),
-      })),
+      items: actor.items.map(item => {
+        return {
+          id: item.id,
+          name: item.name,
+          type: item.type,
+          ...(item.img ? { img: item.img } : {}),
+          system: this.sanitizeData(item.system),
+        };
+      }),
       effects: actor.effects.map(effect => ({
         id: effect.id,
         name: (effect as any).name || (effect as any).label || 'Unknown Effect',
@@ -1146,6 +1151,83 @@ export class FoundryDataAccess {
         } : {}),
       })),
     };
+
+    // Add PF2e-specific data if available
+    const actorAny = actor as any;
+
+    // Include actions (PF2e strikes, spells, etc.)
+    if (actorAny.system?.actions) {
+      characterData.actions = actorAny.system.actions.map((action: any) => ({
+        name: action.label || action.name,
+        type: action.type,
+        ...(action.item ? { itemId: action.item.id } : {}),
+        ...(action.variants ? {
+          variants: action.variants.map((v: any) => ({
+            label: v.label,
+            ...(v.traits ? { traits: v.traits } : {})
+          }))
+        } : {}),
+        ...(action.ready !== undefined ? { ready: action.ready } : {}),
+      }));
+    }
+
+    // Include item variants and toggles
+    const itemVariants: any[] = [];
+    const itemToggles: any[] = [];
+
+    actor.items.forEach(item => {
+      const itemAny = item as any;
+
+      // Extract rule element variants (e.g., weapon variants, stance toggles)
+      if (itemAny.system?.rules) {
+        itemAny.system.rules.forEach((rule: any, ruleIndex: number) => {
+          // Variants (ChoiceSet, RollOption with choices)
+          if (rule.key === 'ChoiceSet' || (rule.key === 'RollOption' && rule.choices)) {
+            itemVariants.push({
+              itemId: item.id,
+              itemName: item.name,
+              ruleIndex: ruleIndex,
+              ruleKey: rule.key,
+              label: rule.label || rule.prompt,
+              ...(rule.selection ? { selected: rule.selection } : {}),
+              ...(rule.choices ? { choices: rule.choices } : {}),
+            });
+          }
+
+          // Toggles (RollOption toggleable, ToggleProperty)
+          if ((rule.key === 'RollOption' && rule.toggleable) || rule.key === 'ToggleProperty') {
+            itemToggles.push({
+              itemId: item.id,
+              itemName: item.name,
+              ruleIndex: ruleIndex,
+              ruleKey: rule.key,
+              label: rule.label,
+              option: rule.option,
+              ...(rule.value !== undefined ? { enabled: rule.value } : {}),
+              ...(rule.toggleable !== undefined ? { toggleable: rule.toggleable } : {}),
+            });
+          }
+        });
+      }
+
+      // Also check for item-level toggles (e.g., equipped, identified)
+      if (itemAny.system?.equipped !== undefined) {
+        itemToggles.push({
+          itemId: item.id,
+          itemName: item.name,
+          type: 'equipped',
+          enabled: itemAny.system.equipped,
+        });
+      }
+    });
+
+    // Add to character data if any found
+    if (itemVariants.length > 0) {
+      characterData.itemVariants = itemVariants;
+    }
+    if (itemToggles.length > 0) {
+      characterData.itemToggles = itemToggles;
+    }
 
     return characterData;
   }

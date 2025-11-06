@@ -1384,6 +1384,12 @@ async function startBackend(): Promise<void> {
 
                   break;
 
+                case 'get-character-entity':
+
+                  result = await characterTools.handleGetCharacterEntity(args);
+
+                  break;
+
                 // Compendium tools
 
                 case 'search-compendium':

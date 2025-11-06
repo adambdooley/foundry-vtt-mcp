@@ -24,7 +24,7 @@ export class CharacterTools {
     return [
       {
         name: 'get-character',
-        description: 'Retrieve detailed information about a specific character by name or ID',
+        description: 'Retrieve character information optimized for minimal token usage. Returns: full stats (abilities, skills, saves, AC, HP), action names, active effects/conditions (name only), and ALL items with minimal metadata (name, type, equipped status) without descriptions. PF2e-specific: includes traits arrays for items/actions, action costs, rarity, and level. D&D 5e-specific: includes attunement status. Perfect for filtering (e.g., "deviant" trait feats, "fire" trait spells in PF2e), checking equipment, or identifying what to investigate further. Use get-character-entity to fetch full details for specific items, actions, spells, or effects.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -34,6 +34,24 @@ export class CharacterTools {
             },
           },
           required: ['identifier'],
+        },
+      },
+      {
+        name: 'get-character-entity',
+        description: 'Retrieve full details for a specific entity from a character. Works for items (feats, equipment, spells), actions (strikes, special abilities), or effects/conditions. Returns complete description and all system data. Use this after get-character when you need detailed information about a specific entity.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            characterIdentifier: {
+              type: 'string',
+              description: 'Character name or ID',
+            },
+            entityIdentifier: {
+              type: 'string',
+              description: 'Entity name or ID (can be item ID, action name, spell name, or effect name)',
+            },
+          },
+          required: ['characterIdentifier', 'entityIdentifier'],
         },
       },
       {
@@ -66,9 +84,9 @@ export class CharacterTools {
         characterName: identifier,
       });
 
-      this.logger.debug('Successfully retrieved character data', { 
+      this.logger.debug('Successfully retrieved character data', {
         characterId: characterData.id,
-        characterName: characterData.name 
+        characterName: characterData.name
       });
 
       // Format the response for Claude
@@ -77,6 +95,115 @@ export class CharacterTools {
     } catch (error) {
       this.logger.error('Failed to get character information', error);
       throw new Error(`Failed to retrieve character "${identifier}": ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  async handleGetCharacterEntity(args: any): Promise<any> {
+    const schema = z.object({
+      characterIdentifier: z.string().min(1, 'Character identifier cannot be empty'),
+      entityIdentifier: z.string().min(1, 'Entity identifier cannot be empty'),
+    });
+
+    const { characterIdentifier, entityIdentifier } = schema.parse(args);
+
+    this.logger.info('Getting character entity', { characterIdentifier, entityIdentifier });
+
+    try {
+      // First get the character
+      const characterData = await this.foundryClient.query('foundry-mcp-bridge.getCharacterInfo', {
+        characterName: characterIdentifier,
+      });
+
+      // Try to find the entity in different collections
+      let entity = null;
+      let entityType = null;
+
+      // 1. Try to find as an item (by ID or name)
+      entity = characterData.items?.find((i: any) =>
+        i.id === entityIdentifier || i.name.toLowerCase() === entityIdentifier.toLowerCase()
+      );
+      if (entity) {
+        entityType = 'item';
+      }
+
+      // 2. Try to find as an action (by name)
+      if (!entity && characterData.actions) {
+        entity = characterData.actions.find((a: any) =>
+          a.name.toLowerCase() === entityIdentifier.toLowerCase()
+        );
+        if (entity) {
+          entityType = 'action';
+        }
+      }
+
+      // 3. Try to find as an effect (by name)
+      if (!entity && characterData.effects) {
+        entity = characterData.effects.find((e: any) =>
+          e.name.toLowerCase() === entityIdentifier.toLowerCase()
+        );
+        if (entity) {
+          entityType = 'effect';
+        }
+      }
+
+      if (!entity) {
+        throw new Error(`Entity "${entityIdentifier}" not found on character "${characterIdentifier}". Tried items, actions, and effects.`);
+      }
+
+      this.logger.debug('Successfully retrieved entity', {
+        entityType,
+        entityName: entity.name
+      });
+
+      // Return full entity details based on type
+      if (entityType === 'item') {
+        return {
+          entityType: 'item',
+          id: entity.id,
+          name: entity.name,
+          type: entity.type,
+          description: entity.system?.description?.value || entity.system?.description || '',
+          traits: entity.system?.traits?.value || [],
+          rarity: entity.system?.traits?.rarity || 'common',
+          level: entity.system?.level?.value ?? entity.system?.level,
+          actionType: entity.system?.actionType?.value,
+          actions: entity.system?.actions?.value,
+          quantity: entity.system?.quantity || 1,
+          equipped: entity.system?.equipped,
+          attunement: entity.system?.attunement,
+          hasImage: !!entity.img,
+          // Include full system data for advanced use cases
+          system: entity.system,
+        };
+      } else if (entityType === 'action') {
+        return {
+          entityType: 'action',
+          name: entity.name,
+          type: entity.type,
+          itemId: entity.itemId,
+          traits: entity.traits || [],
+          variants: entity.variants || [],
+          ready: entity.ready,
+          description: entity.description || 'Action from character strikes/abilities',
+        };
+      } else if (entityType === 'effect') {
+        return {
+          entityType: 'effect',
+          id: entity.id,
+          name: entity.name,
+          description: entity.description || entity.name,
+          traits: entity.traits || [],
+          duration: entity.duration,
+          // Include full effect data
+          ...entity,
+        };
+      }
+
+      return entity;
+
+    } catch (error) {
+      this.logger.error('Failed to get character entity', error);
+      throw new Error(`Failed to retrieve entity "${entityIdentifier}" from character "${characterIdentifier}": ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
@@ -113,7 +240,7 @@ export class CharacterTools {
   }
 
   private formatCharacterResponse(characterData: any): any {
-    const response = {
+    const response: any = {
       id: characterData.id,
       name: characterData.name,
       type: characterData.type,
@@ -124,7 +251,41 @@ export class CharacterTools {
       hasImage: !!characterData.img,
     };
 
+    // Add actions with minimal data (name, traits, action cost only - no variants)
+    if (characterData.actions && characterData.actions.length > 0) {
+      response.actions = this.formatActions(characterData.actions);
+    }
+
+    // Exclude itemVariants and itemToggles - these are verbose and can be fetched via get-character-entity if needed
+
     return response;
+  }
+
+  private formatActions(actions: any[]): any[] {
+    // Return minimal action data - just enough to identify and filter
+    return actions.map(action => {
+      const formatted: any = {
+        name: action.name,
+        type: action.type,
+      };
+
+      // Include traits if present (for filtering, e.g., "fire" attacks, "concentrate" actions)
+      if (action.traits && action.traits.length > 0) {
+        formatted.traits = action.traits;
+      }
+
+      // Include action cost (e.g., 1, 2, 3 actions, reaction, free)
+      if (action.actions !== undefined) {
+        formatted.actionCost = action.actions;
+      }
+
+      // Include itemId for cross-referencing with items
+      if (action.itemId) {
+        formatted.itemId = action.itemId;
+      }
+
+      return formatted;
+    });
   }
 
   private extractBasicInfo(characterData: any): any {
@@ -217,14 +378,56 @@ export class CharacterTools {
   }
 
   private formatItems(items: any[]): any[] {
-    return items.slice(0, 20).map(item => ({ // Limit to 20 items to avoid overwhelming responses
-      id: item.id,
-      name: item.name,
-      type: item.type,
-      quantity: item.system?.quantity || 1,
-      description: this.truncateText(item.system?.description?.value || '', 200),
-      hasImage: !!item.img,
-    }));
+    // Return ALL items with minimal data
+    return items.map(item => {
+      // Return minimal data - just enough to identify and filter items
+      const formattedItem: any = {
+        id: item.id,
+        name: item.name,
+        type: item.type,
+      };
+
+      // Include quantity if present
+      if (item.system?.quantity !== undefined && item.system.quantity !== 1) {
+        formattedItem.quantity = item.system.quantity;
+      }
+
+      // Include traits for PF2e items (feats, equipment, spells, etc.)
+      if (item.system?.traits?.value) {
+        formattedItem.traits = Array.isArray(item.system.traits.value)
+          ? item.system.traits.value
+          : [];
+      }
+
+      // Include rarity for PF2e items
+      if (item.system?.traits?.rarity) {
+        formattedItem.rarity = item.system.traits.rarity;
+      }
+
+      // Include level for PF2e items (feats, spells, etc.)
+      if (item.system?.level?.value !== undefined) {
+        formattedItem.level = item.system.level.value;
+      } else if (item.system?.level !== undefined) {
+        formattedItem.level = item.system.level;
+      }
+
+      // Include action cost for PF2e feats/actions
+      if (item.system?.actionType?.value) {
+        formattedItem.actionType = item.system.actionType.value;
+      }
+
+      // Include equipped status for equippable items
+      if (item.system?.equipped !== undefined) {
+        formattedItem.equipped = item.system.equipped;
+      }
+
+      // Include attuned status for D&D 5e magic items
+      if (item.system?.attunement !== undefined) {
+        formattedItem.attunement = item.system.attunement;
+      }
+
+      return formattedItem;
+    });
   }
 
   private formatEffects(effects: any[]): any[] {
