@@ -111,6 +111,60 @@ export const SceneInfoSchema = z.object({
 });
 
 /**
+ * Token Manipulation schemas
+ */
+export const TokenUpdateSchema = z.object({
+  tokenId: z.string(),
+  updates: z.object({
+    x: z.number().optional(),
+    y: z.number().optional(),
+    width: z.number().positive().optional(),
+    height: z.number().positive().optional(),
+    rotation: z.number().min(0).max(360).optional(),
+    hidden: z.boolean().optional(),
+    disposition: z.union([z.literal(-1), z.literal(0), z.literal(1)]).optional(),
+    name: z.string().optional(),
+    elevation: z.number().optional(),
+    lockRotation: z.boolean().optional(),
+  }),
+});
+
+export const TokenMoveRequestSchema = z.object({
+  tokenId: z.string(),
+  x: z.number(),
+  y: z.number(),
+  animate: z.boolean().optional().default(false),
+});
+
+export const TokenUpdateResultSchema = z.object({
+  success: z.boolean(),
+  tokenId: z.string(),
+  updated: z.boolean(),
+  error: z.string().optional(),
+});
+
+export const TokenDeleteResultSchema = z.object({
+  success: z.boolean(),
+  deletedCount: z.number(),
+  tokenIds: z.array(z.string()),
+  errors: z.array(z.string()).optional(),
+});
+
+export const TokenDetailsSchema = SceneTokenSchema.extend({
+  rotation: z.number(),
+  elevation: z.number(),
+  lockRotation: z.boolean(),
+  scale: z.number(),
+  alpha: z.number(),
+  actorLink: z.boolean(),
+  actorData: z.object({
+    name: z.string(),
+    type: z.string(),
+    img: z.string().optional(),
+  }).optional(),
+});
+
+/**
  * Configuration schemas
  */
 export const FoundryMCPConfigSchema = z.object({

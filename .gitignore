@@ -76,3 +76,11 @@ test-*.ps1
 config.local.json
 .claude/foundry-mcp-server-*.zip
 foundry-vtt-mcp.zip
+.foundry-deploy-config
+.mcp.json
+deploy-module.sh
+verify-deployment.sh
+DEPLOYMENT-FIX.md
+DEVELOPMENT.md
+VERIFY.md
+VISUAL-CONFIRMATION.md

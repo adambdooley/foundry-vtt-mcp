@@ -109,6 +109,60 @@ export interface SceneNote {
 }
 
 /**
+ * Token Manipulation types
+ */
+export interface TokenUpdate {
+  tokenId: string;
+  updates: {
+    x?: number;
+    y?: number;
+    width?: number;
+    height?: number;
+    rotation?: number;
+    hidden?: boolean;
+    disposition?: -1 | 0 | 1; // hostile, neutral, friendly
+    name?: string;
+    elevation?: number;
+    lockRotation?: boolean;
+  };
+}
+
+export interface TokenMoveRequest {
+  tokenId: string;
+  x: number;
+  y: number;
+  animate?: boolean;
+}
+
+export interface TokenUpdateResult {
+  success: boolean;
+  tokenId: string;
+  updated: boolean;
+  error?: string;
+}
+
+export interface TokenDeleteResult {
+  success: boolean;
+  deletedCount: number;
+  tokenIds: string[];
+  errors?: string[];
+}
+
+export interface TokenDetails extends SceneToken {
+  rotation: number;
+  elevation: number;
+  lockRotation: boolean;
+  scale: number;
+  alpha: number;
+  actorLink: boolean;
+  actorData?: {
+    name: string;
+    type: string;
+    img?: string;
+  };
+}
+
+/**
  * Configuration types
  */
 export interface FoundryMCPConfig {

@@ -4176,4 +4176,350 @@ export class FoundryDataAccess {
     }
   }
 
+  /**
+   * Move a token to a new position
+   */
+  async moveToken(tokenId: string, x: number, y: number, animate: boolean = false): Promise<any> {
+    this.validateFoundryState();
+
+    // Use permission system
+    const permissionCheck = permissionManager.checkWritePermission('modifyScene', {
+      targetIds: [tokenId],
+    });
+
+    if (!permissionCheck.allowed) {
+      throw new Error(`${ERROR_MESSAGES.ACCESS_DENIED}: ${permissionCheck.reason}`);
+    }
+
+    const scene = (game.scenes as any).current;
+    if (!scene) {
+      throw new Error('No active scene found');
+    }
+
+    const token = scene.tokens.get(tokenId);
+    if (!token) {
+      throw new Error(`Token ${tokenId} not found in current scene`);
+    }
+
+    try {
+      await token.update({ x, y }, { animate });
+
+      this.auditLog('moveToken', { tokenId, x, y, animate }, 'success');
+
+      return {
+        success: true,
+        tokenId,
+        newPosition: { x, y },
+      };
+    } catch (error) {
+      this.auditLog('moveToken', { tokenId, x, y }, 'failure', error instanceof Error ? error.message : 'Unknown error');
+      throw error;
+    }
+  }
+
+  /**
+   * Update token properties
+   */
+  async updateToken(tokenId: string, updates: any): Promise<any> {
+    this.validateFoundryState();
+
+    // Use permission system
+    const permissionCheck = permissionManager.checkWritePermission('modifyScene', {
+      targetIds: [tokenId],
+    });
+
+    if (!permissionCheck.allowed) {
+      throw new Error(`${ERROR_MESSAGES.ACCESS_DENIED}: ${permissionCheck.reason}`);
+    }
+
+    const scene = (game.scenes as any).current;
+    if (!scene) {
+      throw new Error('No active scene found');
+    }
+
+    const token = scene.tokens.get(tokenId);
+    if (!token) {
+      throw new Error(`Token ${tokenId} not found in current scene`);
+    }
+
+    try {
+      // Filter out undefined values
+      const cleanUpdates = Object.fromEntries(
+        Object.entries(updates).filter(([_, v]) => v !== undefined)
+      );
+
+      await token.update(cleanUpdates);
+
+      this.auditLog('updateToken', { tokenId, updates: cleanUpdates }, 'success');
+
+      return {
+        success: true,
+        tokenId,
+        updated: true,
+      };
+    } catch (error) {
+      this.auditLog('updateToken', { tokenId, updates }, 'failure', error instanceof Error ? error.message : 'Unknown error');
+      throw error;
+    }
+  }
+
+  /**
+   * Delete one or more tokens from the current scene
+   */
+  async deleteTokens(tokenIds: string[]): Promise<any> {
+    this.validateFoundryState();
+
+    // Use permission system
+    const permissionCheck = permissionManager.checkWritePermission('modifyScene', {
+      targetIds: tokenIds,
+    });
+
+    if (!permissionCheck.allowed) {
+      throw new Error(`${ERROR_MESSAGES.ACCESS_DENIED}: ${permissionCheck.reason}`);
+    }
+
+    const scene = (game.scenes as any).current;
+    if (!scene) {
+      throw new Error('No active scene found');
+    }
+
+    const errors: string[] = [];
+    const deletedIds: string[] = [];
+
+    try {
+      for (const tokenId of tokenIds) {
+        try {
+          const token = scene.tokens.get(tokenId);
+          if (!token) {
+            errors.push(`Token ${tokenId} not found`);
+            continue;
+          }
+
+          await token.delete();
+          deletedIds.push(tokenId);
+        } catch (error) {
+          errors.push(`Failed to delete token ${tokenId}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+      }
+
+      this.auditLog('deleteTokens', { tokenIds, deletedCount: deletedIds.length }, 'success');
+
+      return {
+        success: deletedIds.length > 0,
+        deletedCount: deletedIds.length,
+        tokenIds: deletedIds,
+        errors: errors.length > 0 ? errors : undefined,
+      };
+    } catch (error) {
+      this.auditLog('deleteTokens', { tokenIds }, 'failure', error instanceof Error ? error.message : 'Unknown error');
+      throw error;
+    }
+  }
+
+  /**
+   * Get detailed information about a specific token
+   */
+  async getTokenDetails(tokenId: string): Promise<any> {
+    this.validateFoundryState();
+
+    const scene = (game.scenes as any).current;
+    if (!scene) {
+      throw new Error('No active scene found');
+    }
+
+    const token = scene.tokens.get(tokenId);
+    if (!token) {
+      throw new Error(`Token ${tokenId} not found in current scene`);
+    }
+
+    try {
+      const tokenData: any = {
+        id: token.id,
+        name: token.name,
+        x: token.x,
+        y: token.y,
+        width: token.width,
+        height: token.height,
+        rotation: token.rotation || 0,
+        elevation: token.elevation || 0,
+        lockRotation: token.lockRotation || false,
+        scale: token.texture?.scaleX || 1,
+        alpha: token.alpha || 1,
+        hidden: token.hidden,
+        disposition: token.disposition,
+        img: token.texture?.src || '',
+        actorId: token.actorId,
+        actorLink: token.actorLink || false,
+      };
+
+      // Include actor data if linked to an actor
+      if (token.actorId) {
+        const actor = game.actors.get(token.actorId);
+        if (actor) {
+          tokenData.actorData = {
+            name: actor.name,
+            type: actor.type,
+            img: actor.img,
+          };
+
+          // Include active conditions/effects
+          const activeConditions: any[] = [];
+          const statusEffects = (CONFIG as any).statusEffects as any[];
+
+          for (const effect of actor.effects) {
+            // Check if this is a status effect
+            const effectData: any = {
+              id: effect.id,
+              name: (effect as any).name || (effect as any).label,
+              icon: (effect as any).icon,
+              disabled: (effect as any).disabled,
+            };
+
+            // Try to match with known status effects
+            if ((effect as any).statuses) {
+              for (const statusId of (effect as any).statuses) {
+                const matchedEffect = statusEffects.find(se => se.id === statusId);
+                if (matchedEffect) {
+                  effectData.statusId = statusId;
+                  effectData.isStatusEffect = true;
+                  break;
+                }
+              }
+            }
+
+            activeConditions.push(effectData);
+          }
+
+          tokenData.conditions = activeConditions;
+        }
+      }
+
+      this.auditLog('getTokenDetails', { tokenId }, 'success');
+
+      return tokenData;
+    } catch (error) {
+      this.auditLog('getTokenDetails', { tokenId }, 'failure', error instanceof Error ? error.message : 'Unknown error');
+      throw error;
+    }
+  }
+
+  /**
+   * Toggle a status effect/condition on a token
+   */
+  async toggleTokenCondition(tokenId: string, conditionId: string, active?: boolean): Promise<any> {
+    this.validateFoundryState();
+
+    // Use permission system
+    const permissionCheck = permissionManager.checkWritePermission('modifyScene', {
+      targetIds: [tokenId],
+    });
+
+    if (!permissionCheck.allowed) {
+      throw new Error(`${ERROR_MESSAGES.ACCESS_DENIED}: ${permissionCheck.reason}`);
+    }
+
+    const scene = (game.scenes as any).current;
+    if (!scene) {
+      throw new Error('No active scene found');
+    }
+
+    const token = scene.tokens.get(tokenId);
+    if (!token) {
+      throw new Error(`Token ${tokenId} not found in current scene`);
+    }
+
+    try {
+      // Get the actor associated with the token
+      const actor = token.actor;
+      if (!actor) {
+        throw new Error(`No actor associated with token ${tokenId}`);
+      }
+
+      // Find the status effect by ID
+      const statusEffects = (CONFIG as any).statusEffects as any[];
+      const effect = statusEffects.find(e => e.id === conditionId || e._id === conditionId);
+
+      if (!effect) {
+        throw new Error(`Status effect '${conditionId}' not found. Use get-available-conditions to see available effects.`);
+      }
+
+      // Check current state
+      const hasEffect = actor.effects.some((e: any) => {
+        return e.statuses?.has(conditionId) ||
+               e.flags?.core?.statusId === conditionId ||
+               (e.icon === effect.icon && e.name === effect.name);
+      });
+
+      let newState: boolean;
+
+      if (active !== undefined) {
+        // Explicit state requested
+        if (active && !hasEffect) {
+          // Add the effect
+          await actor.toggleStatusEffect(conditionId, { active: true });
+          newState = true;
+        } else if (!active && hasEffect) {
+          // Remove the effect
+          await actor.toggleStatusEffect(conditionId, { active: false });
+          newState = false;
+        } else {
+          // Already in desired state
+          newState = active;
+        }
+      } else {
+        // Toggle current state
+        await actor.toggleStatusEffect(conditionId);
+        newState = !hasEffect;
+      }
+
+      this.auditLog('toggleTokenCondition', { tokenId, conditionId, active, newState }, 'success');
+
+      return {
+        success: true,
+        tokenId,
+        conditionId,
+        isActive: newState,
+        conditionName: effect.name || effect.label || conditionId,
+      };
+
+    } catch (error) {
+      this.auditLog('toggleTokenCondition', { tokenId, conditionId, active }, 'failure',
+        error instanceof Error ? error.message : 'Unknown error');
+      throw error;
+    }
+  }
+
+  /**
+   * Get available status effects/conditions for the current game system
+   */
+  async getAvailableConditions(): Promise<any> {
+    this.validateFoundryState();
+
+    try {
+      const statusEffects = (CONFIG as any).statusEffects as any[];
+
+      const conditions = statusEffects.map(effect => ({
+        id: effect.id || effect._id,
+        name: effect.name || effect.label || effect.id,
+        icon: effect.icon || effect.img,
+        description: effect.description || '',
+      }));
+
+      const gameSystem = (game.system as any).id;
+
+      this.auditLog('getAvailableConditions', {}, 'success');
+
+      return {
+        success: true,
+        conditions,
+        gameSystem,
+      };
+
+    } catch (error) {
+      this.auditLog('getAvailableConditions', {}, 'failure',
+        error instanceof Error ? error.message : 'Unknown error');
+      throw error;
+    }
+  }
+
 }
