@@ -1,6 +1,6 @@
 {
   "name": "foundry-mcp-integration",
-  "version": "0.5.6",
+  "version": "0.6.0",
   "description": "MCP server that bridges Foundry VTT game data with Claude Desktop",
   "private": true,
   "workspaces": [
@@ -21,8 +21,6 @@
     "lint:fix": "eslint . --ext .ts,.js --fix",
     "format": "prettier --write \"**/*.{ts,js,json,md}\"",
     "format:check": "prettier --check \"**/*.{ts,js,json,md}\"",
-    "clean": "npm run clean --workspaces --if-present && rm -rf node_modules",
-    "clean:all": "npm run clean --workspaces --if-present && find . -name '*.tsbuildinfo' -delete && find . -name '*.log' -delete",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "setup-comfyui": "node scripts/setup-comfyui.js",
     "audit:deps": "npm audit && npm run audit --workspaces --if-present",

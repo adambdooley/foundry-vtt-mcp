@@ -1,19 +1,35 @@
 import { z } from 'zod';
 import { FoundryClient } from '../foundry-client.js';
 import { Logger } from '../logger.js';
+import { SystemRegistry } from '../systems/system-registry.js';
+import { detectGameSystem, type GameSystem } from '../utils/system-detection.js';
 
 export interface CharacterToolsOptions {
   foundryClient: FoundryClient;
   logger: Logger;
+  systemRegistry?: SystemRegistry;
 }
 
 export class CharacterTools {
   private foundryClient: FoundryClient;
   private logger: Logger;
+  private systemRegistry: SystemRegistry | null;
+  private cachedGameSystem: GameSystem | null = null;
 
-  constructor({ foundryClient, logger }: CharacterToolsOptions) {
+  constructor({ foundryClient, logger, systemRegistry }: CharacterToolsOptions) {
     this.foundryClient = foundryClient;
     this.logger = logger.child({ component: 'CharacterTools' });
+    this.systemRegistry = systemRegistry || null;
+  }
+
+  /**
+   * Get or detect the game system (cached)
+   */
+  private async getGameSystem(): Promise<GameSystem> {
+    if (!this.cachedGameSystem) {
+      this.cachedGameSystem = await detectGameSystem(this.foundryClient, this.logger);
+    }
+    return this.cachedGameSystem;
   }
 
   /**
@@ -66,13 +82,13 @@ export class CharacterTools {
         characterName: identifier,
       });
 
-      this.logger.debug('Successfully retrieved character data', { 
+      this.logger.debug('Successfully retrieved character data', {
         characterId: characterData.id,
-        characterName: characterData.name 
+        characterName: characterData.name
       });
 
       // Format the response for Claude
-      return this.formatCharacterResponse(characterData);
+      return await this.formatCharacterResponse(characterData);
 
     } catch (error) {
       this.logger.error('Failed to get character information', error);
@@ -112,13 +128,13 @@ export class CharacterTools {
     }
   }
 
-  private formatCharacterResponse(characterData: any): any {
+  private async formatCharacterResponse(characterData: any): Promise<any> {
     const response = {
       id: characterData.id,
       name: characterData.name,
       type: characterData.type,
       basicInfo: this.extractBasicInfo(characterData),
-      stats: this.extractStats(characterData),
+      stats: await this.extractStats(characterData),
       items: this.formatItems(characterData.items || []),
       effects: this.formatEffects(characterData.effects || []),
       hasImage: !!characterData.img,
@@ -169,7 +185,23 @@ export class CharacterTools {
     return basicInfo;
   }
 
-  private extractStats(characterData: any): any {
+  private async extractStats(characterData: any): Promise<any> {
+    // Try using system adapter if available
+    if (this.systemRegistry) {
+      try {
+        const gameSystem = await this.getGameSystem();
+        const adapter = this.systemRegistry.getAdapter(gameSystem);
+
+        if (adapter) {
+          this.logger.debug('Using system adapter for character stats extraction', { system: gameSystem });
+          return adapter.extractCharacterStats(characterData);
+        }
+      } catch (error) {
+        this.logger.warn('Failed to use system adapter, falling back to legacy extraction', { error });
+      }
+    }
+
+    // Legacy extraction (backwards compatibility)
     const system = characterData.system || {};
     const stats: any = {};
 

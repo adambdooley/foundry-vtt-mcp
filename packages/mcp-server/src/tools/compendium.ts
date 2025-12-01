@@ -1,22 +1,26 @@
 import { z } from 'zod';
 import { FoundryClient } from '../foundry-client.js';
 import { Logger } from '../logger.js';
+import { SystemRegistry } from '../systems/system-registry.js';
 import { detectGameSystem, getSystemPaths, getCreatureLevel, getCreatureType, hasSpellcasting, formatSystemError, type GameSystem } from '../utils/system-detection.js';
 import { GenericFiltersSchema, describeFilters, type GenericFilters } from '../utils/compendium-filters.js';
 
 export interface CompendiumToolsOptions {
   foundryClient: FoundryClient;
   logger: Logger;
+  systemRegistry?: SystemRegistry;
 }
 
 export class CompendiumTools {
   private foundryClient: FoundryClient;
   private logger: Logger;
+  private systemRegistry: SystemRegistry | null;
   private gameSystem: GameSystem | null = null;
 
-  constructor({ foundryClient, logger }: CompendiumToolsOptions) {
+  constructor({ foundryClient, logger, systemRegistry }: CompendiumToolsOptions) {
     this.foundryClient = foundryClient;
     this.logger = logger.child({ component: 'CompendiumTools' });
+    this.systemRegistry = systemRegistry || null;
   }
 
   /**
