@@ -243,6 +243,15 @@ export class ModuleSettings {
       default: true,
     });
 
+    game.settings.register(this.moduleId, 'allowPlayerAccess', {
+      name: 'Allow Player Access',
+      hint: 'Let non-GM players use the MCP bridge for their own characters (read stats, search items, use items, request rolls). Each player must run their own local MCP server. GM-only operations remain GM-only. Disabled by default.',
+      scope: 'world',
+      config: true,
+      type: Boolean,
+      default: false,
+    });
+
     // ============================================================================
     // SECTION 3: SAFETY CONTROLS - Limits on AI model's Actions
     // ============================================================================
@@ -449,7 +458,7 @@ export class ModuleSettings {
       // Basic Settings
       'enabled', 'serverHost', 'serverPort', 'connectionType',
       // Permissions
-      'allowWriteOperations',
+      'allowWriteOperations', 'allowPlayerAccess',
       // Safety Controls
       'maxActorsPerRequest',
       // Enhanced Creature Index
@@ -563,7 +572,7 @@ export class ModuleSettings {
       // Basic Settings
       'enabled', 'serverHost', 'serverPort', 'connectionType',
       // Permissions
-      'allowWriteOperations',
+      'allowWriteOperations', 'allowPlayerAccess',
       // Safety Controls
       'maxActorsPerRequest',
       // Enhanced Creature Index

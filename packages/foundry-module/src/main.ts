@@ -35,6 +35,20 @@ class FoundryMCPBridge {
   }
 
   /**
+   * Check if the current user is allowed to start the MCP bridge.
+   * GMs are always allowed. Non-GM players are allowed only when the
+   * world setting `allowPlayerAccess` is enabled.
+   */
+  private isUserAllowed(): boolean {
+    if (this.isGMUser()) return true;
+    try {
+      return Boolean(this.settings.getSetting('allowPlayerAccess'));
+    } catch {
+      return false;
+    }
+  }
+
+  /**
    * Initialize the module during Foundry's init hook
    */
   async initialize(): Promise<void> {
@@ -68,8 +82,8 @@ class FoundryMCPBridge {
    */
   async onReady(): Promise<void> {
     try {
-      // SECURITY: Silent GM-only check - non-GM users get no access and no messages
-      if (!this.isGMUser()) {
+      // Gate non-GM users by `allowPlayerAccess`; per-handler tiers in queries.ts enforce actual access
+      if (!this.isUserAllowed()) {
         console.log(`[${MODULE_ID}] Module ready (user access restricted)`);
         return;
       }
@@ -153,9 +167,9 @@ class FoundryMCPBridge {
       throw new Error('Module not initialized');
     }
 
-    // SECURITY: Double-check GM access (safety measure)
-    if (!this.isGMUser()) {
-      console.warn(`[${MODULE_ID}] Attempted to start bridge without GM access`);
+    // Verify user permitted to start bridge (non-GMs need `allowPlayerAccess`)
+    if (!this.isUserAllowed()) {
+      console.warn(`[${MODULE_ID}] Attempted to start bridge without permission`);
       return;
     }
 
@@ -199,7 +213,7 @@ class FoundryMCPBridge {
       if (this.settings.getSetting('enableNotifications')) {
         ui.notifications.info('🔗 MCP Bridge connected successfully');
       }
-      console.log(`[${MODULE_ID}] GM connection established - Bridge active for user: ${game.user?.name}`);
+      console.log(`[${MODULE_ID}] Connection established - Bridge active for user: ${game.user?.name} (${this.isGMUser() ? 'GM' : 'player'})`);
 
     } catch (error) {
       // Log as warning instead of error for initial connection failures

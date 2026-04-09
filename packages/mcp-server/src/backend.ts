@@ -42,6 +42,45 @@ const CONTROL_PORT = 31414;
 
 const LOCK_FILE = path.join(os.tmpdir(), 'foundry-mcp-backend.lock');
 
+// Tools that should only be exposed when the connected Foundry user is a GM.
+// Mirrors the AccessTier.GM_ONLY classification in packages/foundry-module/src/queries.ts.
+const GM_ONLY_TOOLS = new Set<string>([
+  // Actor creation
+  'create-actor-from-compendium',
+  // DSA5 character creation
+  'create-dsa5-character-from-archetype',
+  'list-dsa5-archetypes',
+  // Quest / journal writes
+  'create-quest-journal',
+  'link-quest-to-npc',
+  'update-quest-journal',
+  'search-journals',
+  // Dice rolls (GM requests rolls of players)
+  'request-player-rolls',
+  // Campaign management
+  'create-campaign-dashboard',
+  // Ownership
+  'assign-actor-ownership',
+  'remove-actor-ownership',
+  'list-actor-ownership',
+  // Token writes
+  'move-token',
+  'update-token',
+  'delete-tokens',
+  'toggle-token-condition',
+  // Scene management
+  'list-scenes',
+  'switch-scene',
+  // Map generation
+  'generate-map',
+  'check-map-status',
+  'cancel-map-job',
+  // Mac setup
+  'check-mac-setup-status',
+  'run-mac-setup',
+  'get-mac-setup-progress',
+]);
+
 function getBundledPythonPath(): string {
   // Detect installation directory based on current executable location
   let installDir = path.join(os.homedir(), 'AppData', 'Local', 'FoundryMCPServer');
@@ -1313,9 +1352,34 @@ async function startBackend(): Promise<void> {
 
   ];
 
+  // Cached role of the connected Foundry user. Defaults to non-GM (safer fallback if probe fails).
+  let connectedUserIsGM = false;
+
+  const probeConnectedUserRole = async (): Promise<void> => {
+    try {
+      const info = await foundryClient.query('foundry-mcp-bridge.getCurrentUser', {});
+      if (info && typeof info === 'object' && 'isGM' in info) {
+        connectedUserIsGM = Boolean((info as any).isGM);
+        logger.info('Connected Foundry user role', {
+          name: (info as any).name,
+          isGM: connectedUserIsGM,
+          hasCharacter: Boolean((info as any).hasCharacter),
+        });
+      } else {
+        logger.warn('getCurrentUser query returned unexpected payload, restricting to non-GM access');
+        connectedUserIsGM = false;
+      }
+    } catch (err) {
+      logger.warn('getCurrentUser query failed; restricting to non-GM access', {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      connectedUserIsGM = false;
+    }
+  };
+
   // Start Foundry connector (owns app port 31415)
 
-  foundryClient.connect().catch((e) => {
+  foundryClient.connect().then(() => probeConnectedUserRole()).catch((e) => {
 
     logger.error('Foundry connector failed to start', e);
 
@@ -1381,7 +1445,17 @@ async function startBackend(): Promise<void> {
 
           if (msg.method === 'list_tools') {
 
-            socket.write(JSON.stringify({ id: msg.id, result: { tools: allTools } }) + '\n');
+            // Re-probe on every list_tools so a Foundry reconnect (different user)
+            // is reflected in the next tool list. Cheap (~1ms) and called rarely.
+            if (foundryClient.isReady()) {
+              await probeConnectedUserRole();
+            }
+
+            const toolsToSend = connectedUserIsGM
+              ? allTools
+              : allTools.filter((t) => !GM_ONLY_TOOLS.has(t.name));
+
+            socket.write(JSON.stringify({ id: msg.id, result: { tools: toolsToSend } }) + '\n');
 
             continue;
 

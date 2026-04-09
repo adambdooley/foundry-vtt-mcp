@@ -53,7 +53,7 @@ This project was built with the assistance of Claude Code. If you like this proj
 #### Install the Foundry Module
 1. Open Foundry VTT v13
 2. Select install module in the Foundry Add-ons menu
-2. At the bottom of the window, add the Manifest URL as: https://github.com/adambdooley/foundry-vtt-mcp/blob/master/packages/foundry-module/module.json and click install
+2. At the bottom of the window, add the Manifest URL as: https://raw.githubusercontent.com/adambdooley/foundry-vtt-mcp/master/packages/foundry-module/module.json and click install
 3. Enable "Foundry MCP Bridge" in Module Management
    - **Do not change the module ID or folder name.** The MCP backend and the Claude integration both expect the module to live in a directory called `foundry-mcp-bridge`. Renaming the ID in `module.json` breaks socket routing and stops Claude from seeing the backend.
 

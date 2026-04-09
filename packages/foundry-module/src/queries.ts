@@ -2,6 +2,61 @@ import { MODULE_ID } from './constants.js';
 import { FoundryDataAccess } from './data-access.js';
 import { ComfyUIManager } from './comfyui-manager.js';
 
+/**
+ * Per-handler permission tiers. Every handler is tagged with exactly one tier.
+ *
+ * - PUBLIC: any connected user can call (e.g. ping, world info, compendium reads).
+ * - PLAYER_READ: any user; the underlying Foundry collection is already
+ *   filtered per-user (player clients only see actors/journals they have
+ *   ≥LIMITED on), so the listing is naturally scoped.
+ * - PLAYER_OWNED: any user, but the targeted actor must pass
+ *   testUserPermission(user, OBSERVER) for reads or OWNER for writes.
+ *   GMs always pass.
+ * - GM_ONLY: requires game.user.isGM. This is the safe default for any
+ *   newly added handler that hasn't been classified yet.
+ */
+enum AccessTier {
+  PUBLIC,
+  PLAYER_READ,
+  PLAYER_OWNED,
+  GM_ONLY,
+}
+
+interface AccessCheck {
+  allowed: boolean;
+  error?: string;
+}
+
+type HandlerError = { error: string | undefined; success: false };
+type HandlerResult<T> = T | HandlerError;
+
+type ActorInfo = {
+  id: string;
+  name: string;
+  type: string;
+  img?: string;
+};
+
+type ActorListResult = HandlerResult<ActorInfo[]>;
+
+type CurrentUserInfo = {
+  success: true;
+  userId: string | null;
+  name: string | null;
+  isGM: boolean;
+  hasCharacter: boolean;
+  characterId: string | null;
+  characterName: string | null;
+};
+
+type JournalEntryInfo = {
+  id: string;
+  name: string;
+  type: string;
+  pageCount: number;
+  pages: Array<{ id: string; name: string; type: string }>;
+};
+
 export class QueryHandlers {
   public dataAccess: FoundryDataAccess;
   private comfyuiManager: ComfyUIManager;
@@ -12,14 +67,86 @@ export class QueryHandlers {
   }
 
   /**
-   * SECURITY: Validate GM access - returns silent failure for non-GM users
+   * Validate access for a handler call based on its declared tier.
+   *
+   * For PLAYER_OWNED, pass the resolved Actor and `write=true` for mutating
+   * operations. The caller is responsible for resolving the actor first
+   * (typically via findActorLocal).
    */
-  private validateGMAccess(): { allowed: boolean; error?: any } {
-    if (!game.user?.isGM) {
-      // Silent failure - no error message for non-GM users
-      return { allowed: false };
+  private validateAccess(tier: AccessTier, ownedActor?: any, write = false): AccessCheck {
+    if (!game.user) {
+      return { allowed: false, error: 'No user context' };
+    }
+    if (tier === AccessTier.GM_ONLY && !game.user.isGM) {
+      return { allowed: false, error: 'Access denied: GM only' };
+    }
+    if (tier === AccessTier.PLAYER_OWNED && ownedActor && !game.user.isGM) {
+      const required = write ? 'OWNER' : 'OBSERVER';
+      try {
+        if (!ownedActor.testUserPermission(game.user, required)) {
+          return {
+            allowed: false,
+            error: `Access denied: you do not ${write ? 'own' : 'observe'} this actor`,
+          };
+        }
+      } catch {
+        return { allowed: false, error: 'Access denied: permission check failed' };
+      }
     }
     return { allowed: true };
+  }
+
+  /**
+   * Mirror of FoundryDataAccess.findActorByIdentifier (which is private and
+   * we cannot touch per project policy). Resolves an identifier (id, exact
+   * name, or partial name) into an Actor without modifying data-access.ts.
+   */
+  private findActorLocal(identifier: string): any {
+    if (!identifier) return null;
+    return (
+      game.actors?.get(identifier) ||
+      game.actors?.getName(identifier) ||
+      Array.from(game.actors || []).find((a: any) =>
+        a.name?.toLowerCase().includes(identifier.toLowerCase()),
+      )
+    );
+  }
+
+  /** Visible compendium pack IDs: all for GMs, non-private for players. */
+  private getVisiblePackIds(): Set<string> {
+    const allowed = new Set<string>();
+    for (const pack of game.packs.values()) {
+      if (!pack.private || game.user?.isGM) {
+        allowed.add(pack.collection);
+      }
+    }
+    return allowed;
+  }
+
+  /**
+   * Resolve "@self" / "@me" to the current user's assigned character.
+   * Falls back to the first character-type actor the current user owns.
+   * All other identifiers pass through unchanged. Throws if @self can't be resolved.
+   */
+  private resolveIdentifier(identifier: string): string {
+    if (!identifier) return identifier;
+    const lower = identifier.toLowerCase();
+    if (lower !== '@self' && lower !== '@me') return identifier;
+
+    const assigned = (game.users as any)?.current?.character;
+    if (assigned?.id) return assigned.id;
+
+    const owned = Array.from(game.actors || []).find((a: Actor) => {
+      if (a.type !== 'character') return false;
+      try {
+        return Boolean(game.user && a.testUserPermission(game.user as User, 'OWNER'));
+      } catch {
+        return false;
+      }
+    });
+    if (owned?.id) return owned.id;
+
+    throw new Error('@self requires an assigned player character');
   }
 
   /**
@@ -47,6 +174,7 @@ export class QueryHandlers {
 
     // Utility queries
     CONFIG.queries[`${modulePrefix}.ping`] = this.handlePing.bind(this);
+    CONFIG.queries[`${modulePrefix}.getCurrentUser`] = this.handleGetCurrentUser.bind(this);
 
     // Phase 2 & 3: Write operation queries
     CONFIG.queries[`${modulePrefix}.createActorFromCompendium`] = this.handleCreateActorFromCompendium.bind(this);
@@ -146,17 +274,24 @@ export class QueryHandlers {
    */
   private async handleGetCharacterInfo(data: { characterName?: string; characterId?: string }): Promise<any> {
     try {
-      // SECURITY: Silent GM validation
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
-      }
-
       this.dataAccess.validateFoundryState();
 
-      const identifier = data.characterName || data.characterId;
-      if (!identifier) {
+      const rawIdentifier = data.characterName || data.characterId;
+      if (!rawIdentifier) {
         throw new Error('characterName or characterId is required');
+      }
+
+      const identifier = this.resolveIdentifier(rawIdentifier);
+      const actor = this.findActorLocal(identifier);
+
+      // For non-GMs, collapse "not found" and "access denied" into the same
+      // response so a player can't enumerate hidden actors by probing names.
+      if (!actor || !this.validateAccess(AccessTier.PLAYER_OWNED, actor, false).allowed) {
+        if (game.user?.isGM) {
+          if (!actor) throw new Error(`Character not found: ${identifier}`);
+          return { error: 'Access denied', success: false };
+        }
+        return { error: 'Access denied: character not found or not observable', success: false };
       }
 
       return await this.dataAccess.getCharacterInfo(identifier);
@@ -168,18 +303,33 @@ export class QueryHandlers {
   /**
    * Handle list actors request
    */
-  private async handleListActors(data: { type?: string }): Promise<any> {
+  private async handleListActors(data: { type?: string }): Promise<ActorListResult> {
     try {
-      // SECURITY: Silent GM validation
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
+      const check = this.validateAccess(AccessTier.PLAYER_READ);
+      if (!check.allowed) {
+        return { error: check.error, success: false };
       }
 
       this.dataAccess.validateFoundryState();
 
-      const actors = await this.dataAccess.listActors();
-      
+      let actors = await this.dataAccess.listActors();
+
+      // For non-GM users, filter to actors they have at least OBSERVER on.
+      // The data-access listActors() ignores user permissions, so we apply
+      // the player-scope filter at the handler boundary instead of touching
+      // data-access.ts.
+      if (!game.user?.isGM) {
+        actors = actors.filter((entry: { id: string }) => {
+          const actor = game.actors?.get(entry.id);
+          if (!actor) return false;
+          try {
+            return actor.testUserPermission(game.user as User, 'OBSERVER');
+          } catch {
+            return false;
+          }
+        });
+      }
+
       // Filter by type if specified
       if (data.type) {
         return actors.filter(actor => actor.type === data.type);
@@ -207,10 +357,9 @@ export class QueryHandlers {
     }
   }): Promise<any> {
     try {
-      // SECURITY: Silent GM validation
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
+      const check = this.validateAccess(AccessTier.PUBLIC);
+      if (!check.allowed) {
+        return { error: check.error, success: false };
       }
 
       this.dataAccess.validateFoundryState();
@@ -224,8 +373,9 @@ export class QueryHandlers {
         throw new Error('query parameter is required and must be a string');
       }
 
-
-      return await this.dataAccess.searchCompendium(data.query, data.packType, data.filters);
+      const results = await this.dataAccess.searchCompendium(data.query, data.packType, data.filters);
+      const visible = this.getVisiblePackIds();
+      return Array.isArray(results) ? results.filter((r: any) => visible.has(r.pack)) : results;
     } catch (error) {
       throw new Error(`Failed to search compendium: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
@@ -243,17 +393,19 @@ export class QueryHandlers {
     limit?: number;
   }): Promise<any> {
     try {
-      // SECURITY: Silent GM validation
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
+      const check = this.validateAccess(AccessTier.PUBLIC);
+      if (!check.allowed) {
+        return { error: check.error, success: false };
       }
 
       this.dataAccess.validateFoundryState();
 
-
       const result = await this.dataAccess.listCreaturesByCriteria(data);
-      
+      const visible = this.getVisiblePackIds();
+      if (result?.creatures) {
+        result.creatures = result.creatures.filter((c: any) => visible.has(c.pack));
+      }
+
       // Handle the new format with search summary
       return {
         response: result
@@ -268,14 +420,15 @@ export class QueryHandlers {
    */
   private async handleGetAvailablePacks(): Promise<any> {
     try {
-      // SECURITY: Silent GM validation
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
+      const check = this.validateAccess(AccessTier.PUBLIC);
+      if (!check.allowed) {
+        return { error: check.error, success: false };
       }
 
       this.dataAccess.validateFoundryState();
-      return await this.dataAccess.getAvailablePacks();
+      const packs = await this.dataAccess.getAvailablePacks();
+      const visible = this.getVisiblePackIds();
+      return packs.filter((p: any) => visible.has(p.id));
     } catch (error) {
       throw new Error(`Failed to get available packs: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
@@ -286,10 +439,9 @@ export class QueryHandlers {
    */
   private async handleGetActiveScene(): Promise<any> {
     try {
-      // SECURITY: Silent GM validation
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
+      const check = this.validateAccess(AccessTier.PUBLIC);
+      if (!check.allowed) {
+        return { error: check.error, success: false };
       }
 
       this.dataAccess.validateFoundryState();
@@ -304,10 +456,9 @@ export class QueryHandlers {
    */
   private async handleGetWorldInfo(): Promise<any> {
     try {
-      // SECURITY: Silent GM validation
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
+      const check = this.validateAccess(AccessTier.PUBLIC);
+      if (!check.allowed) {
+        return { error: check.error, success: false };
       }
 
       this.dataAccess.validateFoundryState();
@@ -328,6 +479,26 @@ export class QueryHandlers {
       foundryVersion: game.version,
       worldId: game.world?.id,
       userId: game.user?.id,
+    };
+  }
+
+  /** Get current user info; MCP server uses this to filter GM-only tools. */
+  private async handleGetCurrentUser(): Promise<HandlerResult<CurrentUserInfo>> {
+    const check = this.validateAccess(AccessTier.PUBLIC);
+    if (!check.allowed || !game.user) {
+      return { error: check.error || 'No user context available', success: false };
+    }
+
+    const user = game.user as User;
+    const character = user.character;
+    return {
+      success: true,
+      userId: user.id,
+      name: user.name,
+      isGM: user.isGM,
+      hasCharacter: Boolean(character),
+      characterId: character?.id || null,
+      characterName: character?.name || null,
     };
   }
 
@@ -366,10 +537,9 @@ export class QueryHandlers {
     } | undefined;
   }): Promise<any> {
     try {
-      // SECURITY: Silent GM validation
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
+      const check = this.validateAccess(AccessTier.GM_ONLY);
+      if (!check.allowed) {
+        return { error: check.error, success: false };
       }
 
       this.dataAccess.validateFoundryState();
@@ -401,10 +571,9 @@ export class QueryHandlers {
     documentId: string;
   }): Promise<any> {
     try {
-      // SECURITY: Silent GM validation
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
+      const check = this.validateAccess(AccessTier.PUBLIC);
+      if (!check.allowed) {
+        return { error: check.error, success: false };
       }
 
       this.dataAccess.validateFoundryState();
@@ -415,6 +584,11 @@ export class QueryHandlers {
 
       if (!data.documentId) {
         throw new Error('documentId is required');
+      }
+
+      const visible = this.getVisiblePackIds();
+      if (!visible.has(data.packId)) {
+        return { error: 'Access denied: pack not visible to this user', success: false };
       }
 
       return await this.dataAccess.getCompendiumDocumentFull(data.packId, data.documentId);
@@ -432,10 +606,9 @@ export class QueryHandlers {
     hidden?: boolean;
   }): Promise<any> {
     try {
-      // SECURITY: Silent GM validation
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
+      const check = this.validateAccess(AccessTier.GM_ONLY);
+      if (!check.allowed) {
+        return { error: check.error, success: false };
       }
 
       this.dataAccess.validateFoundryState();
@@ -461,10 +634,9 @@ export class QueryHandlers {
     operation: 'createActor' | 'modifyScene';
   }): Promise<any> {
     try {
-      // SECURITY: Silent GM validation
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
+      const check = this.validateAccess(AccessTier.GM_ONLY);
+      if (!check.allowed) {
+        return { error: check.error, success: false };
       }
 
       this.dataAccess.validateFoundryState();
@@ -484,10 +656,9 @@ export class QueryHandlers {
    */
   async handleCreateJournalEntry(data: any): Promise<any> {
     try {
-      // SECURITY: Silent GM validation
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
+      const check = this.validateAccess(AccessTier.GM_ONLY);
+      if (!check.allowed) {
+        return { error: check.error, success: false };
       }
 
       if (!data.name) {
@@ -512,14 +683,29 @@ export class QueryHandlers {
    */
   async handleListJournals(): Promise<any> {
     try {
-      // SECURITY: Silent GM validation
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
+      const check = this.validateAccess(AccessTier.PLAYER_READ);
+      if (!check.allowed) {
+        return { error: check.error, success: false };
       }
 
       this.dataAccess.validateFoundryState();
-      return await this.dataAccess.listJournals();
+      const journals = await this.dataAccess.listJournals();
+
+      // For non-GM users, filter to journals they have at least LIMITED on.
+      // Filter at the handler boundary to keep data-access.ts unchanged.
+      if (!game.user?.isGM && Array.isArray(journals)) {
+        return journals.filter((entry: JournalEntryInfo) => {
+          const doc = game.journal?.get(entry.id) as JournalEntry | undefined;
+          if (!doc) return false;
+          try {
+            return doc.testUserPermission(game.user as User, 'LIMITED');
+          } catch {
+            return false;
+          }
+        });
+      }
+
+      return journals;
     } catch (error) {
       throw new Error(`Failed to list journals: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
@@ -530,16 +716,30 @@ export class QueryHandlers {
    */
   async handleGetJournalContent(data: { journalId: string }): Promise<any> {
     try {
-      // SECURITY: Silent GM validation
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
+      const check = this.validateAccess(AccessTier.PLAYER_READ);
+      if (!check.allowed) {
+        return { error: check.error, success: false };
       }
 
       this.dataAccess.validateFoundryState();
 
       if (!data.journalId) {
         throw new Error('journalId is required');
+      }
+
+      // Per-document permission check for non-GMs.
+      if (!game.user?.isGM) {
+        const doc = game.journal?.get(data.journalId) as JournalEntry | undefined;
+        if (!doc) {
+          return { error: 'Access denied: journal not found', success: false };
+        }
+        try {
+          if (!doc.testUserPermission(game.user as User, 'OBSERVER')) {
+            return { error: 'Access denied: you do not observe this journal', success: false };
+          }
+        } catch {
+          return { error: 'Access denied: permission check failed', success: false };
+        }
       }
 
       return await this.dataAccess.getJournalContent(data.journalId);
@@ -553,10 +753,9 @@ export class QueryHandlers {
    */
   async handleGetJournalPageContent(data: { journalId: string; pageId: string }): Promise<any> {
     try {
-      // SECURITY: Silent GM validation
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
+      const check = this.validateAccess(AccessTier.PLAYER_READ);
+      if (!check.allowed) {
+        return { error: check.error, success: false };
       }
 
       this.dataAccess.validateFoundryState();
@@ -566,6 +765,21 @@ export class QueryHandlers {
       }
       if (!data.pageId) {
         throw new Error('pageId is required');
+      }
+
+      // Per-document permission check for non-GMs.
+      if (!game.user?.isGM) {
+        const doc = game.journal?.get(data.journalId) as JournalEntry | undefined;
+        if (!doc) {
+          return { error: 'Access denied: journal not found', success: false };
+        }
+        try {
+          if (!doc.testUserPermission(game.user as User, 'OBSERVER')) {
+            return { error: 'Access denied: you do not observe this journal', success: false };
+          }
+        } catch {
+          return { error: 'Access denied: permission check failed', success: false };
+        }
       }
 
       return await this.dataAccess.getJournalPageContent(data.journalId, data.pageId);
@@ -579,10 +793,9 @@ export class QueryHandlers {
    */
   async handleUpdateJournalContent(data: { journalId: string; content: string; pageId?: string; newPageName?: string }): Promise<any> {
     try {
-      // SECURITY: Silent GM validation
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
+      const check = this.validateAccess(AccessTier.GM_ONLY);
+      if (!check.allowed) {
+        return { error: check.error, success: false };
       }
 
       this.dataAccess.validateFoundryState();
@@ -619,10 +832,10 @@ export class QueryHandlers {
     flavor: string;
   }): Promise<any> {
     try {
-      // SECURITY: Silent GM validation
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
+      // GM_ONLY: for GMs to request rolls from players.
+      const check = this.validateAccess(AccessTier.GM_ONLY);
+      if (!check.allowed) {
+        return { error: check.error, success: false };
       }
 
       this.dataAccess.validateFoundryState();
@@ -642,10 +855,9 @@ export class QueryHandlers {
    */
   async handleGetEnhancedCreatureIndex(): Promise<any> {
     try {
-      // SECURITY: Silent GM validation
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
+      const check = this.validateAccess(AccessTier.GM_ONLY);
+      if (!check.allowed) {
+        return { error: check.error, success: false };
       }
 
       this.dataAccess.validateFoundryState();
@@ -661,10 +873,9 @@ export class QueryHandlers {
    */
   async handleUpdateCampaignProgress(data: { campaignId: string; partId: string; newStatus: string }): Promise<any> {
     try {
-      // SECURITY: Silent GM validation
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
+      const check = this.validateAccess(AccessTier.GM_ONLY);
+      if (!check.allowed) {
+        return { error: check.error, success: false };
       }
 
       this.dataAccess.validateFoundryState();
@@ -692,10 +903,9 @@ export class QueryHandlers {
    */
   async handleSetActorOwnership(data: any): Promise<any> {
     try {
-      // SECURITY: Silent GM validation
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
+      const check = this.validateAccess(AccessTier.GM_ONLY);
+      if (!check.allowed) {
+        return { error: check.error, success: false };
       }
 
       this.dataAccess.validateFoundryState();
@@ -715,10 +925,9 @@ export class QueryHandlers {
    */
   async handleGetActorOwnership(data: any): Promise<any> {
     try {
-      // SECURITY: Silent GM validation
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
+      const check = this.validateAccess(AccessTier.GM_ONLY);
+      if (!check.allowed) {
+        return { error: check.error, success: false };
       }
 
       this.dataAccess.validateFoundryState();
@@ -734,10 +943,9 @@ export class QueryHandlers {
    */
   async handleGetFriendlyNPCs(): Promise<any> {
     try {
-      // SECURITY: Silent GM validation
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
+      const check = this.validateAccess(AccessTier.GM_ONLY);
+      if (!check.allowed) {
+        return { error: check.error, success: false };
       }
 
       this.dataAccess.validateFoundryState();
@@ -753,10 +961,9 @@ export class QueryHandlers {
    */
   async handleGetPartyCharacters(): Promise<any> {
     try {
-      // SECURITY: Silent GM validation
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
+      const check = this.validateAccess(AccessTier.GM_ONLY);
+      if (!check.allowed) {
+        return { error: check.error, success: false };
       }
 
       this.dataAccess.validateFoundryState();
@@ -772,10 +979,9 @@ export class QueryHandlers {
    */
   async handleGetConnectedPlayers(): Promise<any> {
     try {
-      // SECURITY: Silent GM validation
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
+      const check = this.validateAccess(AccessTier.GM_ONLY);
+      if (!check.allowed) {
+        return { error: check.error, success: false };
       }
 
       this.dataAccess.validateFoundryState();
@@ -791,10 +997,9 @@ export class QueryHandlers {
    */
   async handleFindPlayers(data: any): Promise<any> {
     try {
-      // SECURITY: Silent GM validation
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
+      const check = this.validateAccess(AccessTier.GM_ONLY);
+      if (!check.allowed) {
+        return { error: check.error, success: false };
       }
 
       this.dataAccess.validateFoundryState();
@@ -814,19 +1019,23 @@ export class QueryHandlers {
    */
   async handleFindActor(data: any): Promise<any> {
     try {
-      // SECURITY: Silent GM validation
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
-      }
-
       this.dataAccess.validateFoundryState();
 
       if (!data.identifier) {
         throw new Error('identifier is required');
       }
 
-      return await this.dataAccess.findActor(data);
+      const resolved = this.resolveIdentifier(data.identifier);
+      const actor = this.findActorLocal(resolved);
+
+      if (!actor || !this.validateAccess(AccessTier.PLAYER_OWNED, actor, false).allowed) {
+        if (game.user?.isGM && !actor) {
+          return { error: `Actor not found: ${resolved}`, success: false };
+        }
+        return { error: 'Access denied: actor not found or not observable', success: false };
+      }
+
+      return await this.dataAccess.findActor({ ...data, identifier: resolved });
     } catch (error) {
       throw new Error(`Failed to find actor: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
@@ -837,10 +1046,9 @@ export class QueryHandlers {
    */
   private async handleListScenes(data: any): Promise<any> {
     try {
-      // SECURITY: Silent GM validation
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
+      const check = this.validateAccess(AccessTier.GM_ONLY);
+      if (!check.allowed) {
+        return { error: check.error, success: false };
       }
 
       this.dataAccess.validateFoundryState();
@@ -855,10 +1063,9 @@ export class QueryHandlers {
    */
   private async handleSwitchScene(data: any): Promise<any> {
     try {
-      // SECURITY: Silent GM validation
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
+      const check = this.validateAccess(AccessTier.GM_ONLY);
+      if (!check.allowed) {
+        return { error: check.error, success: false };
       }
 
       this.dataAccess.validateFoundryState();
@@ -878,10 +1085,9 @@ export class QueryHandlers {
    */
   private async handleGenerateMap(data: any): Promise<any> {
     try {
-      // SECURITY: Silent GM validation
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
+      const check = this.validateAccess(AccessTier.GM_ONLY);
+      if (!check.allowed) {
+        return { error: check.error, success: false };
       }
 
       if (!data.prompt || typeof data.prompt !== 'string') {
@@ -937,10 +1143,9 @@ export class QueryHandlers {
    */
   private async handleCheckMapStatus(data: any): Promise<any> {
     try {
-      // SECURITY: Silent GM validation
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
+      const check = this.validateAccess(AccessTier.GM_ONLY);
+      if (!check.allowed) {
+        return { error: check.error, success: false };
       }
 
       if (!data.job_id) {
@@ -979,10 +1184,9 @@ export class QueryHandlers {
    */
   private async handleCancelMapJob(data: any): Promise<any> {
     try {
-      // SECURITY: Silent GM validation
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
+      const check = this.validateAccess(AccessTier.GM_ONLY);
+      if (!check.allowed) {
+        return { error: check.error, success: false };
       }
 
       if (!data.job_id) {
@@ -1028,11 +1232,10 @@ export class QueryHandlers {
     });
 
     try {
-      // SECURITY: Silent GM validation
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
+      const check = this.validateAccess(AccessTier.GM_ONLY);
+      if (!check.allowed) {
         console.error(`[${MODULE_ID}] Upload denied - not GM`);
-        return { error: 'Access denied', success: false };
+        return { error: check.error, success: false };
       }
 
       if (!data.filename || typeof data.filename !== 'string') {
@@ -1136,10 +1339,9 @@ export class QueryHandlers {
     animate?: boolean
   }): Promise<any> {
     try {
-      // SECURITY: Silent GM validation
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
+      const check = this.validateAccess(AccessTier.GM_ONLY);
+      if (!check.allowed) {
+        return { error: check.error, success: false };
       }
 
       this.dataAccess.validateFoundryState();
@@ -1165,10 +1367,9 @@ export class QueryHandlers {
     updates: Record<string, any>
   }): Promise<any> {
     try {
-      // SECURITY: Silent GM validation
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
+      const check = this.validateAccess(AccessTier.GM_ONLY);
+      if (!check.allowed) {
+        return { error: check.error, success: false };
       }
 
       this.dataAccess.validateFoundryState();
@@ -1191,10 +1392,9 @@ export class QueryHandlers {
    */
   private async handleDeleteTokens(data: { tokenIds: string[] }): Promise<any> {
     try {
-      // SECURITY: Silent GM validation
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
+      const check = this.validateAccess(AccessTier.GM_ONLY);
+      if (!check.allowed) {
+        return { error: check.error, success: false };
       }
 
       this.dataAccess.validateFoundryState();
@@ -1214,16 +1414,24 @@ export class QueryHandlers {
    */
   private async handleGetTokenDetails(data: { tokenId: string }): Promise<any> {
     try {
-      // SECURITY: Silent GM validation
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
-      }
-
       this.dataAccess.validateFoundryState();
 
       if (!data.tokenId) {
         throw new Error('tokenId is required');
+      }
+
+      // For non-GMs: only allow reading details of tokens whose linked
+      // actor the user has at least OBSERVER on. The token must live on
+      // the active scene (data-access.getTokenDetails uses the active
+      // scene), so we resolve via canvas.scene first.
+      if (!game.user?.isGM) {
+        const scene = canvas?.scene as Scene | null | undefined;
+        const tokenDoc = scene?.tokens?.get(data.tokenId) as TokenDocument | undefined;
+        const actor = tokenDoc?.actor as Actor | undefined;
+        const ownedCheck = this.validateAccess(AccessTier.PLAYER_OWNED, actor, false);
+        if (!ownedCheck.allowed) {
+          return { error: ownedCheck.error, success: false };
+        }
       }
 
       return await this.dataAccess.getTokenDetails(data);
@@ -1241,10 +1449,9 @@ export class QueryHandlers {
     active: boolean
   }): Promise<any> {
     try {
-      // SECURITY: Silent GM validation
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
+      const check = this.validateAccess(AccessTier.GM_ONLY);
+      if (!check.allowed) {
+        return { error: check.error, success: false };
       }
 
       this.dataAccess.validateFoundryState();
@@ -1270,10 +1477,9 @@ export class QueryHandlers {
    */
   private async handleGetAvailableConditions(): Promise<any> {
     try {
-      // SECURITY: Silent GM validation
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
+      const check = this.validateAccess(AccessTier.PUBLIC);
+      if (!check.allowed) {
+        return { error: check.error, success: false };
       }
 
       this.dataAccess.validateFoundryState();
@@ -1299,12 +1505,6 @@ export class QueryHandlers {
     };
   }): Promise<any> {
     try {
-      // SECURITY: Silent GM validation
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
-      }
-
       this.dataAccess.validateFoundryState();
 
       if (!data.actorIdentifier) {
@@ -1314,8 +1514,21 @@ export class QueryHandlers {
         throw new Error('itemIdentifier is required');
       }
 
+      const resolvedActorId = this.resolveIdentifier(data.actorIdentifier);
+      const actor = this.findActorLocal(resolvedActorId);
+      if (!actor) {
+        return { error: `Actor not found: ${resolvedActorId}`, success: false };
+      }
+
+      // useItem mutates actor state (consumes uses, casts spells, etc.) so
+      // require OWNER permission, not just OBSERVER.
+      const check = this.validateAccess(AccessTier.PLAYER_OWNED, actor, true);
+      if (!check.allowed) {
+        return { error: check.error, success: false };
+      }
+
       return await this.dataAccess.useItem({
-        actorIdentifier: data.actorIdentifier,
+        actorIdentifier: resolvedActorId,
         itemIdentifier: data.itemIdentifier,
         targets: data.targets,
         options: data.options,
@@ -1336,20 +1549,25 @@ export class QueryHandlers {
     limit?: number;
   }): Promise<any> {
     try {
-      // SECURITY: Silent GM validation
-      const gmCheck = this.validateGMAccess();
-      if (!gmCheck.allowed) {
-        return { error: 'Access denied', success: false };
-      }
-
       this.dataAccess.validateFoundryState();
 
       if (!data.characterIdentifier) {
         throw new Error('characterIdentifier is required');
       }
 
+      const resolvedActorId = this.resolveIdentifier(data.characterIdentifier);
+      const actor = this.findActorLocal(resolvedActorId);
+      if (!actor) {
+        return { error: `Character not found: ${resolvedActorId}`, success: false };
+      }
+
+      const check = this.validateAccess(AccessTier.PLAYER_OWNED, actor, false);
+      if (!check.allowed) {
+        return { error: check.error, success: false };
+      }
+
       return await this.dataAccess.searchCharacterItems({
-        characterIdentifier: data.characterIdentifier,
+        characterIdentifier: resolvedActorId,
         query: data.query,
         type: data.type,
         category: data.category,

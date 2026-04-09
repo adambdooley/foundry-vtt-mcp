@@ -46,7 +46,7 @@ export class CharacterTools {
           properties: {
             identifier: {
               type: 'string',
-              description: 'Character name or ID to look up',
+              description: 'Character identifier: name or ID, or use "@self"/"@me" to refer to your assigned character.',
             },
           },
           required: ['identifier'],
@@ -60,7 +60,7 @@ export class CharacterTools {
           properties: {
             characterIdentifier: {
               type: 'string',
-              description: 'Character name or ID',
+              description: 'Character identifier: name or ID, or use "@self"/"@me" to refer to your assigned character.',
             },
             entityIdentifier: {
               type: 'string',
@@ -91,7 +91,7 @@ export class CharacterTools {
           properties: {
             actorIdentifier: {
               type: 'string',
-              description: 'Character using the item (name or ID)',
+              description: 'Character identifier: name or ID, or use "@self"/"@me" to refer to your assigned character.',
             },
             itemIdentifier: {
               type: 'string',
@@ -122,7 +122,7 @@ export class CharacterTools {
           properties: {
             characterIdentifier: {
               type: 'string',
-              description: 'Character name or ID to search within',
+              description: 'Character identifier: name or ID, or use "@self"/"@me" to refer to your assigned character.',
             },
             query: {
               type: 'string',
@@ -161,6 +161,10 @@ export class CharacterTools {
         characterName: identifier,
       });
 
+      if (characterData?.success === false) {
+        throw new Error(characterData.error || 'Access denied');
+      }
+
       this.logger.debug('Successfully retrieved character data', {
         characterId: characterData.id,
         characterName: characterData.name
@@ -190,6 +194,10 @@ export class CharacterTools {
       const characterData = await this.foundryClient.query('foundry-mcp-bridge.getCharacterInfo', {
         characterName: characterIdentifier,
       });
+
+      if (characterData?.success === false) {
+        throw new Error(characterData.error || 'Access denied');
+      }
 
       // Try to find the entity in different collections
       let entity = null;
@@ -342,6 +350,10 @@ export class CharacterTools {
         },
       });
 
+      if (result?.success === false) {
+        throw new Error(result.error || 'Access denied');
+      }
+
       this.logger.debug('Successfully used item', {
         actorName: result.actorName,
         itemName: result.itemName,
@@ -377,6 +389,10 @@ export class CharacterTools {
         category,
         limit: limit ?? 20,
       });
+
+      if (result?.success === false) {
+        throw new Error(result.error || 'Access denied');
+      }
 
       this.logger.debug('Successfully searched character items', {
         characterName: result.characterName,
