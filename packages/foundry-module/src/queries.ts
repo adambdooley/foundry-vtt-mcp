@@ -66,32 +66,44 @@ export class QueryHandlers {
     this.comfyuiManager = new ComfyUIManager();
   }
 
-  /**
-   * Validate access for a handler call based on its declared tier.
-   *
-   * For PLAYER_OWNED, pass the resolved Actor and `write=true` for mutating
-   * operations. The caller is responsible for resolving the actor first
-   * (typically via findActorLocal).
-   */
+  /** Check access tier. For PLAYER_OWNED, pass the actor and write flag. */
   private validateAccess(tier: AccessTier, ownedActor?: any, write = false): AccessCheck {
-    if (!game.user) {
+    const currentUser = game.user as User | undefined;
+    if (!currentUser) {
       return { allowed: false, error: 'No user context' };
     }
-    if (tier === AccessTier.GM_ONLY && !game.user.isGM) {
+
+    // GMs passes all checks
+    if (currentUser.isGM) {
+      return { allowed: true };
+    }
+
+    if (tier === AccessTier.GM_ONLY) {
       return { allowed: false, error: 'Access denied: GM only' };
     }
-    if (tier === AccessTier.PLAYER_OWNED && ownedActor && !game.user.isGM) {
-      const required = write ? 'OWNER' : 'OBSERVER';
-      try {
-        if (!ownedActor.testUserPermission(game.user, required)) {
-          return {
-            allowed: false,
-            error: `Access denied: you do not ${write ? 'own' : 'observe'} this actor`,
-          };
-        }
-      } catch {
-        return { allowed: false, error: 'Access denied: permission check failed' };
+
+    if (tier === AccessTier.PLAYER_OWNED && ownedActor) {
+      return this.validateActorAccess(ownedActor, write);
+    }
+
+    return { allowed: true };
+  }
+
+  private validateActorAccess(actor: any, write: boolean): AccessCheck {
+    const currentUser = game.user as User | undefined;
+    if (!currentUser) {
+      return { allowed: false, error: 'No user context' };
+    }
+    const required = write ? 'OWNER' : 'OBSERVER';
+    try {
+      if (!actor.testUserPermission(currentUser, required)) {
+        return {
+          allowed: false,
+          error: `Access denied: you do not ${write ? 'own' : 'observe'} this actor`,
+        };
       }
+    } catch {
+      return { allowed: false, error: 'Access denied: permission check failed' };
     }
     return { allowed: true };
   }
@@ -101,14 +113,19 @@ export class QueryHandlers {
    * we cannot touch per project policy). Resolves an identifier (id, exact
    * name, or partial name) into an Actor without modifying data-access.ts.
    */
-  private findActorLocal(identifier: string): any {
+  private findActorLocal(identifier: string): Actor | null {
     if (!identifier) return null;
+    
+    const actors = game.actors as Collection<Actor> | undefined;
+    if (!actors) return null;
+
+    const actor = actors.get(identifier) || actors.getName(identifier);
+    if (actor) return actor;
+
     return (
-      game.actors?.get(identifier) ||
-      game.actors?.getName(identifier) ||
-      Array.from(game.actors || []).find((a: any) =>
+      Array.from(actors).find((a: Actor) =>
         a.name?.toLowerCase().includes(identifier.toLowerCase()),
-      )
+      ) || null
     );
   }
 
@@ -126,27 +143,34 @@ export class QueryHandlers {
   /**
    * Resolve "@self" / "@me" to the current user's assigned character.
    * Falls back to the first character-type actor the current user owns.
-   * All other identifiers pass through unchanged. Throws if @self can't be resolved.
+   * All other identifiers pass through unchanged. Throws if @self or @me can't be resolved.
    */
   private resolveIdentifier(identifier: string): string {
     if (!identifier) return identifier;
+
     const lower = identifier.toLowerCase();
     if (lower !== '@self' && lower !== '@me') return identifier;
 
-    const assigned = (game.users as any)?.current?.character;
+    const currentUser = game.user as User | undefined;
+    if (!currentUser) {
+      throw new Error('@self/@me requires user context');
+    }
+
+    const assigned = currentUser.character;
     if (assigned?.id) return assigned.id;
 
-    const owned = Array.from(game.actors || []).find((a: Actor) => {
-      if (a.type !== 'character') return false;
-      try {
-        return Boolean(game.user && a.testUserPermission(game.user as User, 'OWNER'));
-      } catch {
-        return false;
-      }
-    });
+    const owned = Array.from(game.actors || [])
+      .find((actor: Actor) => {
+        if (actor.type !== 'character') return false;
+        try {
+          return actor.testUserPermission(currentUser, 'OWNER');
+        } catch {
+          return false;
+        }
+      });
     if (owned?.id) return owned.id;
 
-    throw new Error('@self requires an assigned player character');
+    throw new Error('@self/@me requires an assigned player character');
   }
 
   /**
@@ -318,12 +342,16 @@ export class QueryHandlers {
       // The data-access listActors() ignores user permissions, so we apply
       // the player-scope filter at the handler boundary instead of touching
       // data-access.ts.
-      if (!game.user?.isGM) {
+      const currentUser = game.user as User | undefined;
+      if (!currentUser) {
+        return { error: 'No user context', success: false };
+      }
+      if (!currentUser.isGM) {
         actors = actors.filter((entry: { id: string }) => {
           const actor = game.actors?.get(entry.id);
           if (!actor) return false;
           try {
-            return actor.testUserPermission(game.user as User, 'OBSERVER');
+            return actor.testUserPermission(currentUser, 'OBSERVER');
           } catch {
             return false;
           }
@@ -485,21 +513,23 @@ export class QueryHandlers {
   /** Get current user info; MCP server uses this to filter GM-only tools. */
   private async handleGetCurrentUser(): Promise<HandlerResult<CurrentUserInfo>> {
     const check = this.validateAccess(AccessTier.PUBLIC);
-    if (!check.allowed || !game.user) {
+    const currentUser = game.user as User | undefined;
+    if (!check.allowed || !currentUser) {
       return { error: check.error || 'No user context available', success: false };
     }
 
-    const user = game.user as User;
-    const character = user.character;
-    return {
+    const character = currentUser.character;
+    const currentUserInfo: CurrentUserInfo = {
       success: true,
-      userId: user.id,
-      name: user.name,
-      isGM: user.isGM,
+      userId: currentUser.id,
+      name: currentUser.name,
+      isGM: currentUser.isGM,
       hasCharacter: Boolean(character),
       characterId: character?.id || null,
       characterName: character?.name || null,
     };
+
+    return currentUserInfo;
   }
 
   /**
@@ -690,15 +720,19 @@ export class QueryHandlers {
 
       this.dataAccess.validateFoundryState();
       const journals = await this.dataAccess.listJournals();
+      const currentUser = game.user as User | undefined;
+      if (!currentUser) {
+        return { error: 'No user context', success: false };
+      }
 
       // For non-GM users, filter to journals they have at least LIMITED on.
       // Filter at the handler boundary to keep data-access.ts unchanged.
-      if (!game.user?.isGM && Array.isArray(journals)) {
+      if (!currentUser.isGM && Array.isArray(journals)) {
         return journals.filter((entry: JournalEntryInfo) => {
           const doc = game.journal?.get(entry.id) as JournalEntry | undefined;
           if (!doc) return false;
           try {
-            return doc.testUserPermission(game.user as User, 'LIMITED');
+            return doc.testUserPermission(currentUser, 'LIMITED');
           } catch {
             return false;
           }
@@ -728,13 +762,17 @@ export class QueryHandlers {
       }
 
       // Per-document permission check for non-GMs.
-      if (!game.user?.isGM) {
+      const currentUser = game.user as User | undefined;
+      if (!currentUser) {
+        return { error: 'No user context', success: false };
+      }
+      if (!currentUser.isGM) {
         const doc = game.journal?.get(data.journalId) as JournalEntry | undefined;
         if (!doc) {
           return { error: 'Access denied: journal not found', success: false };
         }
         try {
-          if (!doc.testUserPermission(game.user as User, 'OBSERVER')) {
+          if (!doc.testUserPermission(currentUser, 'OBSERVER')) {
             return { error: 'Access denied: you do not observe this journal', success: false };
           }
         } catch {
@@ -768,13 +806,17 @@ export class QueryHandlers {
       }
 
       // Per-document permission check for non-GMs.
-      if (!game.user?.isGM) {
+      const currentUser = game.user as User | undefined;
+      if (!currentUser) {
+        return { error: 'No user context', success: false };
+      }
+      if (!currentUser.isGM) {
         const doc = game.journal?.get(data.journalId) as JournalEntry | undefined;
         if (!doc) {
           return { error: 'Access denied: journal not found', success: false };
         }
         try {
-          if (!doc.testUserPermission(game.user as User, 'OBSERVER')) {
+          if (!doc.testUserPermission(currentUser, 'OBSERVER')) {
             return { error: 'Access denied: you do not observe this journal', success: false };
           }
         } catch {
@@ -1029,7 +1071,11 @@ export class QueryHandlers {
       const actor = this.findActorLocal(resolved);
 
       if (!actor || !this.validateAccess(AccessTier.PLAYER_OWNED, actor, false).allowed) {
-        if (game.user?.isGM && !actor) {
+        const currentUser = game.user as User | undefined;
+        if (!currentUser) {
+          return { error: 'No user context', success: false };
+        }
+        if (currentUser.isGM && !actor) {
           return { error: `Actor not found: ${resolved}`, success: false };
         }
         return { error: 'Access denied: actor not found or not observable', success: false };
@@ -1420,11 +1466,16 @@ export class QueryHandlers {
         throw new Error('tokenId is required');
       }
 
+      const currentUser = game.user as User | undefined;
+      if (!currentUser) {
+        return { error: 'No user context', success: false };
+      }
+
       // For non-GMs: only allow reading details of tokens whose linked
       // actor the user has at least OBSERVER on. The token must live on
       // the active scene (data-access.getTokenDetails uses the active
       // scene), so we resolve via canvas.scene first.
-      if (!game.user?.isGM) {
+      if (!currentUser.isGM) {
         const scene = canvas?.scene as Scene | null | undefined;
         const tokenDoc = scene?.tokens?.get(data.tokenId) as TokenDocument | undefined;
         const actor = tokenDoc?.actor as Actor | undefined;

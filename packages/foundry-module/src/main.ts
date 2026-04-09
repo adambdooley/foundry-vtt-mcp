@@ -31,7 +31,7 @@ class FoundryMCPBridge {
    * Check if current user is a GM (silent check for security)
    */
   private isGMUser(): boolean {
-    return game.user?.isGM || false;
+    return game.user?.isGM ?? false;
   }
 
   /**
