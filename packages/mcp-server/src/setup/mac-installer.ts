@@ -187,7 +187,7 @@ export class MacInstaller {
       });
 
       // Find the bundled module (should be in Resources)
-      // @ts-ignore - resourcesPath is added by Electron but not in Node types
+      // @ts-expect-error - resourcesPath is added by Electron but not in Node types
       const resourcesPath = process.resourcesPath || path.join(__dirname, '..', '..', '..', 'Resources');
       const moduleSourcePath = path.join(resourcesPath, 'foundry-module');
 
