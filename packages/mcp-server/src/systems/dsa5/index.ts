@@ -26,7 +26,7 @@ export {
   matchesDSA5Filters,
   describeDSA5Filters,
   isValidDSA5Species,
-  isValidExperienceLevel,
+  isValidExperienceLevel
 } from './filters.js';
 export type { DSA5SpeciesType, CreatureSize, ExperienceLevel, DSA5Filters } from './filters.js';
 
@@ -44,6 +44,6 @@ export {
   ITEM_TYPES,
   ACTOR_TYPES,
   RESOURCE_TYPES,
-  SKILL_GROUPS,
+  SKILL_GROUPS
 } from './constants.js';
 export type { DSA5ExperienceLevel } from './constants.js';

@@ -40,35 +40,38 @@ export class CharacterTools {
     return [
       {
         name: 'get-character',
-        description: 'Retrieve character information optimized for minimal token usage. Returns: full stats (abilities, skills, saves, AC, HP), action names, active effects/conditions (name only), and ALL items with minimal metadata (name, type, equipped status) without descriptions. PF2e-specific: includes traits arrays for items/actions, action costs, rarity, and level. D&D 5e-specific: includes attunement status. Perfect for filtering (e.g., "deviant" trait feats, "fire" trait spells in PF2e), checking equipment, or identifying what to investigate further. Use get-character-entity to fetch full details for specific items, actions, spells, or effects.',
+        description:
+          'Retrieve character information optimized for minimal token usage. Returns: full stats (abilities, skills, saves, AC, HP), action names, active effects/conditions (name only), and ALL items with minimal metadata (name, type, equipped status) without descriptions. PF2e-specific: includes traits arrays for items/actions, action costs, rarity, and level. D&D 5e-specific: includes attunement status. Perfect for filtering (e.g., "deviant" trait feats, "fire" trait spells in PF2e), checking equipment, or identifying what to investigate further. Use get-character-entity to fetch full details for specific items, actions, spells, or effects.',
         inputSchema: {
           type: 'object',
           properties: {
             identifier: {
               type: 'string',
-              description: 'Character name or ID to look up',
-            },
+              description: 'Character name or ID to look up'
+            }
           },
-          required: ['identifier'],
-        },
+          required: ['identifier']
+        }
       },
       {
         name: 'get-character-entity',
-        description: 'Retrieve full details for a specific entity from a character. Works for items (feats, equipment, spells), actions (strikes, special abilities), or effects/conditions. Returns complete description and all system data. Use this after get-character when you need detailed information about a specific entity.',
+        description:
+          'Retrieve full details for a specific entity from a character. Works for items (feats, equipment, spells), actions (strikes, special abilities), or effects/conditions. Returns complete description and all system data. Use this after get-character when you need detailed information about a specific entity.',
         inputSchema: {
           type: 'object',
           properties: {
             characterIdentifier: {
               type: 'string',
-              description: 'Character name or ID',
+              description: 'Character name or ID'
             },
             entityIdentifier: {
               type: 'string',
-              description: 'Entity name or ID (can be item ID, action name, spell name, or effect name)',
-            },
+              description:
+                'Entity name or ID (can be item ID, action name, spell name, or effect name)'
+            }
           },
-          required: ['characterIdentifier', 'entityIdentifier'],
-        },
+          required: ['characterIdentifier', 'entityIdentifier']
+        }
       },
       {
         name: 'list-characters',
@@ -78,78 +81,84 @@ export class CharacterTools {
           properties: {
             type: {
               type: 'string',
-              description: 'Optional filter by character type (e.g., "character", "npc")',
-            },
-          },
-        },
+              description: 'Optional filter by character type (e.g., "character", "npc")'
+            }
+          }
+        }
       },
       {
         name: 'use-item',
-        description: 'Use an item on a character (cast spell, use ability, activate feature, consume item). Opens the item dialog in Foundry VTT for the GM to configure options and confirm. Optionally specify targets by name. Returns immediately with status "initiated" - tell the user to check Foundry for any dialogs. Works across systems: D&D 5e, PF2e, DSA5. Use get-character or search-character-items first to see available items/spells.',
+        description:
+          'Use an item on a character (cast spell, use ability, activate feature, consume item). Opens the item dialog in Foundry VTT for the GM to configure options and confirm. Optionally specify targets by name. Returns immediately with status "initiated" - tell the user to check Foundry for any dialogs. Works across systems: D&D 5e, PF2e, DSA5. Use get-character or search-character-items first to see available items/spells.',
         inputSchema: {
           type: 'object',
           properties: {
             actorIdentifier: {
               type: 'string',
-              description: 'Character using the item (name or ID)',
+              description: 'Character using the item (name or ID)'
             },
             itemIdentifier: {
               type: 'string',
-              description: 'Item name or ID (spell, feat, equipment, consumable, etc.)',
+              description: 'Item name or ID (spell, feat, equipment, consumable, etc.)'
             },
             targets: {
               type: 'array',
               items: { type: 'string' },
-              description: 'Target character/token names or IDs. Use ["self"] to target the caster. If omitted, GM selects targets in Foundry.',
+              description:
+                'Target character/token names or IDs. Use ["self"] to target the caster. If omitted, GM selects targets in Foundry.'
             },
             consume: {
               type: 'boolean',
-              description: 'Whether to consume charges/uses (default: true)',
+              description: 'Whether to consume charges/uses (default: true)'
             },
             spellLevel: {
               type: 'number',
-              description: 'For spells: cast at a higher level than base (D&D 5e upcasting)',
-            },
+              description: 'For spells: cast at a higher level than base (D&D 5e upcasting)'
+            }
           },
-          required: ['actorIdentifier', 'itemIdentifier'],
-        },
+          required: ['actorIdentifier', 'itemIdentifier']
+        }
       },
       {
         name: 'search-character-items',
-        description: 'Search within a character\'s items, spells, actions, and effects. More token-efficient than get-character when you need specific items. Supports text search (name/description) and type filtering. Returns matching items with full details including targeting info for spells. Use this to find specific spells, equipment, feats, or abilities without loading the entire character.',
+        description:
+          "Search within a character's items, spells, actions, and effects. More token-efficient than get-character when you need specific items. Supports text search (name/description) and type filtering. Returns matching items with full details including targeting info for spells. Use this to find specific spells, equipment, feats, or abilities without loading the entire character.",
         inputSchema: {
           type: 'object',
           properties: {
             characterIdentifier: {
               type: 'string',
-              description: 'Character name or ID to search within',
+              description: 'Character name or ID to search within'
             },
             query: {
               type: 'string',
-              description: 'Text to search for in item names and descriptions (case-insensitive). Leave empty to return all items of specified type.',
+              description:
+                'Text to search for in item names and descriptions (case-insensitive). Leave empty to return all items of specified type.'
             },
             type: {
               type: 'string',
-              description: 'Filter by item type: "spell", "weapon", "armor", "equipment", "consumable", "feat", "feature", "action", "effect", or system-specific types. Leave empty to search all types.',
+              description:
+                'Filter by item type: "spell", "weapon", "armor", "equipment", "consumable", "feat", "feature", "action", "effect", or system-specific types. Leave empty to search all types.'
             },
             category: {
               type: 'string',
-              description: 'Additional category filter. For spells: "cantrip", "prepared", "innate", "focus". For items: "equipped", "carried", "invested".',
+              description:
+                'Additional category filter. For spells: "cantrip", "prepared", "innate", "focus". For items: "equipped", "carried", "invested".'
             },
             limit: {
               type: 'number',
-              description: 'Maximum number of results to return (default: 20)',
-            },
+              description: 'Maximum number of results to return (default: 20)'
+            }
           },
-          required: ['characterIdentifier'],
-        },
-      },
+          required: ['characterIdentifier']
+        }
+      }
     ];
   }
 
   async handleGetCharacter(args: any): Promise<any> {
     const schema = z.object({
-      identifier: z.string().min(1, 'Character identifier cannot be empty'),
+      identifier: z.string().min(1, 'Character identifier cannot be empty')
     });
 
     const { identifier } = schema.parse(args);
@@ -158,7 +167,7 @@ export class CharacterTools {
 
     try {
       const characterData = await this.foundryClient.query('foundry-mcp-bridge.getCharacterInfo', {
-        characterName: identifier,
+        characterName: identifier
       });
 
       this.logger.debug('Successfully retrieved character data', {
@@ -168,17 +177,18 @@ export class CharacterTools {
 
       // Format the response for Claude
       return await this.formatCharacterResponse(characterData);
-
     } catch (error) {
       this.logger.error('Failed to get character information', error);
-      throw new Error(`Failed to retrieve character "${identifier}": ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to retrieve character "${identifier}": ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
   async handleGetCharacterEntity(args: any): Promise<any> {
     const schema = z.object({
       characterIdentifier: z.string().min(1, 'Character identifier cannot be empty'),
-      entityIdentifier: z.string().min(1, 'Entity identifier cannot be empty'),
+      entityIdentifier: z.string().min(1, 'Entity identifier cannot be empty')
     });
 
     const { characterIdentifier, entityIdentifier } = schema.parse(args);
@@ -188,7 +198,7 @@ export class CharacterTools {
     try {
       // First get the character
       const characterData = await this.foundryClient.query('foundry-mcp-bridge.getCharacterInfo', {
-        characterName: characterIdentifier,
+        characterName: characterIdentifier
       });
 
       // Try to find the entity in different collections
@@ -196,8 +206,9 @@ export class CharacterTools {
       let entityType = null;
 
       // 1. Try to find as an item (by ID or name)
-      entity = characterData.items?.find((i: any) =>
-        i.id === entityIdentifier || i.name.toLowerCase() === entityIdentifier.toLowerCase()
+      entity = characterData.items?.find(
+        (i: any) =>
+          i.id === entityIdentifier || i.name.toLowerCase() === entityIdentifier.toLowerCase()
       );
       if (entity) {
         entityType = 'item';
@@ -205,8 +216,8 @@ export class CharacterTools {
 
       // 2. Try to find as an action (by name)
       if (!entity && characterData.actions) {
-        entity = characterData.actions.find((a: any) =>
-          a.name.toLowerCase() === entityIdentifier.toLowerCase()
+        entity = characterData.actions.find(
+          (a: any) => a.name.toLowerCase() === entityIdentifier.toLowerCase()
         );
         if (entity) {
           entityType = 'action';
@@ -215,8 +226,8 @@ export class CharacterTools {
 
       // 3. Try to find as an effect (by name)
       if (!entity && characterData.effects) {
-        entity = characterData.effects.find((e: any) =>
-          e.name.toLowerCase() === entityIdentifier.toLowerCase()
+        entity = characterData.effects.find(
+          (e: any) => e.name.toLowerCase() === entityIdentifier.toLowerCase()
         );
         if (entity) {
           entityType = 'effect';
@@ -224,7 +235,9 @@ export class CharacterTools {
       }
 
       if (!entity) {
-        throw new Error(`Entity "${entityIdentifier}" not found on character "${characterIdentifier}". Tried items, actions, and effects.`);
+        throw new Error(
+          `Entity "${entityIdentifier}" not found on character "${characterIdentifier}". Tried items, actions, and effects.`
+        );
       }
 
       this.logger.debug('Successfully retrieved entity', {
@@ -250,7 +263,7 @@ export class CharacterTools {
           attunement: entity.system?.attunement,
           hasImage: !!entity.img,
           // Include full system data for advanced use cases
-          system: entity.system,
+          system: entity.system
         };
       } else if (entityType === 'action') {
         return {
@@ -261,7 +274,7 @@ export class CharacterTools {
           traits: entity.traits || [],
           variants: entity.variants || [],
           ready: entity.ready,
-          description: entity.description || 'Action from character strikes/abilities',
+          description: entity.description || 'Action from character strikes/abilities'
         };
       } else if (entityType === 'effect') {
         return {
@@ -272,21 +285,22 @@ export class CharacterTools {
           traits: entity.traits || [],
           duration: entity.duration,
           // Include full effect data
-          ...entity,
+          ...entity
         };
       }
 
       return entity;
-
     } catch (error) {
       this.logger.error('Failed to get character entity', error);
-      throw new Error(`Failed to retrieve entity "${entityIdentifier}" from character "${characterIdentifier}": ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to retrieve entity "${entityIdentifier}" from character "${characterIdentifier}": ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
   async handleListCharacters(args: any): Promise<any> {
     const schema = z.object({
-      type: z.string().optional(),
+      type: z.string().optional()
     });
 
     const { type } = schema.parse(args);
@@ -304,15 +318,16 @@ export class CharacterTools {
           id: actor.id,
           name: actor.name,
           type: actor.type,
-          hasImage: !!actor.img,
+          hasImage: !!actor.img
         })),
         total: actors.length,
-        filtered: type ? `Filtered by type: ${type}` : 'All characters',
+        filtered: type ? `Filtered by type: ${type}` : 'All characters'
       };
-
     } catch (error) {
       this.logger.error('Failed to list characters', error);
-      throw new Error(`Failed to list characters: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to list characters: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
@@ -323,12 +338,20 @@ export class CharacterTools {
       targets: z.array(z.string()).optional(),
       consume: z.boolean().optional(),
       spellLevel: z.number().optional(),
-      skipDialog: z.boolean().optional(),
+      skipDialog: z.boolean().optional()
     });
 
-    const { actorIdentifier, itemIdentifier, targets, consume, spellLevel, skipDialog } = schema.parse(args);
+    const { actorIdentifier, itemIdentifier, targets, consume, spellLevel, skipDialog } =
+      schema.parse(args);
 
-    this.logger.info('Using item', { actorIdentifier, itemIdentifier, targets, consume, spellLevel, skipDialog });
+    this.logger.info('Using item', {
+      actorIdentifier,
+      itemIdentifier,
+      targets,
+      consume,
+      spellLevel,
+      skipDialog
+    });
 
     try {
       const result = await this.foundryClient.query('foundry-mcp-bridge.useItem', {
@@ -338,21 +361,22 @@ export class CharacterTools {
         options: {
           consume: consume ?? true,
           spellLevel,
-          skipDialog: skipDialog ?? true, // Default to skipping dialogs for MCP automation
-        },
+          skipDialog: skipDialog ?? true // Default to skipping dialogs for MCP automation
+        }
       });
 
       this.logger.debug('Successfully used item', {
         actorName: result.actorName,
         itemName: result.itemName,
-        targets: result.targets,
+        targets: result.targets
       });
 
       return result;
-
     } catch (error) {
       this.logger.error('Failed to use item', error);
-      throw new Error(`Failed to use item "${itemIdentifier}": ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to use item "${itemIdentifier}": ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
@@ -362,12 +386,18 @@ export class CharacterTools {
       query: z.string().optional(),
       type: z.string().optional(),
       category: z.string().optional(),
-      limit: z.number().optional(),
+      limit: z.number().optional()
     });
 
     const { characterIdentifier, query, type, category, limit } = schema.parse(args);
 
-    this.logger.info('Searching character items', { characterIdentifier, query, type, category, limit });
+    this.logger.info('Searching character items', {
+      characterIdentifier,
+      query,
+      type,
+      category,
+      limit
+    });
 
     try {
       const result = await this.foundryClient.query('foundry-mcp-bridge.searchCharacterItems', {
@@ -375,19 +405,20 @@ export class CharacterTools {
         query,
         type,
         category,
-        limit: limit ?? 20,
+        limit: limit ?? 20
       });
 
       this.logger.debug('Successfully searched character items', {
         characterName: result.characterName,
-        matchCount: result.matches?.length || 0,
+        matchCount: result.matches?.length || 0
       });
 
       return result;
-
     } catch (error) {
       this.logger.error('Failed to search character items', error);
-      throw new Error(`Failed to search items for "${characterIdentifier}": ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to search items for "${characterIdentifier}": ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
@@ -400,7 +431,7 @@ export class CharacterTools {
       stats: await this.extractStats(characterData),
       items: this.formatItems(characterData.items || []),
       effects: this.formatEffects(characterData.effects || []),
-      hasImage: !!characterData.img,
+      hasImage: !!characterData.img
     };
 
     // Add actions with minimal data (name, traits, action cost only - no variants)
@@ -422,7 +453,7 @@ export class CharacterTools {
     return spellcastingEntries.map(entry => {
       const formatted: any = {
         name: entry.name,
-        type: entry.type,
+        type: entry.type
       };
 
       // Include tradition for PF2e (arcane, divine, primal, occult)
@@ -454,7 +485,7 @@ export class CharacterTools {
           const spellData: any = {
             id: spell.id,
             name: spell.name,
-            level: spell.level,
+            level: spell.level
           };
 
           // Only include prepared status if it's false (assumed prepared by default)
@@ -503,7 +534,7 @@ export class CharacterTools {
     return actions.map(action => {
       const formatted: any = {
         name: action.name,
-        type: action.type,
+        type: action.type
       };
 
       // Include traits if present (for filtering, e.g., "fire" attacks, "concentrate" actions)
@@ -527,7 +558,7 @@ export class CharacterTools {
 
   private extractBasicInfo(characterData: any): any {
     const system = characterData.system || {};
-    
+
     // Extract common fields that exist across different game systems
     const basicInfo: any = {};
 
@@ -537,7 +568,7 @@ export class CharacterTools {
         basicInfo.hitPoints = {
           current: system.attributes.hp.value,
           max: system.attributes.hp.max,
-          temp: system.attributes.hp.temp || 0,
+          temp: system.attributes.hp.temp || 0
         };
       }
       if (system.attributes.ac) {
@@ -563,14 +594,14 @@ export class CharacterTools {
     // circular refs). Older data may store a plain string, which we pass through.
     if (system.details?.race) {
       const race = system.details.race;
-      basicInfo.race = typeof race === 'string'
-        ? race
-        : (race.name || race.identifier || race._id || 'Unknown');
+      basicInfo.race =
+        typeof race === 'string' ? race : race.name || race.identifier || race._id || 'Unknown';
     } else if (system.details?.ancestry) {
       const ancestry = system.details.ancestry;
-      basicInfo.ancestry = typeof ancestry === 'string'
-        ? ancestry
-        : (ancestry.name || ancestry.identifier || ancestry._id || 'Unknown');
+      basicInfo.ancestry =
+        typeof ancestry === 'string'
+          ? ancestry
+          : ancestry.name || ancestry.identifier || ancestry._id || 'Unknown';
     }
 
     return basicInfo;
@@ -584,11 +615,15 @@ export class CharacterTools {
         const adapter = this.systemRegistry.getAdapter(gameSystem);
 
         if (adapter) {
-          this.logger.debug('Using system adapter for character stats extraction', { system: gameSystem });
+          this.logger.debug('Using system adapter for character stats extraction', {
+            system: gameSystem
+          });
           return adapter.extractCharacterStats(characterData);
         }
       } catch (error) {
-        this.logger.warn('Failed to use system adapter, falling back to legacy extraction', { error });
+        this.logger.warn('Failed to use system adapter, falling back to legacy extraction', {
+          error
+        });
       }
     }
 
@@ -603,7 +638,7 @@ export class CharacterTools {
         if (typeof ability === 'object' && ability !== null) {
           stats.abilities[key] = {
             score: (ability as any).value || 10,
-            modifier: (ability as any).mod || 0,
+            modifier: (ability as any).mod || 0
           };
         }
       }
@@ -617,7 +652,7 @@ export class CharacterTools {
           stats.skills[key] = {
             value: (skill as any).value || 0,
             proficient: (skill as any).proficient || false,
-            ability: (skill as any).ability || '',
+            ability: (skill as any).ability || ''
           };
         }
       }
@@ -630,7 +665,7 @@ export class CharacterTools {
         if (typeof save === 'object' && save !== null) {
           stats.saves[key] = {
             value: (save as any).value || 0,
-            proficient: (save as any).proficient || false,
+            proficient: (save as any).proficient || false
           };
         }
       }
@@ -646,7 +681,7 @@ export class CharacterTools {
       const formattedItem: any = {
         id: item.id,
         name: item.name,
-        type: item.type,
+        type: item.type
       };
 
       // Include quantity if present
@@ -697,11 +732,13 @@ export class CharacterTools {
       id: effect.id,
       name: effect.name,
       disabled: effect.disabled,
-      duration: effect.duration ? {
-        type: effect.duration.type,
-        remaining: effect.duration.remaining,
-      } : null,
-      hasIcon: !!effect.icon,
+      duration: effect.duration
+        ? {
+            type: effect.duration.type,
+            remaining: effect.duration.remaining
+          }
+        : null,
+      hasIcon: !!effect.icon
     }));
   }
 

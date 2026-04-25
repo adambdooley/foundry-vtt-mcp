@@ -87,7 +87,7 @@ export class SystemRegistry {
    * Get metadata for all registered systems
    */
   getAllMetadata() {
-    return this.getAllAdapters().map((adapter) => adapter.getMetadata());
+    return this.getAllAdapters().map(adapter => adapter.getMetadata());
   }
 
   /**

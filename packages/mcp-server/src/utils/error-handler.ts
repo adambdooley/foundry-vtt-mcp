@@ -33,12 +33,16 @@ export class ErrorHandler {
           'Ensure you have the required permissions',
           'Ask a GM to enable this feature'
         ],
-        recoverable: true,
+        recoverable: true
       };
     }
 
     // Connection errors
-    if (errorLower.includes('connection') || errorLower.includes('websocket') || errorLower.includes('timeout')) {
+    if (
+      errorLower.includes('connection') ||
+      errorLower.includes('websocket') ||
+      errorLower.includes('timeout')
+    ) {
       return {
         type: 'connection',
         message: 'Connection to Foundry VTT failed',
@@ -48,12 +52,16 @@ export class ErrorHandler {
           'Check that the MCP Bridge module is enabled',
           'Verify connection settings in module configuration'
         ],
-        recoverable: true,
+        recoverable: true
       };
     }
 
     // Validation errors
-    if (errorLower.includes('not found') || errorLower.includes('invalid') || errorLower.includes('missing')) {
+    if (
+      errorLower.includes('not found') ||
+      errorLower.includes('invalid') ||
+      errorLower.includes('missing')
+    ) {
       if (context.includes('compendium') || context.includes('creature')) {
         return {
           type: 'validation',
@@ -64,7 +72,7 @@ export class ErrorHandler {
             'Check if the compendium pack is available',
             'Use more specific terms (e.g., "goblin warrior" instead of "goblin")'
           ],
-          recoverable: true,
+          recoverable: true
         };
       }
 
@@ -76,7 +84,7 @@ export class ErrorHandler {
           'Check that all required parameters are provided',
           'Verify the data exists in Foundry VTT'
         ],
-        recoverable: true,
+        recoverable: true
       };
     }
 
@@ -91,7 +99,7 @@ export class ErrorHandler {
           'Ensure Foundry VTT has sufficient permissions',
           'Try creating actors one at a time instead of in bulk'
         ],
-        recoverable: true,
+        recoverable: true
       };
     }
 
@@ -106,7 +114,7 @@ export class ErrorHandler {
           'Check scene modification permissions',
           'Try creating actors without adding to scene'
         ],
-        recoverable: true,
+        recoverable: true
       };
     }
 
@@ -121,7 +129,7 @@ export class ErrorHandler {
           'Try the operation again with different parameters',
           'Check Foundry VTT console for more details'
         ],
-        recoverable: true,
+        recoverable: true
       };
     }
 
@@ -135,7 +143,7 @@ export class ErrorHandler {
         'Try the operation again',
         'Contact support if the issue persists'
       ],
-      recoverable: false,
+      recoverable: false
     };
   }
 
@@ -145,7 +153,7 @@ export class ErrorHandler {
   formatErrorMessage(mcpError: MCPError, toolName: string): string {
     const typeEmoji = this.getErrorEmoji(mcpError.type);
     const recoveryText = mcpError.recoverable ? '🔄 **This can be fixed**' : '⚠️ **System error**';
-    
+
     let message = `${typeEmoji} **${mcpError.message}**\n\n${recoveryText}`;
 
     if (mcpError.suggestions && mcpError.suggestions.length > 0) {
@@ -154,7 +162,8 @@ export class ErrorHandler {
     }
 
     if (mcpError.type === 'validation' && toolName === 'create-actor-from-compendium') {
-      message += '\n\n💡 **Tip:** Try using the `search-compendium` tool first to see what creatures are available.';
+      message +=
+        '\n\n💡 **Tip:** Try using the `search-compendium` tool first to see what creatures are available.';
     }
 
     return message;
@@ -169,7 +178,7 @@ export class ErrorHandler {
       errorType: mcpError.type,
       message: mcpError.message,
       recoverable: mcpError.recoverable,
-      details: mcpError.details,
+      details: mcpError.details
     };
 
     switch (mcpError.type) {
@@ -198,12 +207,18 @@ export class ErrorHandler {
    */
   private getErrorEmoji(type: MCPError['type']): string {
     switch (type) {
-      case 'user': return '👤';
-      case 'validation': return '❌';
-      case 'permission': return '🔒';
-      case 'connection': return '🔌';
-      case 'system': return '⚙️';
-      default: return '❓';
+      case 'user':
+        return '👤';
+      case 'validation':
+        return '❌';
+      case 'permission':
+        return '🔒';
+      case 'connection':
+        return '🔌';
+      case 'system':
+        return '⚙️';
+      default:
+        return '❓';
     }
   }
 
@@ -213,7 +228,7 @@ export class ErrorHandler {
   handleToolError(error: any, toolName: string, context: string = ''): never {
     const mcpError = this.mapFoundryError(error, `${toolName} ${context}`.trim());
     this.logError(mcpError, toolName, error);
-    
+
     const formattedMessage = this.formatErrorMessage(mcpError, toolName);
     throw new Error(formattedMessage);
   }
@@ -225,11 +240,8 @@ export class ErrorHandler {
     return {
       type: 'validation',
       message,
-      suggestions: [
-        ...suggestions,
-        'Check the tool documentation for required parameters'
-      ],
-      recoverable: true,
+      suggestions: [...suggestions, 'Check the tool documentation for required parameters'],
+      recoverable: true
     };
   }
 
@@ -250,7 +262,7 @@ export class ErrorHandler {
       type: 'permission',
       message: `${operation} is not allowed`,
       suggestions,
-      recoverable: true,
+      recoverable: true
     };
   }
 }

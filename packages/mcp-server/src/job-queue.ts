@@ -104,11 +104,13 @@ export class JobQueue {
   private config: JobQueueConfig;
   private cleanupTimer?: NodeJS.Timeout | undefined;
   private jobIdCounter = 0;
-  private onJobCompleted: ((jobId: string, data: JobCompletionNotificationData) => void) | undefined;
+  private onJobCompleted:
+    | ((jobId: string, data: JobCompletionNotificationData) => void)
+    | undefined;
 
   constructor(options: {
     logger: Logger;
-    onJobCompleted?: (jobId: string, data: JobCompletionNotificationData) => void
+    onJobCompleted?: (jobId: string, data: JobCompletionNotificationData) => void;
   }) {
     this.logger = options.logger.child({ component: 'JobQueue' });
     this.onJobCompleted = options.onJobCompleted;
@@ -293,20 +295,22 @@ export class JobQueue {
     const allJobs = Array.from(this.jobs.values());
 
     const completedJobs = allJobs.filter(j => j.status === 'complete');
-    const avgCompletionTime = completedJobs.length > 0
-      ? completedJobs.reduce((sum, job) => {
-          const completionTime = (job.completed_at || 0) - (job.started_at || job.created_at);
-          return sum + completionTime;
-        }, 0) / completedJobs.length
-      : 0;
+    const avgCompletionTime =
+      completedJobs.length > 0
+        ? completedJobs.reduce((sum, job) => {
+            const completionTime = (job.completed_at || 0) - (job.started_at || job.created_at);
+            return sum + completionTime;
+          }, 0) / completedJobs.length
+        : 0;
 
     const startedJobs = allJobs.filter(j => j.started_at);
-    const avgQueueTime = startedJobs.length > 0
-      ? startedJobs.reduce((sum, job) => {
-          const queueTime = (job.started_at || 0) - job.created_at;
-          return sum + queueTime;
-        }, 0) / startedJobs.length
-      : 0;
+    const avgQueueTime =
+      startedJobs.length > 0
+        ? startedJobs.reduce((sum, job) => {
+            const queueTime = (job.started_at || 0) - job.created_at;
+            return sum + queueTime;
+          }, 0) / startedJobs.length
+        : 0;
 
     return {
       total_jobs: allJobs.length,
@@ -334,10 +338,7 @@ export class JobQueue {
       grid_size: params.grid_size
     });
 
-    return createHash('sha256')
-      .update(hashInput)
-      .digest('hex')
-      .substring(0, 16);
+    return createHash('sha256').update(hashInput).digest('hex').substring(0, 16);
   }
 
   private startCleanupTimer(): void {

@@ -182,7 +182,9 @@ async function installComfyUI() {
 
     // Mount DMG
     log('   Mounting DMG image...');
-    const mountOutput = execSync(`hdiutil attach "${dmgPath}" -nobrowse -noverify`, { encoding: 'utf8' });
+    const mountOutput = execSync(`hdiutil attach "${dmgPath}" -nobrowse -noverify`, {
+      encoding: 'utf8'
+    });
     const volumeMatch = mountOutput.match(/\/Volumes\/([^\n]+)/);
 
     if (!volumeMatch) {
@@ -409,7 +411,7 @@ async function main() {
   logStream.end();
 }
 
-main().catch((error) => {
+main().catch(error => {
   logError('\n❌ Unexpected error:', error.message);
   logStream.end();
   process.exit(1);

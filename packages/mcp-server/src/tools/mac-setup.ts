@@ -17,7 +17,7 @@ export class MacSetupTools {
     this.installer = new MacInstaller(logger);
 
     // Set up progress callback
-    this.installer.setProgressCallback((progress) => {
+    this.installer.setProgressCallback(progress => {
       this.lastProgress = progress;
       this.logger.info('Setup progress update', progress);
     });
@@ -27,7 +27,8 @@ export class MacSetupTools {
     return [
       {
         name: 'check-mac-setup-status',
-        description: 'Check if ComfyUI and AI models are installed on Mac (Apple Silicon only). Returns installation status and whether system can run AI map generation.',
+        description:
+          'Check if ComfyUI and AI models are installed on Mac (Apple Silicon only). Returns installation status and whether system can run AI map generation.',
         inputSchema: {
           type: 'object',
           properties: {},
@@ -36,7 +37,8 @@ export class MacSetupTools {
       },
       {
         name: 'run-mac-setup',
-        description: 'Auto-install ComfyUI Desktop and SDXL model on Mac (Apple Silicon only). Downloads ~2.7GB total. Use this when user wants to enable AI map generation on Mac.',
+        description:
+          'Auto-install ComfyUI Desktop and SDXL model on Mac (Apple Silicon only). Downloads ~2.7GB total. Use this when user wants to enable AI map generation on Mac.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -54,7 +56,8 @@ export class MacSetupTools {
       },
       {
         name: 'get-mac-setup-progress',
-        description: 'Get current progress of Mac setup (if running). Shows download progress, installation stage, and any errors.',
+        description:
+          'Get current progress of Mac setup (if running). Shows download progress, installation stage, and any errors.',
         inputSchema: {
           type: 'object',
           properties: {},
@@ -99,9 +102,7 @@ export class MacSetupTools {
       modelsInstalled: status.modelsInstalled,
       foundryDetected: status.foundryDetected,
       ready: status.ready,
-      message: status.ready
-        ? 'AI map generation is ready'
-        : status.reason || 'Setup required'
+      message: status.ready ? 'AI map generation is ready' : status.reason || 'Setup required'
     };
   }
 

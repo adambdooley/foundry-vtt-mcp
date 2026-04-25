@@ -4,7 +4,12 @@
  * Simple tests to validate filter logic
  */
 
-import { matchesDSA5Filters, describeDSA5Filters, isValidDSA5Species, isValidExperienceLevel } from './filters.js';
+import {
+  matchesDSA5Filters,
+  describeDSA5Filters,
+  isValidDSA5Species,
+  isValidExperienceLevel
+} from './filters.js';
 import type { DSA5Filters } from './filters.js';
 
 // Test creature data
@@ -18,7 +23,7 @@ const testCreature = {
     culture: 'Bergstamm',
     size: 'small',
     hasSpells: false,
-    experiencePoints: 1200,
+    experiencePoints: 1200
   }
 };
 
@@ -32,7 +37,7 @@ const testSpellcaster = {
     culture: 'Auelfen',
     size: 'medium',
     hasSpells: true,
-    experiencePoints: 4000,
+    experiencePoints: 4000
   }
 };
 

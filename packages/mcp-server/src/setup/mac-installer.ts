@@ -60,7 +60,15 @@ const MODELS: Record<string, ModelFile> = {
 };
 
 export interface SetupProgress {
-  stage: 'idle' | 'checking' | 'downloading_comfyui' | 'installing_comfyui' | 'downloading_models' | 'installing_foundry_module' | 'complete' | 'error';
+  stage:
+    | 'idle'
+    | 'checking'
+    | 'downloading_comfyui'
+    | 'installing_comfyui'
+    | 'downloading_models'
+    | 'installing_foundry_module'
+    | 'complete'
+    | 'error';
   progress: number; // 0-100
   message: string;
   currentFile?: string;
@@ -164,7 +172,8 @@ export class MacInstaller {
     if (!foundryModulesPath) {
       return {
         success: false,
-        message: 'Foundry VTT not found. Please install Foundry VTT from https://foundryvtt.com/ and rerun setup.'
+        message:
+          'Foundry VTT not found. Please install Foundry VTT from https://foundryvtt.com/ and rerun setup.'
       };
     }
 
@@ -188,7 +197,8 @@ export class MacInstaller {
 
       // Find the bundled module (should be in Resources)
       // @ts-ignore - resourcesPath is added by Electron but not in Node types
-      const resourcesPath = process.resourcesPath || path.join(__dirname, '..', '..', '..', 'Resources');
+      const resourcesPath =
+        process.resourcesPath || path.join(__dirname, '..', '..', '..', 'Resources');
       const moduleSourcePath = path.join(resourcesPath, 'foundry-module');
 
       if (!fs.existsSync(moduleSourcePath)) {
@@ -230,7 +240,7 @@ export class MacInstaller {
       if (!fs.existsSync(dest)) {
         fs.mkdirSync(dest, { recursive: true });
       }
-      fs.readdirSync(src).forEach((childItemName) => {
+      fs.readdirSync(src).forEach(childItemName => {
         this.copyRecursiveSync(path.join(src, childItemName), path.join(dest, childItemName));
       });
     } else {
@@ -364,11 +374,11 @@ export class MacInstaller {
       // Provide helpful error message with manual download instructions
       throw new Error(
         `Failed to download ComfyUI Desktop: ${message}\n\n` +
-        `The automatic download may be temporarily unavailable.\n` +
-        `Please try one of these alternatives:\n` +
-        `1. Visit ${COMFYUI_MANUAL_DOWNLOAD_URL} and download manually\n` +
-        `2. Install via Homebrew: brew install comfyui\n` +
-        `3. Clone from GitHub: git clone https://github.com/comfyanonymous/ComfyUI.git`
+          `The automatic download may be temporarily unavailable.\n` +
+          `Please try one of these alternatives:\n` +
+          `1. Visit ${COMFYUI_MANUAL_DOWNLOAD_URL} and download manually\n` +
+          `2. Install via Homebrew: brew install comfyui\n` +
+          `3. Clone from GitHub: git clone https://github.com/comfyanonymous/ComfyUI.git`
       );
     }
   }
@@ -430,13 +440,17 @@ export class MacInstaller {
             }
             // Check if the file itself is the app
             if (file === 'ComfyUI.app') {
-              execSync(`cp -R "${path.join(extractDir, file)}" /Applications/`, { encoding: 'utf8' });
+              execSync(`cp -R "${path.join(extractDir, file)}" /Applications/`, {
+                encoding: 'utf8'
+              });
               foundApp = true;
               break;
             }
           }
           if (!foundApp) {
-            throw new Error(`ComfyUI.app not found in extracted archive. Contents: ${files.join(', ')}`);
+            throw new Error(
+              `ComfyUI.app not found in extracted archive. Contents: ${files.join(', ')}`
+            );
           }
         } else {
           execSync(`cp -R "${appPath}" /Applications/`, { encoding: 'utf8' });
@@ -455,7 +469,9 @@ export class MacInstaller {
       } else {
         // Handle DMG format (legacy)
         this.logger.info('Mounting DMG', { path: archivePath });
-        const mountOutput = execSync(`hdiutil attach "${archivePath}" -nobrowse -noverify`, { encoding: 'utf8' });
+        const mountOutput = execSync(`hdiutil attach "${archivePath}" -nobrowse -noverify`, {
+          encoding: 'utf8'
+        });
 
         // Parse mount output to find volume path
         const lines = mountOutput.split('\n');
@@ -520,7 +536,12 @@ export class MacInstaller {
   /**
    * Download a single model file
    */
-  private async downloadFile(url: string, destPath: string, displayName: string, modelSize: number): Promise<void> {
+  private async downloadFile(
+    url: string,
+    destPath: string,
+    displayName: string,
+    modelSize: number
+  ): Promise<void> {
     // Create directory if it doesn't exist
     const destDir = path.dirname(destPath);
     if (!fs.existsSync(destDir)) {
@@ -544,9 +565,10 @@ export class MacInstaller {
         downloadedSize += chunk.length;
         const progress = totalSize > 0 ? Math.round((downloadedSize / totalSize) * 100) : 0;
 
-        const sizeFormatted = totalSize > 1024 * 1024 * 1024
-          ? `${(downloadedSize / 1024 / 1024 / 1024).toFixed(2)}GB / ${(totalSize / 1024 / 1024 / 1024).toFixed(2)}GB`
-          : `${Math.round(downloadedSize / 1024 / 1024)}MB / ${Math.round(totalSize / 1024 / 1024)}MB`;
+        const sizeFormatted =
+          totalSize > 1024 * 1024 * 1024
+            ? `${(downloadedSize / 1024 / 1024 / 1024).toFixed(2)}GB / ${(totalSize / 1024 / 1024 / 1024).toFixed(2)}GB`
+            : `${Math.round(downloadedSize / 1024 / 1024)}MB / ${Math.round(totalSize / 1024 / 1024)}MB`;
 
         this.updateProgress({
           stage: 'downloading_models',
@@ -608,7 +630,9 @@ export class MacInstaller {
   /**
    * Run complete setup process
    */
-  async runSetup(options: { skipComfyUI?: boolean; skipModels?: boolean; skipFoundryModule?: boolean } = {}): Promise<void> {
+  async runSetup(
+    options: { skipComfyUI?: boolean; skipModels?: boolean; skipFoundryModule?: boolean } = {}
+  ): Promise<void> {
     try {
       this.updateProgress({
         stage: 'checking',

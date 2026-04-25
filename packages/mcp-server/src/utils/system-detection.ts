@@ -23,7 +23,10 @@ let cachedSystemId: string | null = null;
  * Detect the active Foundry game system
  * Results are cached to avoid repeated queries
  */
-export async function detectGameSystem(foundryClient: FoundryClient, logger?: Logger): Promise<GameSystem> {
+export async function detectGameSystem(
+  foundryClient: FoundryClient,
+  logger?: Logger
+): Promise<GameSystem> {
   if (cachedSystem) {
     return cachedSystem;
   }

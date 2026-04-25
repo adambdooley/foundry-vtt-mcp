@@ -1,7 +1,9 @@
 /**
  * Get current status from toggle element classes
  */
-declare function getCurrentStatus(element: any): "not_started" | "in_progress" | "completed" | "skipped";
+declare function getCurrentStatus(
+  element: any
+): 'not_started' | 'in_progress' | 'completed' | 'skipped';
 /**
  * Get next status in cycle
  */

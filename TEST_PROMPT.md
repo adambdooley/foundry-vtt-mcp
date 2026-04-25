@@ -3,6 +3,7 @@
 Please test the following 7 newly migrated MCP tools for the Foundry VTT MCP Server. Test each tool systematically and report any errors or unexpected behavior.
 
 ## Prerequisites
+
 - Foundry VTT v13 must be running
 - A game world must be active (preferably DSA5, but D&D 5e or PF2e works too)
 - At least one character/actor must exist in the world
@@ -17,6 +18,7 @@ Please test the following 7 newly migrated MCP tools for the Foundry VTT MCP Ser
 **Test Cases:**
 
 ### 1a. Get a weapon from a character
+
 ```
 Use the get-character-entity tool with:
 - characterIdentifier: [name of a character in your world]
@@ -26,6 +28,7 @@ Expected: Full weapon details including description, damage, and system-specific
 ```
 
 ### 1b. Get a spell/ability by ID
+
 ```
 Use the get-character-entity tool with:
 - characterIdentifier: [character name]
@@ -35,6 +38,7 @@ Expected: Entity found by ID with complete details
 ```
 
 ### 1c. Get an effect
+
 ```
 Use the get-character-entity tool with:
 - characterIdentifier: [character name]
@@ -44,6 +48,7 @@ Expected: Effect details including duration and changes
 ```
 
 ### 1d. Error case - entity not found
+
 ```
 Use the get-character-entity tool with:
 - characterIdentifier: [valid character name]
@@ -53,6 +58,7 @@ Expected: Error message indicating entity not found
 ```
 
 ### 1e. Error case - empty identifier
+
 ```
 Use the get-character-entity tool with:
 - characterIdentifier: [valid character name]
@@ -70,6 +76,7 @@ Expected: Validation error about empty identifier
 **Test Cases:**
 
 ### 2a. Get details of a character token
+
 ```
 Use the get-token-details tool with:
 - tokenId: [ID of a token on the active scene]
@@ -78,6 +85,7 @@ Expected: Token details including position, disposition, vision settings, actor 
 ```
 
 ### 2b. Error case - invalid token ID
+
 ```
 Use the get-token-details tool with:
 - tokenId: "invalidTokenId123"
@@ -94,6 +102,7 @@ Expected: Error message indicating token not found
 **Test Cases:**
 
 ### 3a. Move token with animation
+
 ```
 Use the move-token tool with:
 - tokenId: [ID of a token]
@@ -105,6 +114,7 @@ Expected: Token moves smoothly to new position with animation
 ```
 
 ### 3b. Move token instantly (no animation)
+
 ```
 Use the move-token tool with:
 - tokenId: [same token]
@@ -116,6 +126,7 @@ Expected: Token jumps immediately to new position
 ```
 
 ### 3c. Error case - negative coordinates
+
 ```
 Use the move-token tool with:
 - tokenId: [valid token]
@@ -134,6 +145,7 @@ Expected: Validation error about negative coordinates
 **Test Cases:**
 
 ### 4a. Update token name and scale
+
 ```
 Use the update-token tool with:
 - tokenId: [token ID]
@@ -146,6 +158,7 @@ Expected: Token name changes and appears larger
 ```
 
 ### 4b. Update token visibility and elevation
+
 ```
 Use the update-token tool with:
 - tokenId: [token ID]
@@ -158,6 +171,7 @@ Expected: Token is visible and elevation updated
 ```
 
 ### 4c. Update disposition (friendly/hostile/neutral)
+
 ```
 Use the update-token tool with:
 - tokenId: [token ID]
@@ -169,6 +183,7 @@ Expected: Token border color changes to hostile (red)
 ```
 
 ### 4d. Error case - invalid property
+
 ```
 Use the update-token tool with:
 - tokenId: [token ID]
@@ -188,6 +203,7 @@ Expected: Either error or property ignored (check actual behavior)
 **Test Cases:**
 
 ### 5a. Get conditions for current system
+
 ```
 Use the get-available-conditions tool
 
@@ -195,6 +211,7 @@ Expected: List of conditions appropriate for the game system (e.g., blinded, cha
 ```
 
 ### 5b. Verify system-specific conditions
+
 ```
 If using DSA5: Look for DSA5-specific conditions
 If using D&D 5e: Look for standard D&D conditions
@@ -212,6 +229,7 @@ Expected: Conditions match the game system being used
 **Test Cases:**
 
 ### 6a. Apply a condition
+
 ```
 Use the toggle-token-condition tool with:
 - tokenId: [token ID]
@@ -222,6 +240,7 @@ Expected: Condition icon appears on token
 ```
 
 ### 6b. Remove the same condition
+
 ```
 Use the toggle-token-condition tool with:
 - tokenId: [same token]
@@ -232,6 +251,7 @@ Expected: Condition icon removed from token
 ```
 
 ### 6c. Toggle multiple conditions
+
 ```
 Apply several different conditions in sequence:
 - "prone"
@@ -244,6 +264,7 @@ Expected: Each condition properly applied and removed
 ```
 
 ### 6d. Error case - invalid condition
+
 ```
 Use the toggle-token-condition tool with:
 - tokenId: [valid token]
@@ -262,6 +283,7 @@ Expected: Error message about invalid condition
 **Test Cases:**
 
 ### 7a. Delete a single token
+
 ```
 First, create a test token or note a token ID you can delete.
 
@@ -272,6 +294,7 @@ Expected: Token removed from scene, confirmation message
 ```
 
 ### 7b. Delete multiple tokens
+
 ```
 Create or identify 2-3 tokens that can be safely deleted.
 
@@ -282,6 +305,7 @@ Expected: All specified tokens removed, count of deleted tokens returned
 ```
 
 ### 7c. Error case - empty array
+
 ```
 Use the delete-tokens tool with:
 - tokenIds: []
@@ -290,6 +314,7 @@ Expected: Validation error about empty array
 ```
 
 ### 7d. Partial success - some invalid IDs
+
 ```
 Use the delete-tokens tool with:
 - tokenIds: ["validTokenId", "invalidTokenId123", "anotherValidTokenId"]
@@ -331,11 +356,13 @@ Expected: Valid tokens deleted, error reported for invalid ones (or graceful han
 ## Reporting Results
 
 Please report:
+
 1. ✅ **Pass** - Tool works as expected
 2. ⚠️ **Warning** - Tool works but with minor issues
 3. ❌ **Fail** - Tool errors or produces incorrect results
 
 For any failures or warnings, include:
+
 - The exact tool call made
 - The error message or unexpected behavior
 - The game system being used (DSA5/D&D5e/PF2e)

@@ -3,6 +3,7 @@
 ## Overview
 
 The Mac installer uses a two-step build process:
+
 1. **On Windows:** Build the .app bundle (cross-platform)
 2. **On Mac:** Create the DMG installer (Mac-only)
 
@@ -11,11 +12,13 @@ The Mac installer uses a two-step build process:
 ## Step 1: Build .app Bundle on Windows (ALREADY DONE!)
 
 This step is complete. The app bundle is ready at:
+
 ```
 installer/build/FoundryMCPServer.app
 ```
 
 Files included:
+
 - ✅ MCP server bundles (index.cjs, backend.bundle.cjs)
 - ✅ Foundry module (dist/)
 - ✅ ComfyUI setup script (setup-comfyui.js)
@@ -28,12 +31,14 @@ Files included:
 ## Step 2: Create DMG on Mac (DO THIS ON MAC)
 
 ### Prerequisites:
+
 - Mac computer (any Mac will work)
 - The FoundryMCPServer.app bundle from Step 1
 
 ### Transfer Files to Mac:
 
 **Option A: USB Drive**
+
 ```bash
 # Copy entire build directory to USB
 # Then on Mac:
@@ -41,6 +46,7 @@ cp -R /Volumes/USB/build ~/Desktop/foundry-mcp-build
 ```
 
 **Option B: Git**
+
 ```bash
 # If you have the repo on Mac:
 git pull origin feature/mac-support-and-installer
@@ -48,6 +54,7 @@ cd installer
 ```
 
 **Option C: Direct Copy** (if building on same network)
+
 ```bash
 # From Windows, copy to Mac via network share
 ```
@@ -61,6 +68,7 @@ chmod +x ../build-dmg-on-mac.sh
 ```
 
 Or if you have the full repo:
+
 ```bash
 cd installer
 chmod +x build-dmg-on-mac.sh
@@ -117,14 +125,17 @@ open installer/build/FoundryMCPServer-v0.5.4-macOS.dmg
 ## Troubleshooting:
 
 **"App bundle not found"**
+
 - Ensure you ran `node installer/build-mac-simple.js` on Windows first
 - Check that `installer/build/FoundryMCPServer.app` exists
 
 **"hdiutil: command not found"**
+
 - hdiutil is built into macOS, should always be available
 - Make sure you're running on a real Mac, not a VM or cross-compiler
 
 **"Permission denied"**
+
 - Run: `chmod +x build-dmg-on-mac.sh`
 
 ---

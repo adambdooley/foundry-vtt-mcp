@@ -10,7 +10,7 @@
         "hint": "Hostname or IP address of the external MCP server (default: localhost)"
       },
       "serverPort": {
-        "name": "MCP Server Port", 
+        "name": "MCP Server Port",
         "hint": "Port number for the MCP server connection (default: 30000)"
       },
       "namespace": {
@@ -36,7 +36,7 @@
     },
     "notifications": {
       "connected": "MCP Bridge connected successfully to external server",
-      "disconnected": "MCP Bridge disconnected from external server", 
+      "disconnected": "MCP Bridge disconnected from external server",
       "connectionFailed": "Failed to connect MCP Bridge to external server",
       "initializationFailed": "Failed to initialize Foundry MCP Bridge module",
       "settingsReset": "MCP Bridge settings have been reset to defaults",

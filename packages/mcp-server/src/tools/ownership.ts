@@ -33,72 +33,80 @@ export class OwnershipTools {
     return [
       {
         name: 'assign-actor-ownership',
-        description: 'Assign ownership permissions for actors to players. Supports individual assignments like "Assign Aragorn to John as owner" and bulk operations like "Give party observer access to all friendly NPCs".',
+        description:
+          'Assign ownership permissions for actors to players. Supports individual assignments like "Assign Aragorn to John as owner" and bulk operations like "Give party observer access to all friendly NPCs".',
         inputSchema: {
           type: 'object',
           properties: {
             actorIdentifier: {
               type: 'string',
-              description: 'Actor name, ID, or "all friendly NPCs" for bulk operations. Use "party characters" for all player-owned actors.',
+              description:
+                'Actor name, ID, or "all friendly NPCs" for bulk operations. Use "party characters" for all player-owned actors.'
             },
             playerIdentifier: {
-              type: 'string', 
-              description: 'Player name, character name, or "party" for all connected players. Supports partial matching.',
+              type: 'string',
+              description:
+                'Player name, character name, or "party" for all connected players. Supports partial matching.'
             },
             permissionLevel: {
               type: 'string',
               enum: ['NONE', 'LIMITED', 'OBSERVER', 'OWNER'],
-              description: 'Permission level to assign: NONE (no access), LIMITED (basic view), OBSERVER (full view, no control), OWNER (full control)',
+              description:
+                'Permission level to assign: NONE (no access), LIMITED (basic view), OBSERVER (full view, no control), OWNER (full control)'
             },
             confirmBulkOperation: {
               type: 'boolean',
-              description: 'Required confirmation for bulk operations affecting multiple actors/players',
-              default: false,
-            },
+              description:
+                'Required confirmation for bulk operations affecting multiple actors/players',
+              default: false
+            }
           },
-          required: ['actorIdentifier', 'playerIdentifier', 'permissionLevel'],
-        },
+          required: ['actorIdentifier', 'playerIdentifier', 'permissionLevel']
+        }
       },
       {
         name: 'remove-actor-ownership',
-        description: 'Remove ownership permissions (set to NONE) for specific actors and players. Equivalent to "Remove ownership of Aragorn from John".',
+        description:
+          'Remove ownership permissions (set to NONE) for specific actors and players. Equivalent to "Remove ownership of Aragorn from John".',
         inputSchema: {
           type: 'object',
           properties: {
             actorIdentifier: {
               type: 'string',
-              description: 'Actor name or ID to remove ownership from',
+              description: 'Actor name or ID to remove ownership from'
             },
             playerIdentifier: {
               type: 'string',
-              description: 'Player name or character name to remove ownership for. Supports partial matching.',
+              description:
+                'Player name or character name to remove ownership for. Supports partial matching.'
             },
             confirmRemoval: {
-              type: 'boolean', 
+              type: 'boolean',
               description: 'Confirmation required for ownership removal',
-              default: false,
-            },
+              default: false
+            }
           },
-          required: ['actorIdentifier', 'playerIdentifier'],
-        },
+          required: ['actorIdentifier', 'playerIdentifier']
+        }
       },
       {
         name: 'list-actor-ownership',
-        description: 'List current ownership permissions for actors, showing which players have what access levels.',
+        description:
+          'List current ownership permissions for actors, showing which players have what access levels.',
         inputSchema: {
           type: 'object',
           properties: {
             actorIdentifier: {
               type: 'string',
-              description: 'Optional: specific actor name/ID to check, or "all" for all actors',
+              description: 'Optional: specific actor name/ID to check, or "all" for all actors'
             },
             playerIdentifier: {
               type: 'string',
-              description: 'Optional: specific player name to check ownership for',
-            },
-          },
-        },
-      },
+              description: 'Optional: specific player name to check ownership for'
+            }
+          }
+        }
+      }
     ];
   }
 
@@ -127,9 +135,16 @@ export class OwnershipTools {
    * Assign actor ownership permissions
    */
   private async assignActorOwnership(args: any) {
-    const { actorIdentifier, playerIdentifier, permissionLevel, confirmBulkOperation = false } = args;
-    
-    this.logger.info(`Assigning ${permissionLevel} ownership of "${actorIdentifier}" to "${playerIdentifier}"`);
+    const {
+      actorIdentifier,
+      playerIdentifier,
+      permissionLevel,
+      confirmBulkOperation = false
+    } = args;
+
+    this.logger.info(
+      `Assigning ${permissionLevel} ownership of "${actorIdentifier}" to "${playerIdentifier}"`
+    );
 
     // Validate permission level
     const validatedLevel = ownershipLevelSchema.parse(permissionLevel);
@@ -147,10 +162,9 @@ export class OwnershipTools {
         error: `Bulk operation detected: ${actors.length} actors × ${players.length} players = ${actors.length * players.length} ownership changes. Please set confirmBulkOperation to true to proceed.`,
         actorsFound: actors.length,
         playersFound: players.length,
-        totalChanges: actors.length * players.length,
+        totalChanges: actors.length * players.length
       };
     }
-
 
     // Apply ownership changes
     const results = [];
@@ -160,16 +174,16 @@ export class OwnershipTools {
           const result = await this.foundryClient.query('foundry-mcp-bridge.setActorOwnership', {
             actorId: actor.id,
             userId: player.id,
-            permission: numericLevel,
+            permission: numericLevel
           });
-          
+
           results.push({
             actor: actor.name,
             player: player.name,
             permission: validatedLevel,
             success: result.success,
             message: result.message,
-            error: result.error,
+            error: result.error
           });
         } catch (error) {
           results.push({
@@ -177,7 +191,7 @@ export class OwnershipTools {
             player: player.name,
             permission: validatedLevel,
             success: false,
-            error: error instanceof Error ? error.message : 'Unknown error',
+            error: error instanceof Error ? error.message : 'Unknown error'
           });
         }
       }
@@ -189,7 +203,7 @@ export class OwnershipTools {
     return {
       success: successCount > 0,
       message: `${successCount} ownership assignments completed${failureCount > 0 ? `, ${failureCount} failed` : ''}`,
-      results,
+      results
     };
   }
 
@@ -202,7 +216,7 @@ export class OwnershipTools {
     if (!confirmRemoval) {
       return {
         success: false,
-        error: 'Please set confirmRemoval to true to confirm ownership removal',
+        error: 'Please set confirmRemoval to true to confirm ownership removal'
       };
     }
 
@@ -211,7 +225,7 @@ export class OwnershipTools {
       actorIdentifier,
       playerIdentifier,
       permissionLevel: 'NONE',
-      confirmBulkOperation: true, // Auto-confirm since user already confirmed removal
+      confirmBulkOperation: true // Auto-confirm since user already confirmed removal
     });
   }
 
@@ -221,32 +235,33 @@ export class OwnershipTools {
   private async listActorOwnership(args: any) {
     const { actorIdentifier, playerIdentifier } = args;
 
-    this.logger.info(`Listing actor ownership for actor: "${actorIdentifier || 'all'}", player: "${playerIdentifier || 'all'}"`);
+    this.logger.info(
+      `Listing actor ownership for actor: "${actorIdentifier || 'all'}", player: "${playerIdentifier || 'all'}"`
+    );
 
     try {
       const ownershipData = await this.foundryClient.query('foundry-mcp-bridge.getActorOwnership', {
         actorIdentifier,
-        playerIdentifier,
+        playerIdentifier
       });
 
       return {
         success: true,
-        ownership: ownershipData,
+        ownership: ownershipData
       };
     } catch (error) {
       this.logger.error('Failed to list actor ownership:', error);
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: error instanceof Error ? error.message : 'Unknown error'
       };
     }
   }
 
-
   /**
    * Resolve actors from identifier (supports bulk operations)
    */
-  private async resolveActors(identifier: string): Promise<Array<{id: string, name: string}>> {
+  private async resolveActors(identifier: string): Promise<Array<{ id: string; name: string }>> {
     this.logger.debug(`Resolving actors for identifier: ${identifier}`);
 
     try {
@@ -263,7 +278,9 @@ export class OwnershipTools {
       } else {
         // Single actor lookup
         this.logger.debug(`Looking for single actor: ${identifier}`);
-        const actor = await this.foundryClient.query('foundry-mcp-bridge.findActor', { identifier });
+        const actor = await this.foundryClient.query('foundry-mcp-bridge.findActor', {
+          identifier
+        });
         this.logger.debug(`Single actor lookup result:`, actor);
         return actor ? [actor] : [];
       }
@@ -276,22 +293,25 @@ export class OwnershipTools {
   /**
    * Resolve players from identifier (supports partial matching)
    */
-  private async resolvePlayers(identifier: string): Promise<Array<{id: string, name: string}>> {
+  private async resolvePlayers(identifier: string): Promise<Array<{ id: string; name: string }>> {
     this.logger.debug(`Resolving players for identifier: ${identifier}`);
 
     try {
       if (identifier.toLowerCase() === 'party') {
         // Get all connected players (excluding GM)
-        const players = await this.foundryClient.query('foundry-mcp-bridge.getConnectedPlayers', {});
+        const players = await this.foundryClient.query(
+          'foundry-mcp-bridge.getConnectedPlayers',
+          {}
+        );
         this.logger.debug(`Found ${players.length} connected players`);
         return players;
       } else {
         // Single player lookup with partial matching
         this.logger.debug(`Looking for single player: ${identifier}`);
-        const players = await this.foundryClient.query('foundry-mcp-bridge.findPlayers', { 
+        const players = await this.foundryClient.query('foundry-mcp-bridge.findPlayers', {
           identifier,
           allowPartialMatch: true,
-          includeCharacterOwners: true, // Also match by character names they own
+          includeCharacterOwners: true // Also match by character names they own
         });
         this.logger.debug(`Player lookup result:`, players);
         return players;

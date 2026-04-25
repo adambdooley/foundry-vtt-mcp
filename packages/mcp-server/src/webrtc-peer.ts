@@ -20,13 +20,16 @@ export class WebRTCPeer {
   private config: Config['foundry']['webrtc'];
   private onMessageHandler: (message: any) => Promise<void>;
   private isConnected = false;
-  private pendingChunks: Map<string, {
-    chunks: Map<number, string>;
-    totalChunks: number;
-    originalType: string;
-    originalId: string;
-    timestamp: number; // For timeout cleanup
-  }> = new Map();
+  private pendingChunks: Map<
+    string,
+    {
+      chunks: Map<number, string>;
+      totalChunks: number;
+      originalType: string;
+      originalId: string;
+      timestamp: number; // For timeout cleanup
+    }
+  > = new Map();
   private chunkCleanupInterval: NodeJS.Timeout | null = null;
 
   constructor({ config, logger, onMessage }: WebRTCPeerOptions) {
@@ -71,7 +74,9 @@ export class WebRTCPeer {
     await this.peerConnection.setLocalDescription(answer);
     this.logger.info(`[WebRTC Timing] setLocalDescription took ${Date.now() - t3}ms`);
 
-    this.logger.info(`[WebRTC Timing] Answer ready in ${Date.now() - startTime}ms - sending immediately`);
+    this.logger.info(
+      `[WebRTC Timing] Answer ready in ${Date.now() - startTime}ms - sending immediately`
+    );
 
     // Data channel and ICE will arrive later via events - don't wait!
     // The ondatachannel event will fire when the channel is ready
@@ -83,12 +88,12 @@ export class WebRTCPeer {
     if (!this.peerConnection) return;
 
     // ICE gathering state changes
-    this.peerConnection.iceGatheringStateChange.subscribe((state) => {
+    this.peerConnection.iceGatheringStateChange.subscribe(state => {
       this.logger.info(`[WebRTC] ICE gathering state: ${state}`);
     });
 
     // ICE connection state changes
-    this.peerConnection.iceConnectionStateChange.subscribe((state) => {
+    this.peerConnection.iceConnectionStateChange.subscribe(state => {
       this.logger.info(`[WebRTC] ICE connection state: ${state}`);
 
       if (state === 'failed') {
@@ -172,7 +177,6 @@ export class WebRTCPeer {
     };
   }
 
-
   sendMessage(message: any): void {
     if (!this.dataChannel || !this.isConnected) {
       this.logger.warn('Cannot send message - data channel not open');
@@ -198,7 +202,9 @@ export class WebRTCPeer {
 
     // Validate required fields
     if (!chunkId || typeof chunkIndex !== 'number' || typeof totalChunks !== 'number') {
-      this.logger.error('Invalid chunk message structure - missing required fields', { chunkMessage });
+      this.logger.error('Invalid chunk message structure - missing required fields', {
+        chunkMessage
+      });
       return;
     }
 

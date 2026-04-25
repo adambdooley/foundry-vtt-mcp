@@ -14,7 +14,7 @@ export const SOCKET_EVENTS = {
   MCP_RESPONSE: 'mcp-response',
   BRIDGE_STATUS: 'bridge-status',
   PING: 'ping',
-  PONG: 'pong',
+  PONG: 'pong'
 } as const;
 
 /**
@@ -26,7 +26,7 @@ export const DEFAULT_CONFIG = {
   CONNECTION_TIMEOUT: 10,
   RECONNECT_ATTEMPTS: 5,
   RECONNECT_DELAY: 1000,
-  LOG_LEVEL: 'info',
+  LOG_LEVEL: 'info'
 } as const;
 
 /**
@@ -36,7 +36,7 @@ export const CONNECTION_STATES = {
   DISCONNECTED: 'disconnected',
   CONNECTING: 'connecting',
   CONNECTED: 'connected',
-  RECONNECTING: 'reconnecting',
+  RECONNECTING: 'reconnecting'
 } as const;
 
 /**
@@ -45,7 +45,7 @@ export const CONNECTION_STATES = {
 export const TOKEN_DISPOSITIONS = {
   HOSTILE: -1,
   NEUTRAL: 0,
-  FRIENDLY: 1,
+  FRIENDLY: 1
 } as const;
 
 /**
@@ -59,5 +59,5 @@ export const ERROR_MESSAGES = {
   ACCESS_DENIED: 'Access denied - feature is disabled',
   QUERY_TIMEOUT: 'Query timeout',
   UNKNOWN_METHOD: 'Unknown method',
-  BRIDGE_NOT_RUNNING: 'MCP Bridge is not running',
+  BRIDGE_NOT_RUNNING: 'MCP Bridge is not running'
 } as const;

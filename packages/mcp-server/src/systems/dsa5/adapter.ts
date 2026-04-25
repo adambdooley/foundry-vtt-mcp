@@ -5,8 +5,18 @@
  * Handles creature indexing, filtering, formatting, and data extraction.
  */
 
-import type { SystemAdapter, SystemMetadata, SystemCreatureIndex, DSA5CreatureIndex } from '../types.js';
-import { DSA5FiltersSchema, matchesDSA5Filters, describeDSA5Filters, type DSA5Filters } from './filters.js';
+import type {
+  SystemAdapter,
+  SystemMetadata,
+  SystemCreatureIndex,
+  DSA5CreatureIndex
+} from '../types.js';
+import {
+  DSA5FiltersSchema,
+  matchesDSA5Filters,
+  describeDSA5Filters,
+  type DSA5Filters
+} from './filters.js';
 import { FIELD_PATHS, getExperienceLevel, EIGENSCHAFT_NAMES } from './constants.js';
 
 /**
@@ -19,7 +29,8 @@ export class DSA5Adapter implements SystemAdapter {
       name: 'dsa5',
       displayName: 'Das Schwarze Auge 5',
       version: '1.0.0',
-      description: 'Support for DSA5 (Das Schwarze Auge 5. Edition) with Eigenschaften, Talente, Erfahrungsgrade, and LeP/AsP/KaP resources',
+      description:
+        'Support for DSA5 (Das Schwarze Auge 5. Edition) with Eigenschaften, Talente, Erfahrungsgrade, and LeP/AsP/KaP resources',
       supportedFeatures: {
         creatureIndex: true,
         characterStats: true,
@@ -37,7 +48,10 @@ export class DSA5Adapter implements SystemAdapter {
    * Extract creature data from Foundry document for indexing
    * This is called by the index builder in Foundry's browser context
    */
-  extractCreatureData(doc: any, pack: any): { creature: SystemCreatureIndex; errors: number } | null {
+  extractCreatureData(
+    doc: any,
+    pack: any
+  ): { creature: SystemCreatureIndex; errors: number } | null {
     // Implementation is in index-builder.ts since it runs in browser
     // This method is here for type compliance but delegates to IndexBuilder
     throw new Error('extractCreatureData should be called from DSA5IndexBuilder, not the adapter');
@@ -102,7 +116,7 @@ export class DSA5Adapter implements SystemAdapter {
       // PF2e-specific paths don't exist in DSA5
       perception: null,
       saves: null,
-      rarity: null,
+      rarity: null
     };
   }
 
@@ -195,7 +209,7 @@ export class DSA5Adapter implements SystemAdapter {
         hasAstralEnergy: dsa5Creature.systemData.hasAstralEnergy,
         hasKarmaEnergy: dsa5Creature.systemData.hasKarmaEnergy,
         traits: dsa5Creature.systemData.traits || [],
-        rarity: dsa5Creature.systemData.rarity,
+        rarity: dsa5Creature.systemData.rarity
       };
     }
 
@@ -258,7 +272,7 @@ export class DSA5Adapter implements SystemAdapter {
     if (wounds) {
       stats.lifePoints = {
         current: wounds.current ?? 0,
-        max: wounds.max ?? 0,
+        max: wounds.max ?? 0
       };
     }
 
@@ -267,7 +281,7 @@ export class DSA5Adapter implements SystemAdapter {
     if (astral && astral.max > 0) {
       stats.astralEnergy = {
         current: astral.value ?? 0,
-        max: astral.max ?? 0,
+        max: astral.max ?? 0
       };
     }
 
@@ -276,7 +290,7 @@ export class DSA5Adapter implements SystemAdapter {
     if (karma && karma.max > 0) {
       stats.karmaEnergy = {
         current: karma.value ?? 0,
-        max: karma.max ?? 0,
+        max: karma.max ?? 0
       };
     }
 
@@ -368,8 +382,8 @@ export class DSA5Adapter implements SystemAdapter {
     if (hasSpells) {
       stats.spellcasting = {
         hasSpells: true,
-        hasAstralEnergy: !!(astral?.max),
-        hasKarmaEnergy: !!(karma?.max)
+        hasAstralEnergy: !!astral?.max,
+        hasKarmaEnergy: !!karma?.max
       };
     }
 

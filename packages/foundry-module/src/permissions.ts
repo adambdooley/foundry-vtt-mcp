@@ -1,12 +1,12 @@
 import { MODULE_ID } from './constants.js';
 
 export const PERMISSION_LEVELS = {
-  LOW_RISK: 'low',      // Auto-allowed
-  MEDIUM_RISK: 'medium', // Confirmation required  
-  HIGH_RISK: 'high'     // Explicit permission + safeguards
+  LOW_RISK: 'low', // Auto-allowed
+  MEDIUM_RISK: 'medium', // Confirmation required
+  HIGH_RISK: 'high' // Explicit permission + safeguards
 } as const;
 
-export type PermissionLevel = typeof PERMISSION_LEVELS[keyof typeof PERMISSION_LEVELS];
+export type PermissionLevel = (typeof PERMISSION_LEVELS)[keyof typeof PERMISSION_LEVELS];
 
 export interface WriteOperation {
   name: string;
@@ -33,47 +33,50 @@ export class PermissionManager {
       level: PERMISSION_LEVELS.LOW_RISK,
       description: 'Create new actors from compendium entries',
       settingKey: 'allowWriteOperations',
-      requiresGM: false,
+      requiresGM: false
     },
     modifyScene: {
       name: 'Modify Scene',
       level: PERMISSION_LEVELS.MEDIUM_RISK,
       description: 'Add tokens to scenes or modify scene elements',
       settingKey: 'allowWriteOperations',
-      requiresGM: false,
+      requiresGM: false
     },
     bulkOperations: {
       name: 'Bulk Operations',
       level: PERMISSION_LEVELS.MEDIUM_RISK,
       description: 'Perform operations on multiple entities at once',
       settingKey: 'allowWriteOperations',
-      requiresGM: false,
+      requiresGM: false
     },
     deleteData: {
       name: 'Delete Data',
       level: PERMISSION_LEVELS.HIGH_RISK,
       description: 'Delete actors, scenes, or other world data',
       settingKey: 'allowWriteOperations',
-      requiresGM: true,
+      requiresGM: true
     },
     modifyWorld: {
       name: 'Modify World',
       level: PERMISSION_LEVELS.HIGH_RISK,
       description: 'Modify world settings or structure',
       settingKey: 'allowWriteOperations',
-      requiresGM: true,
-    },
+      requiresGM: true
+    }
   };
 
   /**
    * Check if a write operation is allowed (GM-focused safety checks)
    */
-  checkWritePermission(operationName: string, context?: { quantity?: number; targetIds?: string[] }): PermissionCheck {
+  checkWritePermission(
+    operationName: string,
+    context?: { quantity?: number; targetIds?: string[] }
+  ): PermissionCheck {
     const operation = this.writeOperations[operationName];
     if (!operation) {
       return {
         allowed: false,
-        reason: `Unknown operation: ${operationName}`,
+        reason: `Unknown operation: ${operationName}`
       };
     }
 
@@ -82,7 +85,7 @@ export class PermissionManager {
     if (!settingAllowed) {
       return {
         allowed: false,
-        reason: `${operation.name} is disabled in module settings`,
+        reason: `${operation.name} is disabled in module settings`
       };
     }
 
@@ -92,7 +95,10 @@ export class PermissionManager {
   /**
    * Check operation-specific rules and limits
    */
-  private checkOperationSpecifics(operation: WriteOperation, context?: { quantity?: number; targetIds?: string[] }): PermissionCheck {
+  private checkOperationSpecifics(
+    operation: WriteOperation,
+    context?: { quantity?: number; targetIds?: string[] }
+  ): PermissionCheck {
     const warnings: string[] = [];
     let requiresConfirmation = false;
 
@@ -102,7 +108,7 @@ export class PermissionManager {
       if (context.quantity > maxActors) {
         return {
           allowed: false,
-          reason: `Quantity ${context.quantity} exceeds maximum allowed ${maxActors}`,
+          reason: `Quantity ${context.quantity} exceeds maximum allowed ${maxActors}`
         };
       }
 
@@ -128,14 +134,17 @@ export class PermissionManager {
     return {
       allowed: true,
       ...(requiresConfirmation ? { requiresConfirmation } : {}),
-      ...(warnings.length > 0 ? { warnings } : {}),
+      ...(warnings.length > 0 ? { warnings } : {})
     };
   }
 
   /**
    * Validate and sanitize operation parameters
    */
-  validateOperationParameters(operationName: string, parameters: any): { valid: boolean; errors: string[]; sanitized?: any } {
+  validateOperationParameters(
+    operationName: string,
+    parameters: any
+  ): { valid: boolean; errors: string[]; sanitized?: any } {
     const errors: string[] = [];
     let sanitized = { ...parameters };
 
@@ -144,7 +153,7 @@ export class PermissionManager {
         if (!sanitized.creatureType || typeof sanitized.creatureType !== 'string') {
           errors.push('creatureType is required and must be a string');
         }
-        
+
         if (sanitized.quantity) {
           const quantity = parseInt(sanitized.quantity);
           if (isNaN(quantity) || quantity < 1 || quantity > 10) {
@@ -160,7 +169,11 @@ export class PermissionManager {
         break;
 
       case 'modifyScene':
-        if (!sanitized.actorIds || !Array.isArray(sanitized.actorIds) || sanitized.actorIds.length === 0) {
+        if (
+          !sanitized.actorIds ||
+          !Array.isArray(sanitized.actorIds) ||
+          sanitized.actorIds.length === 0
+        ) {
           errors.push('actorIds must be a non-empty array');
         }
 
@@ -177,14 +190,17 @@ export class PermissionManager {
     return {
       valid: errors.length === 0,
       errors,
-      sanitized: errors.length === 0 ? sanitized : undefined,
+      sanitized: errors.length === 0 ? sanitized : undefined
     };
   }
 
   /**
    * Get all available write operations and their current permission status
    */
-  getOperationStatus(): Record<string, { operation: WriteOperation; allowed: boolean; reason?: string }> {
+  getOperationStatus(): Record<
+    string,
+    { operation: WriteOperation; allowed: boolean; reason?: string }
+  > {
     const status: Record<string, any> = {};
 
     for (const [key, operation] of Object.entries(this.writeOperations)) {
@@ -192,7 +208,7 @@ export class PermissionManager {
       status[key] = {
         operation,
         allowed: check.allowed,
-        reason: check.reason,
+        reason: check.reason
       };
     }
 
@@ -209,7 +225,7 @@ export class PermissionManager {
   } {
     const settingKeys = Object.values(this.writeOperations).map(op => op.settingKey);
     const settings: Record<string, boolean> = {};
-    
+
     for (const key of settingKeys) {
       settings[key] = game.settings.get(this.moduleId, key) as boolean;
     }
@@ -222,10 +238,10 @@ export class PermissionManager {
     return {
       user: {
         name: game.user?.name || 'Unknown',
-        isGM: game.user?.isGM || false,
+        isGM: game.user?.isGM || false
       },
       settings,
-      operations,
+      operations
     };
   }
 
@@ -236,7 +252,6 @@ export class PermissionManager {
     // Permission audit logging removed for production release
     // Previously logged permission checks for security auditing
   }
-
 }
 
 // Export singleton instance

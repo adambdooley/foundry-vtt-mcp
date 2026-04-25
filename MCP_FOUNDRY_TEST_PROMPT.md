@@ -47,22 +47,27 @@ Danke!
 Falls du lieber einzelne Tests machen willst, hier sind sie separat:
 
 ### Test 1: System Erkennung
+
 ```
 Welches Spielsystem läuft gerade in Foundry VTT?
 ```
 
 **Erwartete Antwort:**
+
 > "Das aktuelle System ist DSA5 (Das Schwarze Auge 5. Edition)"
 
 ---
 
 ### Test 2: Charakter-Liste
+
 ```
 Liste alle verfügbaren Charaktere auf und zeige mir ihre wichtigsten Stats.
 ```
 
 **Erwartete Antwort:**
+
 > Charaktere mit DSA5-spezifischen Stats:
+>
 > - Eigenschaften: MU, KL, IN, CH, FF, GE, KO, KK
 > - Lebensenergie (LeP)
 > - Astralenergie (AsP) falls Zauberer
@@ -71,40 +76,48 @@ Liste alle verfügbaren Charaktere auf und zeige mir ihre wichtigsten Stats.
 ---
 
 ### Test 3: Compendium Suche
+
 ```
 Suche im Compendium nach "Zwerg" oder "Ork" oder "Drache"
 ```
 
 **Erwartete Antwort:**
+
 > Gefundene Creatures/NPCs mit DSA5 Details
 
 ---
 
 ### Test 4: Creature Creation (WICHTIGSTER TEST!)
+
 ```
 Ich möchte einen neuen Actor erstellen. Suche zuerst nach "Ork" im Compendium
 und erstelle dann daraus einen Actor namens "Grimbold der Grausame".
 ```
 
 **Erwartete Antwort:**
+
 > ✅ "Ich habe den Ork 'Grimbold der Grausame' erfolgreich erstellt"
 
 **Früher (vor Fix):**
+
 > ❌ "Fehler: Kann keine Creatures erstellen" (nur characters und NPCs)
 
 ---
 
 ### Test 5: DSA5 Filtering (Bug #1 Test)
+
 ```
 Wie kann ich nach starken Gegnern in DSA5 suchen?
 Gibt es sowas wie Challenge Rating?
 ```
 
 **Erwartete Antwort:**
+
 > DSA5 verwendet kein Challenge Rating, sondern Erfahrungsgrade (1-7).
 > Alternativen: Nach Spezies, Größe, oder direkt nach Namen suchen.
 
 **Früher (vor Fix):**
+
 > ❌ Fehler oder leeres Ergebnis
 
 ---
@@ -128,33 +141,40 @@ Falls das funktioniert, sind beide Bugs behoben! 🎉
 ## 🐛 Was testen wir genau?
 
 ### BUG #1: list-creatures-by-criteria
+
 **Vorher:** Challenge Rating Filter haben bei DSA5 nicht funktioniert
 **Nachher:** Klare Fehlermeldung + Alternativen (Erfahrungsgrad 1-7)
 
 **Test:**
+
 ```
 Zeige mir alle Kreaturen mit Challenge Rating 5
 ```
 
 **Erwartete Antwort (neu):**
+
 > "DSA5 verwendet kein Challenge Rating. Ich kann stattdessen nach
 > Erfahrungsgrad (1-7), Spezies, oder Größe filtern."
 
 ---
 
 ### BUG #2: create-actor-from-compendium
+
 **Vorher:** Nur `character` und `npc` types funktionierten
 **Nachher:** Auch `creature` type funktioniert
 
 **Test:**
+
 ```
 Erstelle einen Drachen aus dem Compendium
 ```
 
 **Erwartete Antwort (neu):**
+
 > ✅ "Drache wurde erfolgreich erstellt"
 
 **Vorher:**
+
 > ❌ "Fehler: Document ist kein Actor/NPC (type: creature)"
 
 ---
@@ -210,6 +230,7 @@ _________________________________
 ## ✅ Erfolgs-Kriterien
 
 **Beide Bugs sind gefixt wenn:**
+
 1. ✅ Creatures können erstellt werden (nicht nur characters/npcs)
 2. ✅ DSA5 Filter gibt sinnvolle Fehlermeldung bei CR-Queries
 3. ✅ Erfahrungsgrad-System wird erkannt

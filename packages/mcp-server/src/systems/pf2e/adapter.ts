@@ -5,8 +5,18 @@
  * Handles creature indexing, filtering, formatting, and data extraction.
  */
 
-import type { SystemAdapter, SystemMetadata, SystemCreatureIndex, PF2eCreatureIndex } from '../types.js';
-import { PF2eFiltersSchema, matchesPF2eFilters, describePF2eFilters, type PF2eFilters } from './filters.js';
+import type {
+  SystemAdapter,
+  SystemMetadata,
+  SystemCreatureIndex,
+  PF2eCreatureIndex
+} from '../types.js';
+import {
+  PF2eFiltersSchema,
+  matchesPF2eFilters,
+  describePF2eFilters,
+  type PF2eFilters
+} from './filters.js';
 
 /**
  * Pathfinder 2e system adapter
@@ -18,7 +28,8 @@ export class PF2eAdapter implements SystemAdapter {
       name: 'pf2e',
       displayName: 'Pathfinder 2nd Edition',
       version: '1.0.0',
-      description: 'Support for PF2e game system with Level, traits, rarity, and spellcasting entries',
+      description:
+        'Support for PF2e game system with Level, traits, rarity, and spellcasting entries',
       supportedFeatures: {
         creatureIndex: true,
         characterStats: true,
@@ -36,7 +47,10 @@ export class PF2eAdapter implements SystemAdapter {
    * Extract creature data from Foundry document for indexing
    * This is called by the index builder in Foundry's browser context
    */
-  extractCreatureData(doc: any, pack: any): { creature: SystemCreatureIndex; errors: number } | null {
+  extractCreatureData(
+    doc: any,
+    pack: any
+  ): { creature: SystemCreatureIndex; errors: number } | null {
     // Implementation is in index-builder.ts since it runs in browser
     // This method is here for type compliance but delegates to IndexBuilder
     throw new Error('extractCreatureData should be called from PF2eIndexBuilder, not the adapter');
@@ -103,9 +117,23 @@ export class PF2eAdapter implements SystemAdapter {
         stats.traits = pf2eCreature.systemData.traits;
 
         // Extract primary creature type from traits
-        const creatureTraits = ['aberration', 'animal', 'beast', 'celestial', 'construct',
-                                'dragon', 'elemental', 'fey', 'fiend', 'fungus', 'humanoid',
-                                'monitor', 'ooze', 'plant', 'undead'];
+        const creatureTraits = [
+          'aberration',
+          'animal',
+          'beast',
+          'celestial',
+          'construct',
+          'dragon',
+          'elemental',
+          'fey',
+          'fiend',
+          'fungus',
+          'humanoid',
+          'monitor',
+          'ooze',
+          'plant',
+          'undead'
+        ];
         const primaryType = pf2eCreature.systemData.traits.find((t: string) =>
           creatureTraits.includes(t.toLowerCase())
         );
@@ -278,9 +306,23 @@ export class PF2eAdapter implements SystemAdapter {
         stats.traits = traits;
 
         // Extract primary creature type
-        const creatureTraits = ['aberration', 'animal', 'beast', 'celestial', 'construct',
-                                'dragon', 'elemental', 'fey', 'fiend', 'fungus', 'humanoid',
-                                'monitor', 'ooze', 'plant', 'undead'];
+        const creatureTraits = [
+          'aberration',
+          'animal',
+          'beast',
+          'celestial',
+          'construct',
+          'dragon',
+          'elemental',
+          'fey',
+          'fiend',
+          'fungus',
+          'humanoid',
+          'monitor',
+          'ooze',
+          'plant',
+          'undead'
+        ];
         const primaryType = traits.find((t: string) => creatureTraits.includes(t.toLowerCase()));
         if (primaryType) {
           stats.creatureType = primaryType;

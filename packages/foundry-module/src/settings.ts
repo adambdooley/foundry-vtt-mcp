@@ -11,7 +11,7 @@ export class ModuleSettings {
     // ============================================================================
     // SETTINGS MENU - Detailed Configuration Dialog
     // ============================================================================
-    
+
     // Enhanced Creature Index submenu
     (game.settings as any).registerMenu(this.moduleId, 'enhancedIndexMenu', {
       name: 'Enhanced Creature Index',
@@ -21,7 +21,7 @@ export class ModuleSettings {
       type: class extends FormApplication {
         static get defaultOptions() {
           return foundry.utils.mergeObject(super.defaultOptions, {
-            title: "Enhanced Creature Index Settings",
+            title: 'Enhanced Creature Index Settings',
             template: `modules/${MODULE_ID}/templates/enhanced-index-menu.html`,
             width: 500,
             height: 'auto',
@@ -29,14 +29,17 @@ export class ModuleSettings {
             closeOnSubmit: false
           } as any);
         }
-        
+
         getData(): any {
           return {
-            enableEnhancedCreatureIndex: game.settings.get(MODULE_ID, 'enableEnhancedCreatureIndex'),
+            enableEnhancedCreatureIndex: game.settings.get(
+              MODULE_ID,
+              'enableEnhancedCreatureIndex'
+            ),
             autoRebuildIndex: game.settings.get(MODULE_ID, 'autoRebuildIndex')
           };
         }
-        
+
         activateListeners(html: JQuery) {
           super.activateListeners(html);
           html.find('.rebuild-index-btn').click(() => {
@@ -47,9 +50,13 @@ export class ModuleSettings {
             }
           });
         }
-        
+
         async _updateObject(_event: Event, formData: any) {
-          await game.settings.set(MODULE_ID, 'enableEnhancedCreatureIndex', formData.enableEnhancedCreatureIndex);
+          await game.settings.set(
+            MODULE_ID,
+            'enableEnhancedCreatureIndex',
+            formData.enableEnhancedCreatureIndex
+          );
           await game.settings.set(MODULE_ID, 'autoRebuildIndex', formData.autoRebuildIndex);
         }
       },
@@ -65,7 +72,7 @@ export class ModuleSettings {
       type: class extends FormApplication {
         static get defaultOptions() {
           return foundry.utils.mergeObject(super.defaultOptions, {
-            title: "Map Generation Service Settings",
+            title: 'Map Generation Service Settings',
             template: `modules/${MODULE_ID}/templates/comfyui-settings.html`,
             width: 500,
             height: 'auto',
@@ -162,11 +169,11 @@ export class ModuleSettings {
 
         getStatusText(status: string): string {
           const statusMap: { [key: string]: string } = {
-            'running': 'Service Running',
-            'stopped': 'Service Stopped',
-            'starting': 'Service Starting...',
-            'error': 'Service Error',
-            'unknown': 'Status Unknown'
+            running: 'Service Running',
+            stopped: 'Service Stopped',
+            starting: 'Service Starting...',
+            error: 'Service Error',
+            unknown: 'Status Unknown'
           };
           return statusMap[status] || 'Unknown';
         }
@@ -183,7 +190,7 @@ export class ModuleSettings {
     // ============================================================================
     // SECTION 1: BASIC SETTINGS
     // ============================================================================
-    
+
     game.settings.register(this.moduleId, 'enabled', {
       name: 'Enable MCP Bridge',
       hint: 'Master switch to enable/disable the MCP bridge connection',
@@ -191,7 +198,7 @@ export class ModuleSettings {
       config: true,
       type: Boolean,
       default: true,
-      onChange: this.onEnabledChange.bind(this),
+      onChange: this.onEnabledChange.bind(this)
     });
 
     game.settings.register(this.moduleId, 'connectionType', {
@@ -201,12 +208,12 @@ export class ModuleSettings {
       config: true,
       type: String,
       choices: {
-        'auto': 'Auto (Recommended)',
-        'webrtc': 'WebRTC (Internet)',
-        'websocket': 'WebSocket (Local Only)'
+        auto: 'Auto (Recommended)',
+        webrtc: 'WebRTC (Internet)',
+        websocket: 'WebSocket (Local Only)'
       },
       default: 'auto',
-      onChange: this.onConnectionChange.bind(this),
+      onChange: this.onConnectionChange.bind(this)
     });
 
     game.settings.register(this.moduleId, 'serverHost', {
@@ -216,7 +223,7 @@ export class ModuleSettings {
       config: true,
       type: String,
       default: DEFAULT_CONFIG.MCP_HOST,
-      onChange: this.onConnectionChange.bind(this),
+      onChange: this.onConnectionChange.bind(this)
     });
 
     game.settings.register(this.moduleId, 'serverPort', {
@@ -226,21 +233,20 @@ export class ModuleSettings {
       config: false,
       type: Number,
       default: DEFAULT_CONFIG.MCP_PORT,
-      onChange: this.onConnectionChange.bind(this),
+      onChange: this.onConnectionChange.bind(this)
     });
-
 
     // ============================================================================
     // SECTION 2: WRITE PERMISSIONS
     // ============================================================================
-    
+
     game.settings.register(this.moduleId, 'allowWriteOperations', {
       name: 'Allow Write Operations',
       hint: 'Let AI model create actors, NPCs, and modify world content. Reading is always allowed.',
       scope: 'world',
       config: true,
       type: Boolean,
-      default: true,
+      default: true
     });
 
     // ============================================================================
@@ -257,8 +263,8 @@ export class ModuleSettings {
       range: {
         min: 1,
         max: 50,
-        step: 1,
-      },
+        step: 1
+      }
     });
 
     // Removed 'enableWriteAuditLog' setting as it provides no rollback functionality
@@ -269,14 +275,14 @@ export class ModuleSettings {
       scope: 'world',
       config: false, // Hidden from main config, accessible via submenu only
       type: Boolean,
-      default: true,
+      default: true
     });
 
     game.settings.register(this.moduleId, 'autoRebuildIndex', {
       scope: 'world',
       config: false, // Hidden from main config, accessible via submenu only
       type: Boolean,
-      default: true,
+      default: true
     });
 
     // Map Generation Service settings (configured via submenu only)
@@ -286,7 +292,7 @@ export class ModuleSettings {
       scope: 'world',
       config: false, // Hidden from main config, accessible via submenu only
       type: Boolean,
-      default: true,
+      default: true
     });
 
     game.settings.register(this.moduleId, 'mapGenQuality', {
@@ -296,11 +302,11 @@ export class ModuleSettings {
       config: false, // Hidden from main config, accessible via submenu only
       type: String,
       choices: {
-        'low': 'Low',
-        'medium': 'Medium',
-        'high': 'High'
+        low: 'Low',
+        medium: 'Medium',
+        high: 'High'
       },
-      default: 'low',
+      default: 'low'
     });
 
     // ============================================================================
@@ -313,7 +319,7 @@ export class ModuleSettings {
       scope: 'world',
       config: true,
       type: Boolean,
-      default: true,
+      default: true
     });
 
     game.settings.register(this.moduleId, 'autoReconnectEnabled', {
@@ -322,7 +328,7 @@ export class ModuleSettings {
       scope: 'world',
       config: true,
       type: Boolean,
-      default: true,
+      default: true
     });
 
     game.settings.register(this.moduleId, 'heartbeatInterval', {
@@ -335,8 +341,8 @@ export class ModuleSettings {
       range: {
         min: 10,
         max: 120,
-        step: 5,
-      },
+        step: 5
+      }
     });
 
     // Non-configurable settings for internal state
@@ -344,14 +350,14 @@ export class ModuleSettings {
       scope: 'world',
       config: false,
       type: String,
-      default: 'disconnected',
+      default: 'disconnected'
     });
 
     game.settings.register(this.moduleId, 'lastActivity', {
       scope: 'world',
       config: false,
       type: String,
-      default: '',
+      default: ''
     });
 
     // Track when we last showed the MCP server notification to avoid spam
@@ -359,7 +365,7 @@ export class ModuleSettings {
       scope: 'world',
       config: false,
       type: String,
-      default: '',
+      default: ''
     });
 
     // Roll state storage for persistent roll button states
@@ -368,7 +374,7 @@ export class ModuleSettings {
       config: false,
       type: Object,
       default: {},
-      onChange: this.onRollStatesChanged.bind(this),
+      onChange: this.onRollStatesChanged.bind(this)
     });
 
     // Button to message ID mapping for ChatMessage updates
@@ -376,9 +382,8 @@ export class ModuleSettings {
       scope: 'world',
       config: false,
       type: Object,
-      default: {},
+      default: {}
     });
-
   }
 
   /**
@@ -393,16 +398,15 @@ export class ModuleSettings {
    */
   updateConnectionStatusDisplay(connected: boolean, _toolCount: number): void {
     try {
-      const statusText = connected 
-        ? `✅ Connected` 
+      const statusText = connected
+        ? `✅ Connected`
         : `❌ Disconnected - Use connection panel to connect`;
-      
+
       // Update the hint for the enabled setting to show status
       const enabledSetting = (game.settings as any).settings.get(`${this.moduleId}.enabled`);
       if (enabledSetting) {
         enabledSetting.hint = `${enabledSetting.hint.split(' |')[0]} | Status: ${statusText}`;
       }
-      
     } catch (error) {
       console.warn(`[${this.moduleId}] Failed to update status display:`, error);
     }
@@ -423,7 +427,7 @@ export class ModuleSettings {
       reconnectDelay: DEFAULT_CONFIG.RECONNECT_DELAY, // Use sensible default
       connectionTimeout: DEFAULT_CONFIG.CONNECTION_TIMEOUT, // Use sensible default
       debugLogging: false, // Always false - use browser console for debugging
-      connectionType: connectionType as 'auto' | 'webrtc' | 'websocket',
+      connectionType: connectionType as 'auto' | 'webrtc' | 'websocket'
     };
   }
 
@@ -447,15 +451,21 @@ export class ModuleSettings {
   getAllSettings(): Record<string, any> {
     const settingKeys = [
       // Basic Settings
-      'enabled', 'serverHost', 'serverPort', 'connectionType',
+      'enabled',
+      'serverHost',
+      'serverPort',
+      'connectionType',
       // Permissions
       'allowWriteOperations',
       // Safety Controls
       'maxActorsPerRequest',
       // Enhanced Creature Index
-      'enableEnhancedCreatureIndex', 'autoRebuildIndex',
+      'enableEnhancedCreatureIndex',
+      'autoRebuildIndex',
       // Connection Behavior
-      'enableNotifications', 'autoReconnectEnabled', 'heartbeatInterval'
+      'enableNotifications',
+      'autoReconnectEnabled',
+      'heartbeatInterval'
     ];
 
     const settings: Record<string, any> = {};
@@ -494,7 +504,7 @@ export class ModuleSettings {
 
     return {
       valid: errors.length === 0,
-      errors,
+      errors
     };
   }
 
@@ -502,7 +512,6 @@ export class ModuleSettings {
    * Handle enabled setting change
    */
   private onEnabledChange(enabled: boolean): void {
-    
     // Trigger bridge state change through global event
     if (window.foundryMCPBridge) {
       if (enabled) {
@@ -517,13 +526,11 @@ export class ModuleSettings {
    * Handle connection setting changes
    */
   private onConnectionChange(): void {
-    
     // If bridge is running, restart it with new settings
     if (window.foundryMCPBridge && this.getSetting('enabled')) {
       window.foundryMCPBridge.restart?.();
     }
   }
-
 
   /**
    * Create settings migration for version updates
@@ -537,7 +544,7 @@ export class ModuleSettings {
   } {
     return {
       allowWriteOperations: this.getSetting('allowWriteOperations'),
-      maxActorsPerRequest: this.getSetting('maxActorsPerRequest'),
+      maxActorsPerRequest: this.getSetting('maxActorsPerRequest')
     };
   }
 
@@ -550,7 +557,6 @@ export class ModuleSettings {
   }
 
   migrateSettings(_fromVersion: string, _toVersion: string): void {
-    
     // Add migration logic here for future versions
     // For now, no migrations needed as this is initial version
   }
@@ -561,15 +567,21 @@ export class ModuleSettings {
   async resetToDefaults(): Promise<void> {
     const settingKeys = [
       // Basic Settings
-      'enabled', 'serverHost', 'serverPort', 'connectionType',
+      'enabled',
+      'serverHost',
+      'serverPort',
+      'connectionType',
       // Permissions
       'allowWriteOperations',
       // Safety Controls
       'maxActorsPerRequest',
       // Enhanced Creature Index
-      'enableEnhancedCreatureIndex', 'autoRebuildIndex',
+      'enableEnhancedCreatureIndex',
+      'autoRebuildIndex',
       // Connection Behavior
-      'enableNotifications', 'autoReconnectEnabled', 'heartbeatInterval'
+      'enableNotifications',
+      'autoReconnectEnabled',
+      'heartbeatInterval'
     ];
 
     for (const key of settingKeys) {

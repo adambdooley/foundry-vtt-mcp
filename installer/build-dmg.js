@@ -158,10 +158,10 @@ try {
   // Create DMG with better compression and settings
   execSync(
     `hdiutil create -volname "Foundry MCP Server ${VERSION}" ` +
-    `-srcfolder "${DMG_TEMP}" ` +
-    `-ov -format UDZO ` +
-    `-fs HFS+ ` +
-    `"${DMG_OUTPUT}"`,
+      `-srcfolder "${DMG_TEMP}" ` +
+      `-ov -format UDZO ` +
+      `-fs HFS+ ` +
+      `"${DMG_OUTPUT}"`,
     { stdio: 'inherit' }
   );
 

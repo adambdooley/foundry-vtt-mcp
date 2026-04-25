@@ -5,8 +5,18 @@
  * Handles creature indexing, filtering, formatting, and data extraction.
  */
 
-import type { SystemAdapter, SystemMetadata, SystemCreatureIndex, DnD5eCreatureIndex } from '../types.js';
-import { DnD5eFiltersSchema, matchesDnD5eFilters, describeDnD5eFilters, type DnD5eFilters } from './filters.js';
+import type {
+  SystemAdapter,
+  SystemMetadata,
+  SystemCreatureIndex,
+  DnD5eCreatureIndex
+} from '../types.js';
+import {
+  DnD5eFiltersSchema,
+  matchesDnD5eFilters,
+  describeDnD5eFilters,
+  type DnD5eFilters
+} from './filters.js';
 
 /**
  * D&D 5e system adapter
@@ -18,7 +28,8 @@ export class DnD5eAdapter implements SystemAdapter {
       name: 'dnd5e',
       displayName: 'Dungeons & Dragons 5th Edition',
       version: '1.0.0',
-      description: 'Support for D&D 5e game system with Challenge Rating, creature types, and legendary actions',
+      description:
+        'Support for D&D 5e game system with Challenge Rating, creature types, and legendary actions',
       supportedFeatures: {
         creatureIndex: true,
         characterStats: true,
@@ -36,7 +47,10 @@ export class DnD5eAdapter implements SystemAdapter {
    * Extract creature data from Foundry document for indexing
    * This is called by the index builder in Foundry's browser context
    */
-  extractCreatureData(doc: any, pack: any): { creature: SystemCreatureIndex; errors: number } | null {
+  extractCreatureData(
+    doc: any,
+    pack: any
+  ): { creature: SystemCreatureIndex; errors: number } | null {
     // Implementation is in index-builder.ts since it runs in browser
     // This method is here for type compliance but delegates to IndexBuilder
     throw new Error('extractCreatureData should be called from DnD5eIndexBuilder, not the adapter');
@@ -279,9 +293,11 @@ export class DnD5eAdapter implements SystemAdapter {
     }
 
     // Spellcasting
-    const hasSpells = !!(system.spells ||
-                        system.attributes?.spellcasting ||
-                        (system.details?.spellLevel && system.details.spellLevel > 0));
+    const hasSpells = !!(
+      system.spells ||
+      system.attributes?.spellcasting ||
+      (system.details?.spellLevel && system.details.spellLevel > 0)
+    );
     if (hasSpells) {
       stats.spellcasting = {
         hasSpells: true,

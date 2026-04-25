@@ -14,7 +14,7 @@ export const SOCKET_EVENTS = {
   MCP_RESPONSE: 'mcp-response',
   BRIDGE_STATUS: 'bridge-status',
   PING: 'ping',
-  PONG: 'pong',
+  PONG: 'pong'
 } as const;
 
 /**
@@ -26,7 +26,7 @@ export const MCP_METHODS = {
   GET_SCENE_INFO: 'getSceneInfo',
   GET_WORLD_INFO: 'getWorldInfo',
   GET_AVAILABLE_PACKS: 'getAvailablePacks',
-  PING: 'ping',
+  PING: 'ping'
 } as const;
 
 /**
@@ -38,7 +38,7 @@ export const DEFAULT_CONFIG = {
   CONNECTION_TIMEOUT: 10,
   RECONNECT_ATTEMPTS: 5,
   RECONNECT_DELAY: 1000,
-  LOG_LEVEL: 'info',
+  LOG_LEVEL: 'info'
 } as const;
 
 /**
@@ -52,7 +52,7 @@ export const PACK_TYPES = {
   MACRO: 'Macro',
   ROLL_TABLE: 'RollTable',
   PLAYLIST: 'Playlist',
-  CARDS: 'Cards',
+  CARDS: 'Cards'
 } as const;
 
 /**
@@ -61,7 +61,7 @@ export const PACK_TYPES = {
 export const TOKEN_DISPOSITIONS = {
   HOSTILE: -1,
   NEUTRAL: 0,
-  FRIENDLY: 1,
+  FRIENDLY: 1
 } as const;
 
 /**
@@ -75,7 +75,7 @@ export const ERROR_MESSAGES = {
   ACCESS_DENIED: 'Access denied - feature is disabled',
   QUERY_TIMEOUT: 'Query timeout',
   UNKNOWN_METHOD: 'Unknown method',
-  BRIDGE_NOT_RUNNING: 'MCP Bridge is not running',
+  BRIDGE_NOT_RUNNING: 'MCP Bridge is not running'
 } as const;
 
 /**
@@ -85,7 +85,7 @@ export const LOG_LEVELS = {
   ERROR: 'error',
   WARN: 'warn',
   INFO: 'info',
-  DEBUG: 'debug',
+  DEBUG: 'debug'
 } as const;
 
 /**
@@ -95,5 +95,5 @@ export const CONNECTION_STATES = {
   DISCONNECTED: 'disconnected',
   CONNECTING: 'connecting',
   CONNECTED: 'connected',
-  RECONNECTING: 'reconnecting',
+  RECONNECTING: 'reconnecting'
 } as const;

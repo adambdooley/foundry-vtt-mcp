@@ -13,13 +13,13 @@ export class Logger {
 
   constructor(config: LoggerConfig) {
     const formats = [];
-    
+
     // Add timestamp to all logs
     formats.push(winston.format.timestamp());
-    
+
     // Add error stack traces
     formats.push(winston.format.errors({ stack: true }));
-    
+
     // Choose output format
     if (config.format === 'json') {
       formats.push(winston.format.json());
@@ -39,7 +39,7 @@ export class Logger {
               const metaStr = Object.keys(meta).length ? ` ${JSON.stringify(meta)}` : '';
               return `${timestamp} [${level}]: ${message}${metaStr}`;
             })
-          ),
+          )
         })
       );
     }
@@ -49,7 +49,7 @@ export class Logger {
       transports.push(
         new winston.transports.File({
           filename: config.filePath,
-          format: winston.format.json(),
+          format: winston.format.json()
         })
       );
     }
@@ -57,7 +57,7 @@ export class Logger {
     this.logger = winston.createLogger({
       level: config.level,
       format: winston.format.combine(...formats),
-      transports,
+      transports
     });
   }
 
@@ -87,12 +87,12 @@ export class Logger {
     const childLogger = this.logger.child(defaultMeta);
     const childInstance = new Logger({
       level: 'info', // This will be overridden by the child logger
-      enableConsole: false, // Child doesn't need its own transports
+      enableConsole: false // Child doesn't need its own transports
     });
-    
+
     // Replace the logger instance
     (childInstance as any).logger = childLogger;
-    
+
     return childInstance;
   }
 }

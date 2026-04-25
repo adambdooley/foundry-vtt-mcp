@@ -23,38 +23,39 @@ export class SceneTools {
     return [
       {
         name: 'get-current-scene',
-        description: 'Get information about the currently active scene, including tokens and layout',
+        description:
+          'Get information about the currently active scene, including tokens and layout',
         inputSchema: {
           type: 'object',
           properties: {
             includeTokens: {
               type: 'boolean',
               description: 'Whether to include detailed token information (default: true)',
-              default: true,
+              default: true
             },
             includeHidden: {
               type: 'boolean',
               description: 'Whether to include hidden tokens and elements (default: false)',
-              default: false,
-            },
-          },
-        },
+              default: false
+            }
+          }
+        }
       },
       {
         name: 'get-world-info',
         description: 'Get basic information about the Foundry world and system',
         inputSchema: {
           type: 'object',
-          properties: {},
-        },
-      },
+          properties: {}
+        }
+      }
     ];
   }
 
   async handleGetCurrentScene(args: any): Promise<any> {
     const schema = z.object({
       includeTokens: z.boolean().default(true),
-      includeHidden: z.boolean().default(false),
+      includeHidden: z.boolean().default(false)
     });
 
     const { includeTokens, includeHidden } = schema.parse(args);
@@ -67,14 +68,15 @@ export class SceneTools {
       this.logger.debug('Successfully retrieved scene data', {
         sceneId: sceneData.id,
         sceneName: sceneData.name,
-        tokenCount: sceneData.tokens?.length || 0,
+        tokenCount: sceneData.tokens?.length || 0
       });
 
       return this.formatSceneResponse(sceneData, includeTokens, includeHidden);
-
     } catch (error) {
       this.logger.error('Failed to get current scene', error);
-      throw new Error(`Failed to get current scene: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to get current scene: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
@@ -86,14 +88,15 @@ export class SceneTools {
 
       this.logger.debug('Successfully retrieved world data', {
         worldId: worldData.id,
-        system: worldData.system,
+        system: worldData.system
       });
 
       return this.formatWorldResponse(worldData);
-
     } catch (error) {
       this.logger.error('Failed to get world information', error);
-      throw new Error(`Failed to get world information: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to get world information: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
@@ -105,7 +108,7 @@ export class SceneTools {
       dimensions: {
         width: sceneData.width,
         height: sceneData.height,
-        padding: sceneData.padding,
+        padding: sceneData.padding
       },
       hasBackground: !!sceneData.background,
       navigation: sceneData.navigation,
@@ -113,8 +116,8 @@ export class SceneTools {
         walls: sceneData.walls || 0,
         lights: sceneData.lights || 0,
         sounds: sceneData.sounds || 0,
-        notes: sceneData.notes?.length || 0,
-      },
+        notes: sceneData.notes?.length || 0
+      }
     };
 
     if (includeTokens && sceneData.tokens) {
@@ -126,7 +129,7 @@ export class SceneTools {
       response.notes = sceneData.notes.map((note: any) => ({
         id: note.id,
         text: this.truncateText(note.text, 100),
-        position: { x: note.x, y: note.y },
+        position: { x: note.x, y: note.y }
       }));
     }
 
@@ -141,32 +144,32 @@ export class SceneTools {
         name: token.name,
         position: {
           x: token.x,
-          y: token.y,
+          y: token.y
         },
         size: {
           width: token.width,
-          height: token.height,
+          height: token.height
         },
         actorId: token.actorId,
         disposition: this.getDispositionName(token.disposition),
         hidden: token.hidden,
-        hasImage: !!token.img,
+        hasImage: !!token.img
       }));
   }
 
   private createTokenSummary(tokens: any[], includeHidden: boolean): any {
     const visibleTokens = includeHidden ? tokens : tokens.filter(t => !t.hidden);
-    
+
     const summary = {
       total: visibleTokens.length,
       byDisposition: {
         friendly: 0,
         neutral: 0,
         hostile: 0,
-        unknown: 0,
+        unknown: 0
       },
       hasActors: 0,
-      withoutActors: 0,
+      withoutActors: 0
     };
 
     visibleTokens.forEach(token => {
@@ -195,24 +198,25 @@ export class SceneTools {
       title: worldData.title,
       system: {
         id: worldData.system,
-        version: worldData.systemVersion,
+        version: worldData.systemVersion
       },
       foundry: {
-        version: worldData.foundryVersion,
+        version: worldData.foundryVersion
       },
       users: {
         total: worldData.users?.length || 0,
         active: worldData.users?.filter((u: any) => u.active).length || 0,
         gms: worldData.users?.filter((u: any) => u.isGM).length || 0,
-        players: worldData.users?.filter((u: any) => !u.isGM).length || 0,
+        players: worldData.users?.filter((u: any) => !u.isGM).length || 0
       },
-      activeUsers: worldData.users
-        ?.filter((u: any) => u.active)
-        .map((u: any) => ({
-          id: u.id,
-          name: u.name,
-          isGM: u.isGM,
-        })) || [],
+      activeUsers:
+        worldData.users
+          ?.filter((u: any) => u.active)
+          .map((u: any) => ({
+            id: u.id,
+            name: u.name,
+            isGM: u.isGM
+          })) || []
     };
   }
 

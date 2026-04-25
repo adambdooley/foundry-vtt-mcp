@@ -15,11 +15,19 @@ const COMFYUI_RESOURCES_PATH = `${COMFYUI_APP_PATH}/Contents/Resources/ComfyUI`;
 
 // D&D Battlemaps SDXL model
 const MODEL_NAME = 'dnd_battlemaps_sdxl.safetensors';
-const MODEL_URL = 'https://huggingface.co/Darchi/dnd_battlemaps_sdxl/resolve/main/dnd_battlemaps_sdxl.safetensors';
+const MODEL_URL =
+  'https://huggingface.co/Darchi/dnd_battlemaps_sdxl/resolve/main/dnd_battlemaps_sdxl.safetensors';
 const MODEL_SIZE = 2.5 * 1024 * 1024 * 1024; // 2.5GB
 
 export interface SetupProgress {
-  stage: 'idle' | 'checking' | 'downloading_comfyui' | 'installing_comfyui' | 'downloading_model' | 'complete' | 'error';
+  stage:
+    | 'idle'
+    | 'checking'
+    | 'downloading_comfyui'
+    | 'installing_comfyui'
+    | 'downloading_model'
+    | 'complete'
+    | 'error';
   progress: number; // 0-100
   message: string;
   error?: string;
@@ -78,7 +86,15 @@ export class MacInstaller {
 
     // Fallback to user's home directory ComfyUI
     const home = process.env.HOME || '/tmp';
-    return path.join(home, 'Library', 'Application Support', 'ComfyUI', 'models', 'checkpoints', MODEL_NAME);
+    return path.join(
+      home,
+      'Library',
+      'Application Support',
+      'ComfyUI',
+      'models',
+      'checkpoints',
+      MODEL_NAME
+    );
   }
 
   /**
@@ -164,7 +180,9 @@ export class MacInstaller {
     try {
       // Mount the DMG
       this.logger.info('Mounting DMG', { path: dmgPath });
-      const mountOutput = execSync(`hdiutil attach "${dmgPath}" -nobrowse -noverify`, { encoding: 'utf8' });
+      const mountOutput = execSync(`hdiutil attach "${dmgPath}" -nobrowse -noverify`, {
+        encoding: 'utf8'
+      });
 
       // Parse mount output to find volume path
       const lines = mountOutput.split('\n');

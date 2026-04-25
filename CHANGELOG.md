@@ -80,6 +80,6 @@
 - Build scripts: added root convenience scripts (`build:release`, `bundle:server`, `installer:stage`); NSIS script accepts `--skip-download` and `--skip-nsis` for staging-only runs.
 
 Notes
+
 - No changes needed for CI; existing workflows continue to build bundles and the installer.
 - Foundry MCP Bridge port remains `31415`. Control channel is `31414` (internal wrapper↔backend only).
-
