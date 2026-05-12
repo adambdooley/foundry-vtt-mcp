@@ -50,7 +50,9 @@ export class DSA5IndexBuilder implements IndexBuilder {
       const enhancedCreatures: DSA5CreatureIndex[] = [];
 
       // Show initial progress notification
-      console.log(`[${this.moduleId}] Starte DSA5 Kreaturen-Index aus ${actorPacks.length} Paketen...`);
+      console.log(
+        `[${this.moduleId}] Starte DSA5 Kreaturen-Index aus ${actorPacks.length} Paketen...`
+      );
       if (typeof ui !== 'undefined' && ui.notifications) {
         ui.notifications.info(`Starte DSA5 Kreaturen-Index aus ${actorPacks.length} Paketen...`);
       }
@@ -79,11 +81,12 @@ export class DSA5IndexBuilder implements IndexBuilder {
           const packResult = await this.extractDataFromPack(pack);
           enhancedCreatures.push(...packResult.creatures);
           totalErrors += packResult.errors;
-
         } catch (error) {
           console.warn(`[${this.moduleId}] Failed to process pack ${pack.metadata.label}:`, error);
           if (typeof ui !== 'undefined' && ui.notifications) {
-            ui.notifications.warn(`Warnung: Fehler beim Indizieren von "${pack.metadata.label}" - fahre fort`);
+            ui.notifications.warn(
+              `Warnung: Fehler beim Indizieren von "${pack.metadata.label}" - fahre fort`
+            );
           }
         }
       }
@@ -103,7 +106,6 @@ export class DSA5IndexBuilder implements IndexBuilder {
       }
 
       return enhancedCreatures;
-
     } catch (error) {
       if (progressNotification && typeof ui !== 'undefined') {
         progressNotification.remove();
@@ -122,7 +124,9 @@ export class DSA5IndexBuilder implements IndexBuilder {
   /**
    * Extract creature data from a single compendium pack
    */
-  async extractDataFromPack(pack: any): Promise<{ creatures: DSA5CreatureIndex[]; errors: number }> {
+  async extractDataFromPack(
+    pack: any
+  ): Promise<{ creatures: DSA5CreatureIndex[]; errors: number }> {
     const creatures: DSA5CreatureIndex[] = [];
     let errors = 0;
 
@@ -142,7 +146,6 @@ export class DSA5IndexBuilder implements IndexBuilder {
             creatures.push(result.creature);
             errors += result.errors;
           }
-
         } catch (error) {
           console.warn(
             `[${this.moduleId}] Failed to extract DSA5 data from ${doc.name} in ${pack.metadata.label}:`,
@@ -152,7 +155,10 @@ export class DSA5IndexBuilder implements IndexBuilder {
         }
       }
     } catch (error) {
-      console.warn(`[${this.moduleId}] Failed to load documents from ${pack.metadata.label}:`, error);
+      console.warn(
+        `[${this.moduleId}] Failed to load documents from ${pack.metadata.label}:`,
+        error
+      );
       errors++;
     }
 
@@ -171,45 +177,44 @@ export class DSA5IndexBuilder implements IndexBuilder {
       const system = doc.system || {};
 
       // Extract experience points (AP)
-      const experiencePoints = system.details?.experience?.total
-        ?? system.experience?.total
-        ?? system.status?.experience
-        ?? 0;
+      const experiencePoints =
+        system.details?.experience?.total ??
+        system.experience?.total ??
+        system.status?.experience ??
+        0;
 
       // Calculate level from AP using EXPERIENCE_LEVELS
       const experienceLevel = getExperienceLevel(experiencePoints);
       const level = experienceLevel.level;
 
       // Extract species
-      let species = system.details?.species?.value
-        ?? system.species?.value
-        ?? system.details?.type
-        ?? 'Unbekannt';
+      let species =
+        system.details?.species?.value ??
+        system.species?.value ??
+        system.details?.type ??
+        'Unbekannt';
       if (typeof species !== 'string') {
         species = String(species || 'Unbekannt');
       }
 
       // Extract culture (with default)
-      let culture = system.details?.culture?.value
-        ?? system.culture?.value
-        ?? 'Keine';
+      let culture = system.details?.culture?.value ?? system.culture?.value ?? 'Keine';
       if (typeof culture !== 'string') {
         culture = String(culture || 'Keine');
       }
 
       // Extract profession/career
-      let profession = system.details?.career?.value
-        ?? system.details?.profession?.value
-        ?? system.career?.value
-        ?? undefined;
+      let profession =
+        system.details?.career?.value ??
+        system.details?.profession?.value ??
+        system.career?.value ??
+        undefined;
       if (profession && typeof profession !== 'string') {
         profession = String(profession);
       }
 
       // Extract and normalize size
-      let size = system.status?.size?.value
-        ?? system.size?.value
-        ?? 'mittel';
+      let size = system.status?.size?.value ?? system.size?.value ?? 'mittel';
       if (typeof size !== 'string') {
         size = String(size || 'mittel');
       }
@@ -217,27 +222,20 @@ export class DSA5IndexBuilder implements IndexBuilder {
 
       // Extract combat values
       // Note: wounds.current contains actual LeP (based on template.json reverse engineering)
-      const lifePoints = system.status?.wounds?.max
-        ?? system.status?.wounds?.current
-        ?? system.wounds?.max
-        ?? 1;
+      const lifePoints =
+        system.status?.wounds?.max ?? system.status?.wounds?.current ?? system.wounds?.max ?? 1;
 
-      const meleeDefense = system.status?.defense?.value
-        ?? system.defense?.value
-        ?? system.status?.defense
-        ?? 10;
+      const meleeDefense =
+        system.status?.defense?.value ?? system.defense?.value ?? system.status?.defense ?? 10;
 
-      const rangedDefense = system.status?.rangeDefense?.value
-        ?? system.rangeDefense?.value
-        ?? meleeDefense;
+      const rangedDefense =
+        system.status?.rangeDefense?.value ?? system.rangeDefense?.value ?? meleeDefense;
 
-      const armor = system.status?.armour?.value
-        ?? system.status?.armor?.value
-        ?? 0;
+      const armor = system.status?.armour?.value ?? system.status?.armor?.value ?? 0;
 
       // Detect spellcasting capability
-      const hasAstralEnergy = !!(system.status?.astralenergy?.max);
-      const hasKarmaEnergy = !!(system.status?.karmaenergy?.max);
+      const hasAstralEnergy = !!system.status?.astralenergy?.max;
+      const hasKarmaEnergy = !!system.status?.karmaenergy?.max;
       const hasSpells = !!(
         hasAstralEnergy ||
         hasKarmaEnergy ||

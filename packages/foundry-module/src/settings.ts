@@ -11,7 +11,7 @@ export class ModuleSettings {
     // ============================================================================
     // SETTINGS MENU - Detailed Configuration Dialog
     // ============================================================================
-    
+
     // Enhanced Creature Index submenu
     (game.settings as any).registerMenu(this.moduleId, 'enhancedIndexMenu', {
       name: 'Enhanced Creature Index',
@@ -21,22 +21,25 @@ export class ModuleSettings {
       type: class extends FormApplication {
         static get defaultOptions() {
           return foundry.utils.mergeObject(super.defaultOptions, {
-            title: "Enhanced Creature Index Settings",
+            title: 'Enhanced Creature Index Settings',
             template: `modules/${MODULE_ID}/templates/enhanced-index-menu.html`,
             width: 500,
             height: 'auto',
             resizable: false,
-            closeOnSubmit: false
+            closeOnSubmit: false,
           } as any);
         }
-        
+
         getData(): any {
           return {
-            enableEnhancedCreatureIndex: game.settings.get(MODULE_ID, 'enableEnhancedCreatureIndex'),
-            autoRebuildIndex: game.settings.get(MODULE_ID, 'autoRebuildIndex')
+            enableEnhancedCreatureIndex: game.settings.get(
+              MODULE_ID,
+              'enableEnhancedCreatureIndex'
+            ),
+            autoRebuildIndex: game.settings.get(MODULE_ID, 'autoRebuildIndex'),
           };
         }
-        
+
         activateListeners(html: JQuery) {
           super.activateListeners(html);
           html.find('.rebuild-index-btn').click(() => {
@@ -47,13 +50,17 @@ export class ModuleSettings {
             }
           });
         }
-        
+
         async _updateObject(_event: Event, formData: any) {
-          await game.settings.set(MODULE_ID, 'enableEnhancedCreatureIndex', formData.enableEnhancedCreatureIndex);
+          await game.settings.set(
+            MODULE_ID,
+            'enableEnhancedCreatureIndex',
+            formData.enableEnhancedCreatureIndex
+          );
           await game.settings.set(MODULE_ID, 'autoRebuildIndex', formData.autoRebuildIndex);
         }
       },
-      restricted: true
+      restricted: true,
     });
 
     // Map Generation Service submenu
@@ -65,12 +72,12 @@ export class ModuleSettings {
       type: class extends FormApplication {
         static get defaultOptions() {
           return foundry.utils.mergeObject(super.defaultOptions, {
-            title: "Map Generation Service Settings",
+            title: 'Map Generation Service Settings',
             template: `modules/${MODULE_ID}/templates/comfyui-settings.html`,
             width: 500,
             height: 'auto',
             resizable: false,
-            closeOnSubmit: false
+            closeOnSubmit: false,
           } as any);
         }
 
@@ -79,7 +86,7 @@ export class ModuleSettings {
             autoStartService: game.settings.get(MODULE_ID, 'mapGenAutoStart') || true,
             mapGenQuality: game.settings.get(MODULE_ID, 'mapGenQuality') || 'low',
             connectionStatus: this.getConnectionStatus(),
-            connectionStatusText: this.getConnectionStatusText()
+            connectionStatusText: this.getConnectionStatusText(),
           };
         }
 
@@ -162,11 +169,11 @@ export class ModuleSettings {
 
         getStatusText(status: string): string {
           const statusMap: { [key: string]: string } = {
-            'running': 'Service Running',
-            'stopped': 'Service Stopped',
-            'starting': 'Service Starting...',
-            'error': 'Service Error',
-            'unknown': 'Status Unknown'
+            running: 'Service Running',
+            stopped: 'Service Stopped',
+            starting: 'Service Starting...',
+            error: 'Service Error',
+            unknown: 'Status Unknown',
           };
           return statusMap[status] || 'Unknown';
         }
@@ -177,13 +184,13 @@ export class ModuleSettings {
           ui.notifications?.info('Map generation service settings saved successfully');
         }
       },
-      restricted: true
+      restricted: true,
     });
 
     // ============================================================================
     // SECTION 1: BASIC SETTINGS
     // ============================================================================
-    
+
     game.settings.register(this.moduleId, 'enabled', {
       name: 'Enable MCP Bridge',
       hint: 'Master switch to enable/disable the MCP bridge connection',
@@ -201,9 +208,9 @@ export class ModuleSettings {
       config: true,
       type: String,
       choices: {
-        'auto': 'Auto (Recommended)',
-        'webrtc': 'WebRTC (Internet)',
-        'websocket': 'WebSocket (Local Only)'
+        auto: 'Auto (Recommended)',
+        webrtc: 'WebRTC (Internet)',
+        websocket: 'WebSocket (Local Only)',
       },
       default: 'auto',
       onChange: this.onConnectionChange.bind(this),
@@ -229,11 +236,10 @@ export class ModuleSettings {
       onChange: this.onConnectionChange.bind(this),
     });
 
-
     // ============================================================================
     // SECTION 2: WRITE PERMISSIONS
     // ============================================================================
-    
+
     game.settings.register(this.moduleId, 'allowWriteOperations', {
       name: 'Allow Write Operations',
       hint: 'Let AI model create actors, NPCs, and modify world content. Reading is always allowed.',
@@ -296,9 +302,9 @@ export class ModuleSettings {
       config: false, // Hidden from main config, accessible via submenu only
       type: String,
       choices: {
-        'low': 'Low',
-        'medium': 'Medium',
-        'high': 'High'
+        low: 'Low',
+        medium: 'Medium',
+        high: 'High',
       },
       default: 'low',
     });
@@ -378,7 +384,6 @@ export class ModuleSettings {
       type: Object,
       default: {},
     });
-
   }
 
   /**
@@ -393,16 +398,15 @@ export class ModuleSettings {
    */
   updateConnectionStatusDisplay(connected: boolean, _toolCount: number): void {
     try {
-      const statusText = connected 
-        ? `✅ Connected` 
+      const statusText = connected
+        ? `✅ Connected`
         : `❌ Disconnected - Use connection panel to connect`;
-      
+
       // Update the hint for the enabled setting to show status
       const enabledSetting = (game.settings as any).settings.get(`${this.moduleId}.enabled`);
       if (enabledSetting) {
         enabledSetting.hint = `${enabledSetting.hint.split(' |')[0]} | Status: ${statusText}`;
       }
-      
     } catch (error) {
       console.warn(`[${this.moduleId}] Failed to update status display:`, error);
     }
@@ -447,15 +451,21 @@ export class ModuleSettings {
   getAllSettings(): Record<string, any> {
     const settingKeys = [
       // Basic Settings
-      'enabled', 'serverHost', 'serverPort', 'connectionType',
+      'enabled',
+      'serverHost',
+      'serverPort',
+      'connectionType',
       // Permissions
       'allowWriteOperations',
       // Safety Controls
       'maxActorsPerRequest',
       // Enhanced Creature Index
-      'enableEnhancedCreatureIndex', 'autoRebuildIndex',
+      'enableEnhancedCreatureIndex',
+      'autoRebuildIndex',
       // Connection Behavior
-      'enableNotifications', 'autoReconnectEnabled', 'heartbeatInterval'
+      'enableNotifications',
+      'autoReconnectEnabled',
+      'heartbeatInterval',
     ];
 
     const settings: Record<string, any> = {};
@@ -502,7 +512,6 @@ export class ModuleSettings {
    * Handle enabled setting change
    */
   private onEnabledChange(enabled: boolean): void {
-    
     // Trigger bridge state change through global event
     if (window.foundryMCPBridge) {
       if (enabled) {
@@ -517,13 +526,11 @@ export class ModuleSettings {
    * Handle connection setting changes
    */
   private onConnectionChange(): void {
-    
     // If bridge is running, restart it with new settings
     if (window.foundryMCPBridge && this.getSetting('enabled')) {
       window.foundryMCPBridge.restart?.();
     }
   }
-
 
   /**
    * Create settings migration for version updates
@@ -550,7 +557,6 @@ export class ModuleSettings {
   }
 
   migrateSettings(_fromVersion: string, _toVersion: string): void {
-    
     // Add migration logic here for future versions
     // For now, no migrations needed as this is initial version
   }
@@ -561,15 +567,21 @@ export class ModuleSettings {
   async resetToDefaults(): Promise<void> {
     const settingKeys = [
       // Basic Settings
-      'enabled', 'serverHost', 'serverPort', 'connectionType',
+      'enabled',
+      'serverHost',
+      'serverPort',
+      'connectionType',
       // Permissions
       'allowWriteOperations',
       // Safety Controls
       'maxActorsPerRequest',
       // Enhanced Creature Index
-      'enableEnhancedCreatureIndex', 'autoRebuildIndex',
+      'enableEnhancedCreatureIndex',
+      'autoRebuildIndex',
       // Connection Behavior
-      'enableNotifications', 'autoReconnectEnabled', 'heartbeatInterval'
+      'enableNotifications',
+      'autoReconnectEnabled',
+      'heartbeatInterval',
     ];
 
     for (const key of settingKeys) {

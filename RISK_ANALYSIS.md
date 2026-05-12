@@ -7,6 +7,7 @@ This document provides a comprehensive risk analysis for migrating 7 MCP tools f
 **Overall Risk Level:** MEDIUM
 
 **Risk Categories:**
+
 1. Technical/Implementation Risks
 2. Integration Risks
 3. Compatibility Risks
@@ -14,6 +15,7 @@ This document provides a comprehensive risk analysis for migrating 7 MCP tools f
 5. Project Timeline Risks
 
 **Critical Risk Factors:**
+
 - ⚠️ DSA5 condition system compatibility (unknown)
 - ⚠️ Destructive operations (delete-tokens)
 - ⚠️ Unknown root cause of broken branch instability
@@ -22,15 +24,15 @@ This document provides a comprehensive risk analysis for migrating 7 MCP tools f
 
 ## Risk Matrix Overview
 
-| Risk Category | Severity | Likelihood | Overall Risk | Mitigation Priority |
-|---------------|----------|------------|--------------|---------------------|
-| DSA5 Condition Compatibility | HIGH | MEDIUM | **HIGH** | **CRITICAL** |
-| Destructive Operations | HIGH | LOW | **MEDIUM** | **HIGH** |
-| Type System Breaking Changes | MEDIUM | LOW | **LOW** | MEDIUM |
-| Foundry API Compatibility | MEDIUM | MEDIUM | **MEDIUM** | HIGH |
-| Performance Degradation | LOW | LOW | **LOW** | LOW |
-| Documentation Drift | LOW | MEDIUM | **LOW** | MEDIUM |
-| Broken Branch Instability Source | HIGH | UNKNOWN | **HIGH** | **CRITICAL** |
+| Risk Category                    | Severity | Likelihood | Overall Risk | Mitigation Priority |
+| -------------------------------- | -------- | ---------- | ------------ | ------------------- |
+| DSA5 Condition Compatibility     | HIGH     | MEDIUM     | **HIGH**     | **CRITICAL**        |
+| Destructive Operations           | HIGH     | LOW        | **MEDIUM**   | **HIGH**            |
+| Type System Breaking Changes     | MEDIUM   | LOW        | **LOW**      | MEDIUM              |
+| Foundry API Compatibility        | MEDIUM   | MEDIUM     | **MEDIUM**   | HIGH                |
+| Performance Degradation          | LOW      | LOW        | **LOW**      | LOW                 |
+| Documentation Drift              | LOW      | MEDIUM     | **LOW**      | MEDIUM              |
+| Broken Branch Instability Source | HIGH     | UNKNOWN    | **HIGH**     | **CRITICAL**        |
 
 **Overall Assessment:** Migration is feasible with proper testing and phased rollout.
 
@@ -46,17 +48,20 @@ This document provides a comprehensive risk analysis for migrating 7 MCP tools f
 
 **Description:**
 The broken branch is marked as unstable, but the specific cause of instability is not documented. It's unclear if the instability is related to:
+
 - The 7 new tools themselves
 - COMPENDIUM_ADAPTER_FEATURE.md changes
 - Other undocumented changes
 - Integration issues with Foundry
 
 **Potential Impact:**
+
 - Migrated tools may carry hidden bugs
 - Instability may resurface in baseline branch
 - Difficult to debug if root cause is unknown
 
 **Indicators:**
+
 - No specific bug reports in documentation
 - CHANGELOG mentions "Bug fixes" without details
 - Version v0.6.2 jumped from v0.6.1 but instability reason unclear
@@ -64,6 +69,7 @@ The broken branch is marked as unstable, but the specific cause of instability i
 **Mitigation Strategies:**
 
 1. **Code Archaeology** (HIGH PRIORITY)
+
    ```bash
    # Compare broken branch with its parent
    git log claude/update-docs-v0.6.2-01Kba6k5nEDbUNjHDrkhUniB --oneline -20
@@ -105,6 +111,7 @@ The broken branch is marked as unstable, but the specific cause of instability i
 The broken branch may have different TypeScript dependencies or type definitions that could cause compilation errors when merged into baseline.
 
 **Potential Impact:**
+
 - Build failures
 - Type errors in production code
 - Integration issues with existing tools
@@ -112,6 +119,7 @@ The broken branch may have different TypeScript dependencies or type definitions
 **Mitigation Strategies:**
 
 1. **Version Lock Check**
+
    ```bash
    # Compare package.json versions
    git show claude/update-docs-v0.6.2-01Kba6k5nEDbUNjHDrkhUniB:package.json > /tmp/broken-package.json
@@ -141,6 +149,7 @@ The broken branch may have different TypeScript dependencies or type definitions
 The broken branch may rely on npm packages or Foundry API features not present in baseline.
 
 **Potential Impact:**
+
 - Runtime errors
 - Missing functionality
 - Installation failures
@@ -175,11 +184,13 @@ The broken branch may rely on npm packages or Foundry API features not present i
 
 **Description:**
 The 6 token manipulation tools require new handlers in the Foundry module. Integration issues could cause:
+
 - Handler not found errors
 - WebRTC communication failures
 - Incomplete implementation
 
 **Potential Impact:**
+
 - Tools fail silently
 - Error messages unclear
 - Difficult to debug client-server mismatch
@@ -187,6 +198,7 @@ The 6 token manipulation tools require new handlers in the Foundry module. Integ
 **Mitigation Strategies:**
 
 1. **Handler Template Testing**
+
    ```javascript
    // Test handler exists before full implementation
    case 'foundry-mcp-bridge.moveToken': {
@@ -201,12 +213,13 @@ The 6 token manipulation tools require new handlers in the Foundry module. Integ
    - Verify request/response format matches MCP tool expectations
 
 3. **Error Handling Pattern**
+
    ```javascript
    try {
      // Handler implementation
    } catch (error) {
      console.error(`Handler failed: foundry-mcp-bridge.moveToken`, error);
-     throw error;  // Re-throw with context
+     throw error; // Re-throw with context
    }
    ```
 
@@ -227,11 +240,13 @@ The 6 token manipulation tools require new handlers in the Foundry module. Integ
 
 **Description:**
 Incorrect registration of TokenManipulationTools in index.ts could cause:
+
 - Tools not appearing in MCP tool list
 - Handler routing failures
 - Tool call timeouts
 
 **Potential Impact:**
+
 - Complete failure of token tools
 - Confusing user experience
 - Silent failures
@@ -245,6 +260,7 @@ Incorrect registration of TokenManipulationTools in index.ts could cause:
    - [ ] Register all 6 handlers in CallToolRequestSchema
 
 2. **Verification Test**
+
    ```bash
    # Start MCP server and list tools
    node packages/mcp-server/dist/index.js
@@ -268,12 +284,14 @@ Incorrect registration of TokenManipulationTools in index.ts could cause:
 
 **Description:**
 The broken branch character.ts has significant changes from baseline:
+
 - Different `get-character` description (lazy-loading language)
 - Modified `formatItems` (returns ALL items vs 20)
 - New `formatActions` method
 - Different response structure
 
 **Potential Impact:**
+
 - Breaking changes to existing users
 - Token usage increase if returning ALL items
 - Regression in character tool behavior
@@ -311,18 +329,21 @@ The broken branch character.ts has significant changes from baseline:
 
 **Description:**
 The `toggle-token-condition` and `get-available-conditions` tools interact with Foundry's status effect system. DSA5 may implement conditions differently than D&D5e/PF2e:
+
 - Different condition IDs
 - Different CONFIG.statusEffects structure
 - Different effect application method
 - Custom DSA5-specific conditions
 
 **Potential Impact:**
+
 - Tools fail with DSA5 actors
 - Incorrect conditions applied
 - Runtime errors in DSA5 worlds
 - Loss of DSA5 compatibility (regression from v0.6.1)
 
 **Unknown Factors:**
+
 - How DSA5 system stores conditions
 - Whether DSA5 uses standard Foundry effects
 - If DSA5 has custom condition management
@@ -330,13 +351,14 @@ The `toggle-token-condition` and `get-available-conditions` tools interact with 
 **Mitigation Strategies:**
 
 1. **DSA5 System Investigation** (CRITICAL - DO FIRST)
+
    ```javascript
    // In DSA5 Foundry world, run in console:
    console.log('DSA5 Status Effects:', CONFIG.statusEffects);
    console.log('DSA5 System:', game.system.id);
 
    // Test with DSA5 character:
-   const actor = game.actors.getName("Test Held");
+   const actor = game.actors.getName('Test Held');
    console.log('Actor effects:', actor.effects);
    console.log('Actor statuses:', actor.statuses);
 
@@ -354,6 +376,7 @@ The `toggle-token-condition` and `get-available-conditions` tools interact with 
    - Verify effect is applied correctly
 
 3. **Conditional Implementation**
+
    ```typescript
    // In toggle-token-condition handler
    const gameSystem = await detectGameSystem(this.foundryClient, this.logger);
@@ -375,6 +398,7 @@ The `toggle-token-condition` and `get-available-conditions` tools interact with 
    - Review DSA5 system source code
 
 **Testing Checklist:**
+
 - [ ] DSA5 world created and loaded
 - [ ] CONFIG.statusEffects inspected for DSA5
 - [ ] get-available-conditions tested with DSA5
@@ -394,17 +418,20 @@ The `toggle-token-condition` and `get-available-conditions` tools interact with 
 
 **Description:**
 Token manipulation relies on Foundry v13 APIs. Changes in Foundry API between versions could cause:
+
 - canvas.tokens API differences
 - token.document.update() signature changes
 - Effect system changes
 
 **Potential Impact:**
+
 - Tools fail on different Foundry versions
 - Unexpected behavior on Foundry v12 or v14
 
 **Mitigation Strategies:**
 
 1. **Version Check in Module**
+
    ```javascript
    if (!game.version.startsWith('13')) {
      console.warn('Token manipulation tools designed for Foundry v13');
@@ -435,12 +462,14 @@ Token manipulation relies on Foundry v13 APIs. Changes in Foundry API between ve
 
 **Description:**
 D&D5e, PF2e, and DSA5 may handle tokens differently:
+
 - Actor data structure
 - Default token settings
 - Vision/light integration
 - Combat tracker integration
 
 **Potential Impact:**
+
 - Tool works on D&D5e but fails on PF2e
 - Different behavior across systems
 - User confusion
@@ -464,6 +493,7 @@ D&D5e, PF2e, and DSA5 may handle tokens differently:
    - Test with all 3 systems
 
 3. **System-Specific Handlers** (if needed)
+
    ```typescript
    const gameSystem = await detectGameSystem(...);
 
@@ -487,11 +517,13 @@ D&D5e, PF2e, and DSA5 may handle tokens differently:
 
 **Description:**
 `delete-tokens` permanently removes tokens from the scene. User errors or bugs could cause:
+
 - Accidental deletion of important tokens
 - Loss of unlinked token data (not recoverable)
 - Bulk deletion of wrong tokens
 
 **Potential Impact:**
+
 - Permanent data loss
 - User frustration
 - Need to recreate tokens manually
@@ -504,11 +536,13 @@ D&D5e, PF2e, and DSA5 may handle tokens differently:
    - Note: History may not persist across sessions
 
 2. **Confirmation in Tool Description**
+
    ```typescript
-   description: 'Delete one or more tokens from the current scene. **WARNING:** This is a destructive operation. Deleted tokens may be recoverable via Foundry\'s undo (Ctrl+Z) but this is not guaranteed. Use with caution.'
+   description: "Delete one or more tokens from the current scene. **WARNING:** This is a destructive operation. Deleted tokens may be recoverable via Foundry's undo (Ctrl+Z) but this is not guaranteed. Use with caution.";
    ```
 
 3. **Error Handling for Partial Failures**
+
    ```typescript
    // Don't fail entire operation if one token fails
    const errors = [];
@@ -543,11 +577,13 @@ D&D5e, PF2e, and DSA5 may handle tokens differently:
 
 **Description:**
 `update-token` could set invalid property combinations:
+
 - Size 0 or negative
 - Invalid disposition values
 - Rotation out of bounds
 
 **Potential Impact:**
+
 - Token becomes invisible or unusable
 - Scene corruption
 - Foundry errors
@@ -555,13 +591,14 @@ D&D5e, PF2e, and DSA5 may handle tokens differently:
 **Mitigation Strategies:**
 
 1. **Input Validation (Zod Schemas)**
+
    ```typescript
    updates: z.object({
      width: z.number().positive().optional(),
      height: z.number().positive().optional(),
      rotation: z.number().min(0).max(360).optional(),
      disposition: z.union([z.literal(-1), z.literal(0), z.literal(1)]).optional(),
-   })
+   });
    ```
 
 2. **Foundry's Built-in Validation**
@@ -586,11 +623,13 @@ D&D5e, PF2e, and DSA5 may handle tokens differently:
 
 **Description:**
 Multiple concurrent token operations could cause:
+
 - Conflicting updates
 - Unexpected state
 - Lost updates
 
 **Potential Impact:**
+
 - Token in inconsistent state
 - Operation failures
 - User confusion
@@ -623,11 +662,13 @@ Multiple concurrent token operations could cause:
 
 **Description:**
 During migration, discovering additional features or improvements that expand scope:
+
 - Temptation to refactor existing code
 - Adding enhancements beyond migration
 - Perfectionism delaying release
 
 **Potential Impact:**
+
 - Timeline overrun
 - Increased complexity
 - More opportunities for bugs
@@ -662,6 +703,7 @@ During migration, discovering additional features or improvements that expand sc
 DSA5 testing and condition system investigation could take longer than expected.
 
 **Potential Impact:**
+
 - Timeline delays
 - Rushed testing
 - Bugs in production
@@ -726,8 +768,10 @@ There may be bugs or issues in the broken branch that are not documented.
 ## Critical Mitigation Priorities
 
 ### Priority 1: CRITICAL - Investigate Broken Branch Instability
+
 **Why:** Root cause unknown, highest uncertainty
 **Action:**
+
 1. Review broken branch git history
 2. Compare all files (not just tools)
 3. Identify what made it "broken"
@@ -738,8 +782,10 @@ There may be bugs or issues in the broken branch that are not documented.
 ---
 
 ### Priority 2: CRITICAL - DSA5 Condition System Testing
+
 **Why:** Highest compatibility risk, could break DSA5 support
 **Action:**
+
 1. Set up DSA5 test world
 2. Investigate CONFIG.statusEffects
 3. Test condition application manually
@@ -751,8 +797,10 @@ There may be bugs or issues in the broken branch that are not documented.
 ---
 
 ### Priority 3: HIGH - Foundry Module Handler Validation
+
 **Why:** Integration point, many things can go wrong
 **Action:**
+
 1. Implement one handler at a time
 2. Test immediately after each
 3. Verify WebRTC communication
@@ -763,8 +811,10 @@ There may be bugs or issues in the broken branch that are not documented.
 ---
 
 ### Priority 4: HIGH - Backwards Compatibility Verification
+
 **Why:** Don't break existing users
 **Action:**
+
 1. Test all 26 existing tools after migration
 2. Verify character.ts changes don't break get-character
 3. Check performance hasn't degraded
@@ -778,6 +828,7 @@ There may be bugs or issues in the broken branch that are not documented.
 The migration can proceed if:
 
 ✅ **Must Have:**
+
 - [ ] Broken branch instability root cause identified or isolated to COMPENDIUM_ADAPTER_FEATURE
 - [ ] DSA5 condition system investigated and documented
 - [ ] All 6 token tools tested with D&D5e and PF2e successfully
@@ -785,11 +836,13 @@ The migration can proceed if:
 - [ ] Rollback plan documented and tested
 
 ⚠️ **Should Have:**
+
 - [ ] DSA5 condition tools working (or explicitly disabled with documentation)
 - [ ] Automated test coverage >70%
 - [ ] Performance benchmarks showing no regression
 
 🔄 **Nice to Have:**
+
 - [ ] 100% DSA5 compatibility
 - [ ] Enhanced error messages
 - [ ] Performance improvements
@@ -801,6 +854,7 @@ The migration can proceed if:
 Immediately rollback if:
 
 🚨 **Critical Issues:**
+
 - Any existing tools break
 - Data loss occurs
 - DSA5 functionality completely broken
@@ -809,7 +863,8 @@ Immediately rollback if:
 - Security vulnerability discovered
 
 ⚠️ **Major Issues (consider rollback):**
-- >3 critical bugs discovered in testing
+
+- > 3 critical bugs discovered in testing
 - DSA5 partially broken with no fix path
 - Timeline overrun >2x estimate
 - User reports of serious issues
@@ -820,14 +875,14 @@ Immediately rollback if:
 
 After all mitigations:
 
-| Risk Category | Pre-Mitigation | Post-Mitigation | Acceptable? |
-|---------------|----------------|-----------------|-------------|
-| DSA5 Compatibility | HIGH | MEDIUM | ✅ Yes (with testing) |
-| Broken Branch Instability | HIGH | MEDIUM | ✅ Yes (with investigation) |
-| Destructive Operations | MEDIUM | LOW | ✅ Yes (with warnings) |
-| Integration Issues | MEDIUM | LOW | ✅ Yes (with systematic testing) |
-| Type/Build Issues | LOW | VERY LOW | ✅ Yes |
-| Timeline Overrun | MEDIUM | LOW | ✅ Yes (with buffer) |
+| Risk Category             | Pre-Mitigation | Post-Mitigation | Acceptable?                      |
+| ------------------------- | -------------- | --------------- | -------------------------------- |
+| DSA5 Compatibility        | HIGH           | MEDIUM          | ✅ Yes (with testing)            |
+| Broken Branch Instability | HIGH           | MEDIUM          | ✅ Yes (with investigation)      |
+| Destructive Operations    | MEDIUM         | LOW             | ✅ Yes (with warnings)           |
+| Integration Issues        | MEDIUM         | LOW             | ✅ Yes (with systematic testing) |
+| Type/Build Issues         | LOW            | VERY LOW        | ✅ Yes                           |
+| Timeline Overrun          | MEDIUM         | LOW             | ✅ Yes (with buffer)             |
 
 **Overall Residual Risk:** MEDIUM (acceptable for migration)
 
@@ -838,12 +893,14 @@ After all mitigations:
 ### Post-Migration Monitoring
 
 **Week 1 After Release:**
+
 - Monitor GitHub issues for bug reports
 - Check Discord/community for feedback
 - Track error logs in MCP server
 - Monitor Foundry console errors
 
 **Success Metrics:**
+
 - ✅ Zero critical bugs reported
 - ✅ <3 minor bugs reported
 - ✅ DSA5 users confirm compatibility
@@ -851,6 +908,7 @@ After all mitigations:
 - ✅ Positive user feedback on token tools
 
 **Failure Indicators:**
+
 - 🚨 >3 critical bug reports in first week
 - 🚨 DSA5 users reporting breakage
 - 🚨 Rollback requests from users
@@ -863,6 +921,7 @@ After all mitigations:
 **Overall Assessment:** Migration is **FEASIBLE** with **MEDIUM RISK**
 
 **Key Success Factors:**
+
 1. ✅ Thorough investigation of broken branch instability
 2. ✅ Comprehensive DSA5 testing before release
 3. ✅ Systematic phased implementation (Waves 1-3)
@@ -870,6 +929,7 @@ After all mitigations:
 5. ✅ Clear rollback plan
 
 **Recommendation:** **PROCEED** with migration following the phased approach outlined in IMPLEMENTATION_ORDER.md, with special emphasis on:
+
 - DSA5 condition system investigation (Priority 1)
 - Broken branch instability root cause analysis (Priority 2)
 - Comprehensive testing across all 3 game systems
@@ -883,6 +943,7 @@ After all mitigations:
 Use this checklist before starting migration:
 
 **Pre-Migration:**
+
 - [ ] Read all migration documentation (MISSING_TOOLS.md, MIGRATION_PLAN.md, IMPLEMENTATION_ORDER.md)
 - [ ] Investigate broken branch git history
 - [ ] Set up DSA5 test world
@@ -891,6 +952,7 @@ Use this checklist before starting migration:
 - [ ] Document current baseline state
 
 **During Migration:**
+
 - [ ] Follow implementation order (Waves 1-3)
 - [ ] Test after each wave
 - [ ] Monitor for errors continuously
@@ -898,6 +960,7 @@ Use this checklist before starting migration:
 - [ ] Keep notes on issues encountered
 
 **Post-Migration:**
+
 - [ ] All 32 tools tested
 - [ ] Cross-system compatibility verified
 - [ ] Documentation updated
@@ -906,6 +969,7 @@ Use this checklist before starting migration:
 - [ ] Community notified
 
 **If Issues Arise:**
+
 - [ ] Assess severity (critical/major/minor)
 - [ ] Check rollback triggers
 - [ ] Document issue thoroughly

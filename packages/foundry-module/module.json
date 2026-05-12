@@ -2,7 +2,7 @@
   "id": "foundry-mcp-bridge",
   "title": "Foundry MCP Bridge",
   "description": "Connect Foundry VTT to AI models through MCP protocol. Enable AI-powered actor creation, intelligent compendium search, campaign analysis, and interactive dice roll coordination. Supports Claude, local LLMs, and future AI models with comprehensive GM-only security.",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "compatibility": {
     "minimum": "13",
     "verified": "14",
@@ -20,13 +20,8 @@
   "changelog": "https://github.com/adambdooley/foundry-vtt-mcp/releases",
   "readme": "https://github.com/adambdooley/foundry-vtt-mcp/blob/master/README.md",
   "license": "https://github.com/adambdooley/foundry-vtt-mcp/blob/master/LICENSE",
-  "esmodules": [
-    "dist/main.js"
-  ],
-  "styles": [
-    "styles/module.css",
-    "styles/enhanced-creature-index.css"
-  ],
+  "esmodules": ["dist/main.js"],
+  "styles": ["styles/module.css", "styles/enhanced-creature-index.css"],
   "languages": [
     {
       "lang": "en",

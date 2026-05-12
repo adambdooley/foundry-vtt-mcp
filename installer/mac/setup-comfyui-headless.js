@@ -82,32 +82,32 @@ const MODELS = [
     name: 'YAML Config',
     url: 'https://huggingface.co/AdamDooley/dnd-battlemaps-sdxl-1.0-mirror/resolve/main/dDBattlemapsSDXL10_upscaleV10.yaml',
     path: 'configs/dDBattlemapsSDXL10_upscaleV10.yaml',
-    size: '1KB'
+    size: '1KB',
   },
   {
     name: 'SDXL Base Model',
     url: 'https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/resolve/main/sd_xl_base_1.0.safetensors',
     path: 'checkpoints/sd_xl_base_1.0.safetensors',
-    size: '6.5GB'
+    size: '6.5GB',
   },
   {
     name: 'SDXL VAE',
     url: 'https://huggingface.co/stabilityai/sdxl-vae/resolve/main/sdxl_vae.safetensors',
     path: 'vae/sdxl_vae.safetensors',
-    size: '335MB'
+    size: '335MB',
   },
   {
     name: 'D&D Battlemaps Checkpoint',
     url: 'https://huggingface.co/AdamDooley/dnd-battlemaps-sdxl-1.0-mirror/resolve/main/dDBattlemapsSDXL10_upscaleV10.safetensors',
     path: 'checkpoints/dDBattlemapsSDXL10_upscaleV10.safetensors',
-    size: '6.5GB'
+    size: '6.5GB',
   },
   {
     name: 'License File',
     url: 'https://huggingface.co/AdamDooley/dnd-battlemaps-sdxl-1.0-mirror/raw/main/license.txt',
     path: 'checkpoints/dDBattlemapsSDXL10_LICENSE.txt',
-    size: '1KB'
-  }
+    size: '1KB',
+  },
 ];
 
 // Helper: Download file with progress using curl
@@ -285,14 +285,14 @@ async function setupPythonEnvironment() {
     const pipEnv = {
       ...process.env,
       ARCHFLAGS: '-arch arm64',
-      _PYTHON_HOST_PLATFORM: 'macosx-11.0-arm64'
+      _PYTHON_HOST_PLATFORM: 'macosx-11.0-arm64',
     };
 
     execSync(`"${venvPip}" install --upgrade pip`, { stdio: 'inherit', env: pipEnv });
     execSync(`"${venvPip}" install torch torchvision torchaudio`, {
       stdio: 'inherit',
       cwd: COMFYUI_PATH,
-      env: pipEnv
+      env: pipEnv,
     });
     log('\n✅ PyTorch installed\n');
 
@@ -304,7 +304,7 @@ async function setupPythonEnvironment() {
       execSync(`"${venvPip}" install -r "${requirementsPath}"`, {
         stdio: 'inherit',
         cwd: COMFYUI_PATH,
-        env: pipEnv
+        env: pipEnv,
       });
     }
 

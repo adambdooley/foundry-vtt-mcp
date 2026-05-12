@@ -8,16 +8,17 @@
 
 ## 🎯 Relevanz für Bugs
 
-| Bug | Relevante Patterns aus PR #4 | Verwendbar? |
-|-----|------------------------------|-------------|
-| **BUG #1** | DSA5 Filter-System (Level statt CR) | ✅ JA |
-| **BUG #2** | Actor Creation mit vollständigem `toObject()` | ✅ JA |
+| Bug        | Relevante Patterns aus PR #4                  | Verwendbar? |
+| ---------- | --------------------------------------------- | ----------- |
+| **BUG #1** | DSA5 Filter-System (Level statt CR)           | ✅ JA       |
+| **BUG #2** | Actor Creation mit vollständigem `toObject()` | ✅ JA       |
 
 ---
 
 ## 🐛 BUG #1: list-creatures-by-criteria - DSA5 Filter System
 
 ### Problem
+
 Aktueller Code verwendet D&D5e Challenge Rating (CR) System.
 DSA5 hat **kein CR** - stattdessen **Experience Levels 1-7**.
 
@@ -56,6 +57,7 @@ export function getExperienceLevel(totalAP: number): DSA5ExperienceLevel {
 ```
 
 **Verwendung für BUG #1:**
+
 - ✅ Verwenden um AP → Level zu konvertieren
 - ✅ Level-basiertes Filtering implementieren
 - ✅ CR-Queries auf Level-Queries mappen
@@ -71,22 +73,22 @@ export function getExperienceLevel(totalAP: number): DSA5ExperienceLevel {
  * DSA5 Species (Spezies/Rassen)
  */
 export const DSA5Species = [
-  'mensch',      // Human
-  'elf',         // Elf
-  'halbelf',     // Half-Elf
-  'zwerg',       // Dwarf
-  'goblin',      // Goblin
-  'ork',         // Orc
-  'halborc',     // Half-Orc
-  'achaz',       // Achaz (lizard folk)
-  'troll',       // Troll
-  'oger',        // Ogre
-  'drache',      // Dragon
-  'dämon',       // Demon
-  'elementar',   // Elemental
-  'untot',       // Undead
-  'tier',        // Animal/Beast
-  'chimäre',     // Chimera/Hybrid
+  'mensch', // Human
+  'elf', // Elf
+  'halbelf', // Half-Elf
+  'zwerg', // Dwarf
+  'goblin', // Goblin
+  'ork', // Orc
+  'halborc', // Half-Orc
+  'achaz', // Achaz (lizard folk)
+  'troll', // Troll
+  'oger', // Ogre
+  'drache', // Dragon
+  'dämon', // Demon
+  'elementar', // Elemental
+  'untot', // Undead
+  'tier', // Animal/Beast
+  'chimäre', // Chimera/Hybrid
 ] as const;
 
 /**
@@ -94,13 +96,15 @@ export const DSA5Species = [
  */
 export const DSA5FiltersSchema = z.object({
   // Level filter (1-7) - replaces D&D5e's Challenge Rating
-  level: z.union([
-    z.number().min(1).max(7),
-    z.object({
-      min: z.number().min(1).max(7).optional(),
-      max: z.number().min(1).max(7).optional()
-    })
-  ]).optional(),
+  level: z
+    .union([
+      z.number().min(1).max(7),
+      z.object({
+        min: z.number().min(1).max(7).optional(),
+        max: z.number().min(1).max(7).optional(),
+      }),
+    ])
+    .optional(),
 
   // Species filter (Spezies/Rasse)
   species: z.enum(DSA5Species).optional(),
@@ -115,19 +119,22 @@ export const DSA5FiltersSchema = z.object({
   hasSpells: z.boolean().optional(),
 
   // Experience points range (AP)
-  experiencePoints: z.union([
-    z.number(),
-    z.object({
-      min: z.number().optional(),
-      max: z.number().optional()
-    })
-  ]).optional(),
+  experiencePoints: z
+    .union([
+      z.number(),
+      z.object({
+        min: z.number().optional(),
+        max: z.number().optional(),
+      }),
+    ])
+    .optional(),
 });
 
 export type DSA5Filters = z.infer<typeof DSA5FiltersSchema>;
 ```
 
 **Verwendung für BUG #1:**
+
 - ✅ Filter-Schema als Vorlage für DSA5-kompatibles Filtering
 - ✅ Species statt CreatureType
 - ✅ Level statt CR
@@ -189,6 +196,7 @@ export function matchesDSA5Filters(creature: any, filters: DSA5Filters): boolean
 ```
 
 **Verwendung für BUG #1:**
+
 - ✅ Pattern für DSA5 Creature Filtering
 - ✅ Level-Range Logik
 - ✅ Species/Culture String-Matching
@@ -217,13 +225,13 @@ export const FIELD_PATHS = {
 
   // Status values
   STATUS_WOUNDS: 'system.status.wounds',
-  STATUS_WOUNDS_CURRENT: 'system.status.wounds.current',  // ACTUAL LeP
+  STATUS_WOUNDS_CURRENT: 'system.status.wounds.current', // ACTUAL LeP
   STATUS_WOUNDS_MAX: 'system.status.wounds.max',
 
   // Details
   DETAILS_SPECIES: 'system.details.species.value',
   DETAILS_CULTURE: 'system.details.culture.value',
-  DETAILS_CAREER: 'system.details.career.value',  // IMPORTANT: 'career' not 'profession'
+  DETAILS_CAREER: 'system.details.career.value', // IMPORTANT: 'career' not 'profession'
   DETAILS_EXPERIENCE_TOTAL: 'system.details.experience.total', // AP
 
   // Size (in status, not details!)
@@ -232,6 +240,7 @@ export const FIELD_PATHS = {
 ```
 
 **Verwendung für BUG #1:**
+
 - ✅ Korrekte DSA5 Data Paths
 - ✅ `career` statt `profession` (wichtig!)
 - ✅ LeP in `status.wounds.current` nicht `wounds.value`
@@ -241,6 +250,7 @@ export const FIELD_PATHS = {
 ### BUG #1 Fix-Strategie (basierend auf PR #4)
 
 **Option A: System Detection + DSA5 Branch**
+
 ```typescript
 // In compendium.ts list-creatures-by-criteria handler
 async function listCreaturesByCriteria(filters: any) {
@@ -250,9 +260,9 @@ async function listCreaturesByCriteria(filters: any) {
     // DSA5-specific filtering
     return listDSA5Creatures({
       level: filters.challengeRating, // Map CR → Level
-      species: filters.creatureType,   // Map type → species
+      species: filters.creatureType, // Map type → species
       size: filters.size,
-      hasSpells: filters.hasSpells
+      hasSpells: filters.hasSpells,
     });
   }
 
@@ -262,12 +272,14 @@ async function listCreaturesByCriteria(filters: any) {
 ```
 
 **Option B: Error Message + Alternative**
+
 ```typescript
 if (systemId === 'dsa5' && (filters.challengeRating || filters.level)) {
   return {
-    error: "DSA5 does not use Challenge Rating. Use 'level' (1-7), 'species', or 'culture' filters instead.",
+    error:
+      "DSA5 does not use Challenge Rating. Use 'level' (1-7), 'species', or 'culture' filters instead.",
     suggestion: "Try: {level: {min: 3, max: 5}, species: 'ork'}",
-    availableFilters: ['level', 'species', 'culture', 'size', 'hasSpells']
+    availableFilters: ['level', 'species', 'culture', 'size', 'hasSpells'],
   };
 }
 ```
@@ -277,6 +289,7 @@ if (systemId === 'dsa5' && (filters.challengeRating || filters.level)) {
 ## 🐛 BUG #2: create-actor-from-compendium - Actor Creation Fix
 
 ### Problem
+
 Actor Creation schlägt fehl für DSA5 Creatures.
 `get-compendium-entry-full` funktioniert ✅ aber `create-actor-from-compendium` ❌
 
@@ -373,33 +386,37 @@ async createActorFromCompendiumEntry(request: {
 
 ### BUG #2 Key Differences vs Current Code
 
-| Aspect | Current Code (Broken) | PR #4 Code (Possibly Working) |
-|--------|----------------------|--------------------------------|
-| **Type Check** | ❓ Unknown | ✅ `['npc', 'character']` |
-| **Data Extraction** | ❓ Unknown | ✅ `sourceActor.toObject()` |
-| **System Data** | ❓ Unknown | ✅ `sourceData.system \|\| sourceData.data` |
-| **Items Included** | ❓ Unknown | ✅ `sourceData.items \|\| []` (all 87) |
-| **Effects Included** | ❓ Unknown | ✅ `sourceData.effects \|\| []` |
-| **Prototype Token** | ❓ Unknown | ✅ `sourceData.prototypeToken` |
-| **Remote Image Fix** | ❓ Unknown | ✅ Clears http:// URLs |
+| Aspect               | Current Code (Broken) | PR #4 Code (Possibly Working)               |
+| -------------------- | --------------------- | ------------------------------------------- |
+| **Type Check**       | ❓ Unknown            | ✅ `['npc', 'character']`                   |
+| **Data Extraction**  | ❓ Unknown            | ✅ `sourceActor.toObject()`                 |
+| **System Data**      | ❓ Unknown            | ✅ `sourceData.system \|\| sourceData.data` |
+| **Items Included**   | ❓ Unknown            | ✅ `sourceData.items \|\| []` (all 87)      |
+| **Effects Included** | ❓ Unknown            | ✅ `sourceData.effects \|\| []`             |
+| **Prototype Token**  | ❓ Unknown            | ✅ `sourceData.prototypeToken`              |
+| **Remote Image Fix** | ❓ Unknown            | ✅ Clears http:// URLs                      |
 
 ### BUG #2 Fix-Strategie
 
 **Schritt 1: Vergleiche mit aktuellem Code**
+
 ```bash
 # Prüfe aktuellen createActorFromCompendiumEntry Code
 grep -A 50 "createActorFromCompendiumEntry" packages/foundry-module/src/data-access.ts
 ```
 
 **Schritt 2: Teste ob Type Check das Problem ist**
+
 - DSA5 Creatures sind möglicherweise type: 'character' nicht 'npc'
 - Aktueller Code akzeptiert vielleicht nur 'npc'
 
 **Schritt 3: Teste ob toObject() fehlt**
+
 - Möglicherweise verwendet aktueller Code nur partielle Daten
 - `toObject()` gibt ALLE Daten inkl. Items, Effects, System
 
 **Schritt 4: Teste ob Items/Effects fehlen**
+
 - DSA5 Ork hat 87 Items
 - Wenn diese nicht kopiert werden → Actor ist leer
 
@@ -412,6 +429,7 @@ grep -A 50 "createActorFromCompendiumEntry" packages/foundry-module/src/data-acc
 #### Für BUG #1 (list-creatures-by-criteria)
 
 ✅ **VERWENDEN:**
+
 1. `EXPERIENCE_LEVELS` Konstante (Level 1-7 Mapping)
 2. `getExperienceLevel(totalAP)` Funktion
 3. DSA5 Species Liste
@@ -419,11 +437,13 @@ grep -A 50 "createActorFromCompendiumEntry" packages/foundry-module/src/data-acc
 5. `FIELD_PATHS` Konstanten (korrekte DSA5 Pfade)
 
 ❌ **NICHT VERWENDEN:**
+
 - Komplettes Adapter Pattern (zu komplex)
 - Zod Schema Validation (optional)
 - Vollständiges Registry System
 
 **Implementierung:**
+
 ```typescript
 // Minimal-Version für BUG #1
 function listCreaturesDSA5(filters: any) {
@@ -460,6 +480,7 @@ function listCreaturesDSA5(filters: any) {
 #### Für BUG #2 (create-actor-from-compendium)
 
 ✅ **VERWENDEN:**
+
 1. Type Check: `['npc', 'character']` statt nur `['npc']`
 2. Vollständiges `toObject()` Extraction
 3. System Data Fallback: `sourceData.system || sourceData.data`
@@ -469,6 +490,7 @@ function listCreaturesDSA5(filters: any) {
 7. Remote Image URL Fix
 
 **Implementierung:**
+
 ```typescript
 // Minimal-Version für BUG #2
 const sourceData = sourceActor.toObject() as any;
@@ -477,11 +499,11 @@ const actorData = {
   name: customName,
   type: sourceData.type,
   img: sourceData.img,
-  system: sourceData.system || sourceData.data || {},  // ← KEY
-  items: sourceData.items || [],                        // ← KEY (87 items!)
-  effects: sourceData.effects || [],                    // ← KEY
-  prototypeToken: sourceData.prototypeToken,           // ← KEY
-  folder: folderId
+  system: sourceData.system || sourceData.data || {}, // ← KEY
+  items: sourceData.items || [], // ← KEY (87 items!)
+  effects: sourceData.effects || [], // ← KEY
+  prototypeToken: sourceData.prototypeToken, // ← KEY
+  folder: folderId,
 };
 
 // Fix remote URLs

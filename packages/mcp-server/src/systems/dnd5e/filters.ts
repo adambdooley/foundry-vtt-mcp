@@ -23,33 +23,35 @@ export const DnD5eCreatureTypes = [
   'monstrosity',
   'ooze',
   'plant',
-  'undead'
+  'undead',
 ] as const;
 
-export type DnD5eCreatureType = typeof DnD5eCreatureTypes[number];
+export type DnD5eCreatureType = (typeof DnD5eCreatureTypes)[number];
 
 /**
  * Common creature sizes
  */
 export const CreatureSizes = ['tiny', 'small', 'medium', 'large', 'huge', 'gargantuan'] as const;
-export type CreatureSize = typeof CreatureSizes[number];
+export type CreatureSize = (typeof CreatureSizes)[number];
 
 /**
  * D&D 5e filter schema
  */
 export const DnD5eFiltersSchema = z.object({
-  challengeRating: z.union([
-    z.number(),
-    z.object({
-      min: z.number().optional(),
-      max: z.number().optional()
-    })
-  ]).optional(),
+  challengeRating: z
+    .union([
+      z.number(),
+      z.object({
+        min: z.number().optional(),
+        max: z.number().optional(),
+      }),
+    ])
+    .optional(),
   creatureType: z.enum(DnD5eCreatureTypes).optional(),
   size: z.enum(CreatureSizes).optional(),
   alignment: z.string().optional(),
   hasLegendaryActions: z.boolean().optional(),
-  spellcaster: z.boolean().optional()
+  spellcaster: z.boolean().optional(),
 });
 
 export type DnD5eFilters = z.infer<typeof DnD5eFiltersSchema>;

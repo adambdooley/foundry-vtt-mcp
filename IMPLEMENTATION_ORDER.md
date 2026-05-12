@@ -16,31 +16,41 @@ This document provides a recommended implementation order for migrating the 7 mi
 ## Prioritization Criteria
 
 ### Impact Score (1-10)
+
 How much value does this tool provide to end users?
+
 - 10 = Critical functionality, frequently used
 - 5 = Useful but not essential
 - 1 = Nice to have
 
 ### Complexity Score (1-10)
+
 How difficult is the implementation?
+
 - 10 = Complex, many dependencies, system-specific
 - 5 = Moderate complexity
 - 1 = Simple, straightforward
 
 ### Risk Score (1-10)
+
 What is the risk of introducing bugs or breaking existing functionality?
+
 - 10 = High risk, destructive operations, breaking changes
 - 5 = Medium risk, some integration challenges
 - 1 = Low risk, isolated changes
 
 ### Dependency Score (1-10)
+
 How many other tools depend on this tool?
+
 - 10 = Many tools depend on this
 - 5 = Some dependencies
 - 1 = Independent tool
 
 ### DSA5 Compatibility Score (1-10)
+
 How well does this work with DSA5?
+
 - 10 = Fully tested and compatible
 - 5 = Should work but needs testing
 - 1 = Unknown, significant testing needed
@@ -49,17 +59,18 @@ How well does this work with DSA5?
 
 ## Tool Scoring Matrix
 
-| Tool | Impact | Complexity | Risk | Dependencies | DSA5 Compat | Priority Score | Wave |
-|------|--------|------------|------|--------------|-------------|----------------|------|
-| **get-character-entity** | 7 | 2 | 2 | 0 | 10 | **91** | **1** |
-| **get-available-conditions** | 6 | 1 | 1 | 1 | 9 | **88** | **1** |
-| **get-token-details** | 8 | 3 | 2 | 3 | 10 | **86** | **1** |
-| **move-token** | 9 | 2 | 3 | 0 | 10 | **84** | **2** |
-| **update-token** | 8 | 4 | 5 | 2 | 10 | **71** | **2** |
-| **toggle-token-condition** | 9 | 5 | 6 | 2 | 7 | **67** | **3** |
-| **delete-tokens** | 6 | 3 | 8 | 0 | 10 | **65** | **3** |
+| Tool                         | Impact | Complexity | Risk | Dependencies | DSA5 Compat | Priority Score | Wave  |
+| ---------------------------- | ------ | ---------- | ---- | ------------ | ----------- | -------------- | ----- |
+| **get-character-entity**     | 7      | 2          | 2    | 0            | 10          | **91**         | **1** |
+| **get-available-conditions** | 6      | 1          | 1    | 1            | 9           | **88**         | **1** |
+| **get-token-details**        | 8      | 3          | 2    | 3            | 10          | **86**         | **1** |
+| **move-token**               | 9      | 2          | 3    | 0            | 10          | **84**         | **2** |
+| **update-token**             | 8      | 4          | 5    | 2            | 10          | **71**         | **2** |
+| **toggle-token-condition**   | 9      | 5          | 6    | 2            | 7           | **67**         | **3** |
+| **delete-tokens**            | 6      | 3          | 8    | 0            | 10          | **65**         | **3** |
 
 **Priority Score Formula:**
+
 ```
 Score = (Impact × 2) + (10 - Complexity) + (10 - Risk) + (Dependencies × 1.5) + (DSA5 Compat × 1.2)
 ```
@@ -71,6 +82,7 @@ Higher score = implement earlier
 ## Wave 1: Foundation Tools (Low Risk, High Value)
 
 ### Estimated Time: 3-4 hours
+
 ### Goal: Establish basic character and token inspection capabilities
 
 ---
@@ -80,6 +92,7 @@ Higher score = implement earlier
 **Priority Score:** 91/100
 
 **Why First:**
+
 - ✅ Lowest risk (read-only operation)
 - ✅ Lowest complexity (single class modification)
 - ✅ No external dependencies
@@ -88,6 +101,7 @@ Higher score = implement earlier
 - ✅ No Foundry module changes required
 
 **Implementation Details:**
+
 - **File:** `/packages/mcp-server/src/tools/character.ts`
 - **Changes:** Add 1 method, 1 tool definition
 - **Lines of Code:** ~100
@@ -95,11 +109,13 @@ Higher score = implement earlier
 - **Rollback:** Simple (just remove the method)
 
 **Why This Is Foundation:**
+
 - Establishes pattern for lazy-loading
 - Tests character data retrieval independently
 - Validates FoundryClient integration works
 
 **Success Criteria:**
+
 - [ ] Can retrieve item details by ID
 - [ ] Can retrieve item details by name (case-insensitive)
 - [ ] Can retrieve action details
@@ -116,6 +132,7 @@ Higher score = implement earlier
 **Priority Score:** 88/100
 
 **Why Second:**
+
 - ✅ Simple read-only operation
 - ✅ Required by toggle-token-condition (dependency)
 - ✅ Tests Foundry module integration first
@@ -123,6 +140,7 @@ Higher score = implement earlier
 - ✅ System-agnostic (returns CONFIG.statusEffects)
 
 **Implementation Details:**
+
 - **File (MCP):** `/packages/mcp-server/src/tools/token-manipulation.ts`
 - **File (Foundry):** `/packages/foundry-module/scripts/mcp-bridge.js`
 - **Lines of Code:** ~30 (MCP) + ~15 (Foundry)
@@ -130,12 +148,14 @@ Higher score = implement earlier
 - **Testing:** Easy - just check returned list
 
 **Why Before Other Token Tools:**
+
 - Tests token-manipulation.ts class integration
 - Establishes Foundry module token handler pattern
 - Provides information needed for toggle-token-condition
 - No risk of breaking anything
 
 **Success Criteria:**
+
 - [ ] Returns list of conditions for D&D5e
 - [ ] Returns list of conditions for PF2e
 - [ ] Returns list of conditions for DSA5
@@ -151,6 +171,7 @@ Higher score = implement earlier
 **Priority Score:** 86/100
 
 **Why Third:**
+
 - ✅ Read-only operation (low risk)
 - ✅ Required by other token tools (dependency)
 - ✅ Tests token data formatting
@@ -158,6 +179,7 @@ Higher score = implement earlier
 - ✅ Full DSA5 compatibility
 
 **Implementation Details:**
+
 - **File (MCP):** `/packages/mcp-server/src/tools/token-manipulation.ts`
 - **File (Foundry):** `/packages/foundry-module/scripts/mcp-bridge.js`
 - **Lines of Code:** ~80 (MCP) + ~30 (Foundry)
@@ -165,6 +187,7 @@ Higher score = implement earlier
 - **Testing:** Requires tokens on scene
 
 **Why Before Manipulation Tools:**
+
 - Tests token access pattern
 - Validates actor data retrieval
 - Establishes token formatting helpers
@@ -172,6 +195,7 @@ Higher score = implement earlier
 - Provides debugging tool for other token operations
 
 **Success Criteria:**
+
 - [ ] Returns complete token data (position, size, appearance)
 - [ ] Returns linked actor data
 - [ ] Handles tokens without actors gracefully
@@ -185,9 +209,11 @@ Higher score = implement earlier
 ## Wave 2: Token Manipulation Tools (Medium Risk, High Impact)
 
 ### Estimated Time: 3-4 hours
+
 ### Goal: Enable basic token movement and property updates
 
 **Prerequisites:**
+
 - ✅ Wave 1 complete and tested
 - ✅ All Wave 1 tests passing
 - ✅ Foundry module integration confirmed working
@@ -199,6 +225,7 @@ Higher score = implement earlier
 **Priority Score:** 84/100
 
 **Why Fourth:**
+
 - ✅ Simple operation (only changes x, y)
 - ✅ High user value (frequently needed)
 - ✅ No destructive side effects
@@ -206,6 +233,7 @@ Higher score = implement earlier
 - ✅ Full DSA5 compatibility
 
 **Implementation Details:**
+
 - **File (MCP):** `/packages/mcp-server/src/tools/token-manipulation.ts`
 - **File (Foundry):** `/packages/foundry-module/scripts/mcp-bridge.js`
 - **Lines of Code:** ~40 (MCP) + ~15 (Foundry)
@@ -213,12 +241,14 @@ Higher score = implement earlier
 - **Testing:** Visual - move token and observe
 
 **Why Before update-token:**
+
 - Simpler than update-token (fewer parameters)
 - Tests basic token.document.update() pattern
 - Tests animation parameter
 - Establishes error handling pattern
 
 **Success Criteria:**
+
 - [ ] Moves token to specified coordinates
 - [ ] Animation works when enabled
 - [ ] No animation when disabled
@@ -234,12 +264,14 @@ Higher score = implement earlier
 **Priority Score:** 71/100
 
 **Why Fifth:**
+
 - ✅ High user value (many use cases)
 - ⚠️ More complex (many update options)
 - ⚠️ Medium risk (can hide tokens, change properties)
 - ✅ Full DSA5 compatibility
 
 **Implementation Details:**
+
 - **File (MCP):** `/packages/mcp-server/src/tools/token-manipulation.ts`
 - **File (Foundry):** `/packages/foundry-module/scripts/mcp-bridge.js`
 - **Lines of Code:** ~50 (MCP) + ~15 (Foundry)
@@ -247,12 +279,14 @@ Higher score = implement earlier
 - **Testing:** Multiple test cases for each property type
 
 **Why After move-token:**
+
 - Uses same token.document.update() pattern
 - More complex validation (disposition, rotation bounds)
 - More parameters to test
 - Potentially more ways to introduce bugs
 
 **Success Criteria:**
+
 - [ ] Updates position (x, y)
 - [ ] Updates size (width, height)
 - [ ] Updates rotation (0-360 validation)
@@ -271,9 +305,11 @@ Higher score = implement earlier
 ## Wave 3: Advanced & Destructive Tools (Higher Risk)
 
 ### Estimated Time: 4-5 hours
+
 ### Goal: Complete the token manipulation suite with advanced features
 
 **Prerequisites:**
+
 - ✅ Wave 1 complete and tested
 - ✅ Wave 2 complete and tested
 - ✅ All tests passing across D&D5e, PF2e, DSA5
@@ -286,12 +322,14 @@ Higher score = implement earlier
 **Priority Score:** 67/100
 
 **Why Sixth:**
+
 - ✅ High user value (combat scenarios)
 - ⚠️ System-specific complexity
 - ⚠️ DSA5 testing required (unknown condition system)
 - ⚠️ Medium-high risk (modifies actor state)
 
 **Implementation Details:**
+
 - **File (MCP):** `/packages/mcp-server/src/tools/token-manipulation.ts`
 - **File (Foundry):** `/packages/foundry-module/scripts/mcp-bridge.js`
 - **Lines of Code:** ~40 (MCP) + ~30 (Foundry)
@@ -299,6 +337,7 @@ Higher score = implement earlier
 - **Testing:** Requires testing with each game system
 
 **Why Late in Sequence:**
+
 - Most complex token operation
 - System-specific behavior (D&D5e vs PF2e vs DSA5 conditions differ)
 - Requires understanding of Foundry's effect system
@@ -306,11 +345,13 @@ Higher score = implement earlier
 - Depends on get-available-conditions for context
 
 **Special Considerations:**
+
 - ⚠️ **DSA5 Testing Critical** - DSA5 may use different status effect implementation
 - ⚠️ **Version Compatibility** - Effect system changed in Foundry v10-v13
 - ⚠️ **Toggle Logic** - Must correctly detect current state
 
 **Success Criteria:**
+
 - [ ] Applies condition when active=true
 - [ ] Removes condition when active=false
 - [ ] Toggles condition when active=undefined
@@ -329,6 +370,7 @@ Higher score = implement earlier
 **Priority Score:** 65/100
 
 **Why Last:**
+
 - ⚠️ **DESTRUCTIVE OPERATION** (highest risk)
 - ⚠️ No undo mechanism
 - ✅ Lower user value (less frequently needed)
@@ -336,6 +378,7 @@ Higher score = implement earlier
 - ✅ Full DSA5 compatibility
 
 **Implementation Details:**
+
 - **File (MCP):** `/packages/mcp-server/src/tools/token-manipulation.ts`
 - **File (Foundry):** `/packages/foundry-module/scripts/mcp-bridge.js`
 - **Lines of Code:** ~45 (MCP) + ~25 (Foundry)
@@ -343,6 +386,7 @@ Higher score = implement earlier
 - **Testing:** CAREFUL - use test tokens only
 
 **Why Absolutely Last:**
+
 - **DESTRUCTIVE** - can permanently remove tokens
 - Relies on Foundry's history for undo (not guaranteed)
 - Easy to accidentally delete wrong tokens
@@ -350,12 +394,14 @@ Higher score = implement earlier
 - Lower priority for MVP functionality
 
 **Special Considerations:**
+
 - ⚠️ **Testing with Disposable Tokens Only**
 - ⚠️ **Consider Adding Confirmation**
 - ⚠️ **Bulk Operations Risk** - deleting wrong array of IDs
 - ⚠️ **Error Handling** - partial failures in bulk deletion
 
 **Success Criteria:**
+
 - [ ] Deletes single token correctly
 - [ ] Deletes multiple tokens (bulk operation)
 - [ ] Returns accurate deletedCount
@@ -371,6 +417,7 @@ Higher score = implement earlier
 ## Implementation Waves Summary
 
 ### Wave 1: Foundation (Read-Only Tools)
+
 **Time:** 3-4 hours | **Risk:** LOW | **Value:** HIGH
 
 1. **get-character-entity** - Character data enhancement
@@ -378,6 +425,7 @@ Higher score = implement earlier
 3. **get-token-details** - Token inspection
 
 **Checkpoint After Wave 1:**
+
 - [ ] All Wave 1 tools implemented
 - [ ] All Wave 1 tests passing
 - [ ] Build successful
@@ -391,12 +439,14 @@ Higher score = implement earlier
 ---
 
 ### Wave 2: Manipulation (Non-Destructive)
+
 **Time:** 3-4 hours | **Risk:** MEDIUM | **Value:** HIGH
 
 4. **move-token** - Token positioning
 5. **update-token** - Token property updates
 
 **Checkpoint After Wave 2:**
+
 - [ ] All Wave 2 tools implemented
 - [ ] All Wave 2 tests passing
 - [ ] Integration tests with Wave 1 tools
@@ -409,12 +459,14 @@ Higher score = implement earlier
 ---
 
 ### Wave 3: Advanced (Stateful & Destructive)
+
 **Time:** 4-5 hours | **Risk:** HIGH | **Value:** MEDIUM-HIGH
 
 6. **toggle-token-condition** - Status effect management
 7. **delete-tokens** - Token deletion
 
 **Checkpoint After Wave 3:**
+
 - [ ] All Wave 3 tools implemented
 - [ ] All Wave 3 tests passing
 - [ ] Full integration test suite passing
@@ -429,11 +481,13 @@ Higher score = implement earlier
 ## Alternative Implementation Strategies
 
 ### Strategy A: Vertical Slice (Recommended Above)
+
 **Approach:** Implement by complexity and risk level
 **Pros:** Lower risk, easier testing, clear checkpoints
 **Cons:** Token features arrive in multiple waves
 
 ### Strategy B: Feature Complete
+
 **Approach:** Implement all 6 token tools together, then get-character-entity
 **Pros:** Token features complete at once
 **Cons:** Higher risk, harder to isolate issues, longer feedback loop
@@ -441,6 +495,7 @@ Higher score = implement earlier
 **Recommendation:** Use Strategy A (vertical slice) as outlined above
 
 ### Strategy C: Critical Path First
+
 **Approach:** Implement highest-impact tools first regardless of risk
 **Order:** move-token → toggle-token-condition → get-token-details → update-token → delete-tokens → get-character-entity → get-available-conditions
 
@@ -496,6 +551,7 @@ Wave 3 (Advanced):
 ```
 
 **Key Dependencies:**
+
 - **toggle-token-condition** requires **get-available-conditions** for condition discovery
 - **update-token** benefits from **move-token** pattern
 - All token tools benefit from **get-token-details** for debugging
@@ -506,9 +562,11 @@ Wave 3 (Advanced):
 ## Testing Strategy by Wave
 
 ### Wave 1 Testing
+
 **Focus:** Validation that read operations work correctly
 
 **Test Suite:**
+
 - Unit tests for each tool
 - Integration tests with Foundry
 - Cross-system tests (D&D5e, PF2e, DSA5)
@@ -519,9 +577,11 @@ Wave 3 (Advanced):
 ---
 
 ### Wave 2 Testing
+
 **Focus:** Validation that token updates work without side effects
 
 **Test Suite:**
+
 - All Wave 1 tests still passing
 - Unit tests for move and update
 - Integration tests with visual confirmation
@@ -533,9 +593,11 @@ Wave 3 (Advanced):
 ---
 
 ### Wave 3 Testing
+
 **Focus:** Validation of complex and destructive operations
 
 **Test Suite:**
+
 - All Wave 1-2 tests still passing
 - Condition system tests (all 3 systems)
 - DSA5-specific condition testing
@@ -550,22 +612,28 @@ Wave 3 (Advanced):
 ## Risk Mitigation by Wave
 
 ### Wave 1 Risks
+
 **Risk:** Minimal - read-only operations
 **Mitigation:**
+
 - Automated tests catch errors early
 - No state changes = safe to test extensively
 
 ### Wave 2 Risks
+
 **Risk:** Medium - can change token state
 **Mitigation:**
+
 - Test in isolated test worlds
 - Keep Foundry backups
 - Visual confirmation of changes
 - Comprehensive error handling
 
 ### Wave 3 Risks
+
 **Risk:** High - destructive operations, system-specific behavior
 **Mitigation:**
+
 - Backup Foundry data before testing
 - Use disposable test tokens
 - Test DSA5 conditions extensively
@@ -577,13 +645,13 @@ Wave 3 (Advanced):
 
 ## Timeline with Buffer
 
-| Wave | Implementation | Testing | Buffer | Total |
-|------|----------------|---------|--------|-------|
-| Wave 1 | 3-4 hours | 1-1.5 hours | 0.5 hours | **5-6 hours** |
-| Wave 2 | 3-4 hours | 1.5-2 hours | 0.5 hours | **5-6.5 hours** |
-| Wave 3 | 4-5 hours | 2-2.5 hours | 1 hour | **7-8.5 hours** |
-| Documentation | 2 hours | - | 0.5 hours | **2.5 hours** |
-| **TOTAL** | | | | **19.5-23.5 hours** |
+| Wave          | Implementation | Testing     | Buffer    | Total               |
+| ------------- | -------------- | ----------- | --------- | ------------------- |
+| Wave 1        | 3-4 hours      | 1-1.5 hours | 0.5 hours | **5-6 hours**       |
+| Wave 2        | 3-4 hours      | 1.5-2 hours | 0.5 hours | **5-6.5 hours**     |
+| Wave 3        | 4-5 hours      | 2-2.5 hours | 1 hour    | **7-8.5 hours**     |
+| Documentation | 2 hours        | -           | 0.5 hours | **2.5 hours**       |
+| **TOTAL**     |                |             |           | **19.5-23.5 hours** |
 
 **Realistic Timeline:** 3 working days (8 hours/day)
 
@@ -592,9 +660,11 @@ Wave 3 (Advanced):
 ## Decision Points
 
 ### After Wave 1
+
 **Decision:** Proceed to Wave 2?
 
 **Criteria:**
+
 - ✅ All Wave 1 tests passing
 - ✅ No critical bugs discovered
 - ✅ DSA5 compatibility confirmed
@@ -605,9 +675,11 @@ Wave 3 (Advanced):
 ---
 
 ### After Wave 2
+
 **Decision:** Proceed to Wave 3?
 
 **Criteria:**
+
 - ✅ All Wave 1-2 tests passing
 - ✅ Token manipulation works reliably
 - ✅ No performance issues
@@ -618,9 +690,11 @@ Wave 3 (Advanced):
 ---
 
 ### After Wave 3
+
 **Decision:** Release v0.6.3?
 
 **Criteria:**
+
 - ✅ All 32 tools working
 - ✅ Comprehensive tests passing
 - ✅ Documentation complete

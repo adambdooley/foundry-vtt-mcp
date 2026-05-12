@@ -20,13 +20,16 @@ export class WebRTCPeer {
   private config: Config['foundry']['webrtc'];
   private onMessageHandler: (message: any) => Promise<void>;
   private isConnected = false;
-  private pendingChunks: Map<string, {
-    chunks: Map<number, string>;
-    totalChunks: number;
-    originalType: string;
-    originalId: string;
-    timestamp: number; // For timeout cleanup
-  }> = new Map();
+  private pendingChunks: Map<
+    string,
+    {
+      chunks: Map<number, string>;
+      totalChunks: number;
+      originalType: string;
+      originalId: string;
+      timestamp: number; // For timeout cleanup
+    }
+  > = new Map();
   private chunkCleanupInterval: NodeJS.Timeout | null = null;
 
   constructor({ config, logger, onMessage }: WebRTCPeerOptions) {
@@ -51,7 +54,7 @@ export class WebRTCPeer {
 
     // Create peer connection WITHOUT STUN servers for localhost connections
     this.peerConnection = new RTCPeerConnection({
-      iceServers: [] // Empty for localhost - no external STUN needed
+      iceServers: [], // Empty for localhost - no external STUN needed
     });
 
     this.setupPeerConnectionHandlers();
@@ -71,7 +74,9 @@ export class WebRTCPeer {
     await this.peerConnection.setLocalDescription(answer);
     this.logger.info(`[WebRTC Timing] setLocalDescription took ${Date.now() - t3}ms`);
 
-    this.logger.info(`[WebRTC Timing] Answer ready in ${Date.now() - startTime}ms - sending immediately`);
+    this.logger.info(
+      `[WebRTC Timing] Answer ready in ${Date.now() - startTime}ms - sending immediately`
+    );
 
     // Data channel and ICE will arrive later via events - don't wait!
     // The ondatachannel event will fire when the channel is ready
@@ -83,12 +88,12 @@ export class WebRTCPeer {
     if (!this.peerConnection) return;
 
     // ICE gathering state changes
-    this.peerConnection.iceGatheringStateChange.subscribe((state) => {
+    this.peerConnection.iceGatheringStateChange.subscribe(state => {
       this.logger.info(`[WebRTC] ICE gathering state: ${state}`);
     });
 
     // ICE connection state changes
-    this.peerConnection.iceConnectionStateChange.subscribe((state) => {
+    this.peerConnection.iceConnectionStateChange.subscribe(state => {
       this.logger.info(`[WebRTC] ICE connection state: ${state}`);
 
       if (state === 'failed') {
@@ -146,7 +151,7 @@ export class WebRTCPeer {
       try {
         this.logger.debug('Data channel received message', {
           dataLength: event.data?.length,
-          dataPreview: event.data?.substring(0, 100)
+          dataPreview: event.data?.substring(0, 100),
         });
         const message = JSON.parse(event.data);
 
@@ -159,19 +164,18 @@ export class WebRTCPeer {
         this.logger.debug('Parsed message successfully', {
           type: message.type,
           requestId: message.requestId,
-          hasData: !!message.data
+          hasData: !!message.data,
         });
         await this.onMessageHandler(message);
         this.logger.debug('Message handler completed', { type: message.type });
       } catch (error) {
         this.logger.error('Failed to parse or handle message', {
           error: error instanceof Error ? error.message : String(error),
-          rawData: event.data?.substring(0, 200)
+          rawData: event.data?.substring(0, 200),
         });
       }
     };
   }
-
 
   sendMessage(message: any): void {
     if (!this.dataChannel || !this.isConnected) {
@@ -198,7 +202,9 @@ export class WebRTCPeer {
 
     // Validate required fields
     if (!chunkId || typeof chunkIndex !== 'number' || typeof totalChunks !== 'number') {
-      this.logger.error('Invalid chunk message structure - missing required fields', { chunkMessage });
+      this.logger.error('Invalid chunk message structure - missing required fields', {
+        chunkMessage,
+      });
       return;
     }
 
@@ -207,7 +213,7 @@ export class WebRTCPeer {
       this.logger.error('Invalid chunk index out of range', {
         chunkId,
         chunkIndex,
-        totalChunks
+        totalChunks,
       });
       return;
     }
@@ -224,7 +230,7 @@ export class WebRTCPeer {
         chunkId,
         totalChunks,
         maxAllowed: WEBRTC_CONSTANTS.MAX_CHUNKS_PER_MESSAGE,
-        originalType
+        originalType,
       });
       return;
     }
@@ -232,7 +238,7 @@ export class WebRTCPeer {
     this.logger.debug(`Received chunk ${chunkIndex + 1}/${totalChunks}`, {
       chunkId,
       originalType,
-      chunkSize: chunk.length
+      chunkSize: chunk.length,
     });
 
     // Initialize chunk storage for this message
@@ -242,7 +248,7 @@ export class WebRTCPeer {
         totalChunks,
         originalType,
         originalId,
-        timestamp: Date.now() // Track when first chunk arrived
+        timestamp: Date.now(), // Track when first chunk arrived
       });
     }
 
@@ -253,7 +259,7 @@ export class WebRTCPeer {
       this.logger.error('Chunk count mismatch - aborting reassembly', {
         chunkId,
         expectedTotalChunks: pending.totalChunks,
-        receivedTotalChunks: totalChunks
+        receivedTotalChunks: totalChunks,
       });
       this.pendingChunks.delete(chunkId);
       return;
@@ -269,7 +275,7 @@ export class WebRTCPeer {
       this.logger.info('All chunks received - reassembling message', {
         chunkId,
         originalType,
-        totalChunks
+        totalChunks,
       });
 
       // Reassemble in order
@@ -280,7 +286,7 @@ export class WebRTCPeer {
           this.logger.error('Missing chunk during reassembly', {
             chunkId,
             missingIndex: i,
-            totalChunks
+            totalChunks,
           });
           this.pendingChunks.delete(chunkId);
           return;
@@ -295,17 +301,17 @@ export class WebRTCPeer {
         const completeMessage = JSON.parse(reassembled);
         this.logger.debug('Parsed reassembled message successfully', {
           type: completeMessage.type,
-          id: completeMessage.id
+          id: completeMessage.id,
         });
         await this.onMessageHandler(completeMessage);
         this.logger.debug('Reassembled message handler completed', {
-          type: completeMessage.type
+          type: completeMessage.type,
         });
       } catch (error) {
         this.logger.error('Failed to parse or handle reassembled message', {
           error: error instanceof Error ? error.message : String(error),
           chunkId,
-          reassembledLength: reassembled.length
+          reassembledLength: reassembled.length,
         });
 
         // Send error response to client if we have a requestId
@@ -314,7 +320,7 @@ export class WebRTCPeer {
             type: 'error',
             requestId: originalId,
             error: 'Failed to reassemble chunked message',
-            details: error instanceof Error ? error.message : String(error)
+            details: error instanceof Error ? error.message : String(error),
           });
         }
       }
@@ -342,7 +348,7 @@ export class WebRTCPeer {
             originalType: pending.originalType,
             receivedChunks: pending.chunks.size,
             totalChunks: pending.totalChunks,
-            ageMs: age
+            ageMs: age,
           });
 
           // Send error response to client if we have a requestId
@@ -351,7 +357,7 @@ export class WebRTCPeer {
               type: 'error',
               requestId: pending.originalId,
               error: 'Chunked message timeout',
-              details: `Received ${pending.chunks.size}/${pending.totalChunks} chunks before timeout`
+              details: `Received ${pending.chunks.size}/${pending.totalChunks} chunks before timeout`,
             });
           }
 

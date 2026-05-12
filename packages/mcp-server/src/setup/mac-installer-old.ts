@@ -15,11 +15,19 @@ const COMFYUI_RESOURCES_PATH = `${COMFYUI_APP_PATH}/Contents/Resources/ComfyUI`;
 
 // D&D Battlemaps SDXL model
 const MODEL_NAME = 'dnd_battlemaps_sdxl.safetensors';
-const MODEL_URL = 'https://huggingface.co/Darchi/dnd_battlemaps_sdxl/resolve/main/dnd_battlemaps_sdxl.safetensors';
+const MODEL_URL =
+  'https://huggingface.co/Darchi/dnd_battlemaps_sdxl/resolve/main/dnd_battlemaps_sdxl.safetensors';
 const MODEL_SIZE = 2.5 * 1024 * 1024 * 1024; // 2.5GB
 
 export interface SetupProgress {
-  stage: 'idle' | 'checking' | 'downloading_comfyui' | 'installing_comfyui' | 'downloading_model' | 'complete' | 'error';
+  stage:
+    | 'idle'
+    | 'checking'
+    | 'downloading_comfyui'
+    | 'installing_comfyui'
+    | 'downloading_model'
+    | 'complete'
+    | 'error';
   progress: number; // 0-100
   message: string;
   error?: string;
@@ -78,7 +86,15 @@ export class MacInstaller {
 
     // Fallback to user's home directory ComfyUI
     const home = process.env.HOME || '/tmp';
-    return path.join(home, 'Library', 'Application Support', 'ComfyUI', 'models', 'checkpoints', MODEL_NAME);
+    return path.join(
+      home,
+      'Library',
+      'Application Support',
+      'ComfyUI',
+      'models',
+      'checkpoints',
+      MODEL_NAME
+    );
   }
 
   /**
@@ -88,14 +104,14 @@ export class MacInstaller {
     if (isIntelMac()) {
       return {
         canRun: false,
-        reason: 'ComfyUI requires Apple Silicon (M1/M2/M3/M4). Intel Macs are not supported.'
+        reason: 'ComfyUI requires Apple Silicon (M1/M2/M3/M4). Intel Macs are not supported.',
       };
     }
 
     if (!isAppleSilicon()) {
       return {
         canRun: false,
-        reason: 'ComfyUI is only available for macOS with Apple Silicon.'
+        reason: 'ComfyUI is only available for macOS with Apple Silicon.',
       };
     }
 
@@ -109,7 +125,7 @@ export class MacInstaller {
     this.updateProgress({
       stage: 'downloading_comfyui',
       progress: 0,
-      message: 'Downloading ComfyUI Desktop (200MB)...'
+      message: 'Downloading ComfyUI Desktop (200MB)...',
     });
 
     try {
@@ -117,7 +133,7 @@ export class MacInstaller {
         method: 'GET',
         url: COMFYUI_DOWNLOAD_URL,
         responseType: 'stream',
-        maxRedirects: 5
+        maxRedirects: 5,
       });
 
       const totalSize = parseInt(response.headers['content-length'] || '0', 10);
@@ -132,7 +148,7 @@ export class MacInstaller {
         this.updateProgress({
           stage: 'downloading_comfyui',
           progress,
-          message: `Downloading ComfyUI Desktop... ${Math.round(downloadedSize / 1024 / 1024)}MB / ${Math.round(totalSize / 1024 / 1024)}MB`
+          message: `Downloading ComfyUI Desktop... ${Math.round(downloadedSize / 1024 / 1024)}MB / ${Math.round(totalSize / 1024 / 1024)}MB`,
         });
       });
 
@@ -158,13 +174,15 @@ export class MacInstaller {
     this.updateProgress({
       stage: 'installing_comfyui',
       progress: 0,
-      message: 'Installing ComfyUI Desktop...'
+      message: 'Installing ComfyUI Desktop...',
     });
 
     try {
       // Mount the DMG
       this.logger.info('Mounting DMG', { path: dmgPath });
-      const mountOutput = execSync(`hdiutil attach "${dmgPath}" -nobrowse -noverify`, { encoding: 'utf8' });
+      const mountOutput = execSync(`hdiutil attach "${dmgPath}" -nobrowse -noverify`, {
+        encoding: 'utf8',
+      });
 
       // Parse mount output to find volume path
       const lines = mountOutput.split('\n');
@@ -188,7 +206,7 @@ export class MacInstaller {
       this.updateProgress({
         stage: 'installing_comfyui',
         progress: 50,
-        message: 'Copying ComfyUI to Applications...'
+        message: 'Copying ComfyUI to Applications...',
       });
 
       // Find ComfyUI.app in mounted volume
@@ -205,7 +223,7 @@ export class MacInstaller {
       this.updateProgress({
         stage: 'installing_comfyui',
         progress: 90,
-        message: 'Cleaning up...'
+        message: 'Cleaning up...',
       });
 
       // Unmount DMG
@@ -216,7 +234,7 @@ export class MacInstaller {
       this.updateProgress({
         stage: 'installing_comfyui',
         progress: 100,
-        message: 'ComfyUI installed successfully'
+        message: 'ComfyUI installed successfully',
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
@@ -240,7 +258,7 @@ export class MacInstaller {
     this.updateProgress({
       stage: 'downloading_model',
       progress: 0,
-      message: 'Downloading D&D Battlemaps SDXL model (2.5GB)...'
+      message: 'Downloading D&D Battlemaps SDXL model (2.5GB)...',
     });
 
     try {
@@ -248,7 +266,7 @@ export class MacInstaller {
         method: 'GET',
         url: MODEL_URL,
         responseType: 'stream',
-        maxRedirects: 5
+        maxRedirects: 5,
       });
 
       const totalSize = parseInt(response.headers['content-length'] || '0', 10);
@@ -263,7 +281,7 @@ export class MacInstaller {
         this.updateProgress({
           stage: 'downloading_model',
           progress,
-          message: `Downloading SDXL model... ${(downloadedSize / 1024 / 1024 / 1024).toFixed(2)}GB / ${(totalSize / 1024 / 1024 / 1024).toFixed(2)}GB`
+          message: `Downloading SDXL model... ${(downloadedSize / 1024 / 1024 / 1024).toFixed(2)}GB / ${(totalSize / 1024 / 1024 / 1024).toFixed(2)}GB`,
         });
       });
 
@@ -279,7 +297,7 @@ export class MacInstaller {
       this.updateProgress({
         stage: 'downloading_model',
         progress: 100,
-        message: 'Model installed successfully'
+        message: 'Model installed successfully',
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
@@ -296,7 +314,7 @@ export class MacInstaller {
       this.updateProgress({
         stage: 'checking',
         progress: 0,
-        message: 'Checking system compatibility...'
+        message: 'Checking system compatibility...',
       });
 
       // Check if Apple Silicon
@@ -337,7 +355,7 @@ export class MacInstaller {
       this.updateProgress({
         stage: 'complete',
         progress: 100,
-        message: 'Setup complete! AI map generation is ready.'
+        message: 'Setup complete! AI map generation is ready.',
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
@@ -345,7 +363,7 @@ export class MacInstaller {
         stage: 'error',
         progress: 0,
         message: 'Setup failed',
-        error: message
+        error: message,
       });
       throw error;
     }
@@ -370,7 +388,7 @@ export class MacInstaller {
       reason: reason || undefined,
       comfyUIInstalled,
       modelInstalled,
-      ready: canRun && comfyUIInstalled && modelInstalled
+      ready: canRun && comfyUIInstalled && modelInstalled,
     };
   }
 }

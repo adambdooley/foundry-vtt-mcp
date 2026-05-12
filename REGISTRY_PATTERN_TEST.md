@@ -34,6 +34,7 @@ npm run typecheck 2>&1 | grep -i "error" | head -20
 ```
 
 **Expected Result:** ⚠️ May show dependency errors (like missing @types/node), but NO errors in our new files:
+
 - `systems/dsa5/adapter.ts` - Should compile cleanly
 - `systems/dnd5e/adapter.ts` - Should compile cleanly
 - `systems/pf2e/adapter.ts` - Should compile cleanly
@@ -52,6 +53,7 @@ ls -la packages/mcp-server/src/systems/
 ```
 
 **Expected Output:**
+
 ```
 dnd5e/
 dsa5/
@@ -69,6 +71,7 @@ ls -la packages/mcp-server/src/systems/dsa5/
 ```
 
 **Expected Output:**
+
 ```
 README.md
 adapter.ts
@@ -95,6 +98,7 @@ grep -r "from './systems" packages/mcp-server/src/backend.ts
 ```
 
 **Expected Output:**
+
 ```typescript
 const { getSystemRegistry } = await import('./systems/index.js');
 const { DnD5eAdapter } = await import('./systems/dnd5e/adapter.js');
@@ -116,6 +120,7 @@ grep -A 10 "systemRegistry.register" packages/mcp-server/src/backend.ts
 ```
 
 **Expected Output:**
+
 ```typescript
 systemRegistry.register(new DnD5eAdapter());
 systemRegistry.register(new PF2eAdapter());
@@ -136,6 +141,7 @@ grep -A 2 "new CharacterTools" packages/mcp-server/src/backend.ts
 ```
 
 **Expected Output:**
+
 ```typescript
 const characterTools = new CharacterTools({ foundryClient, logger, systemRegistry });
 ```
@@ -154,6 +160,7 @@ grep -A 2 "new CompendiumTools" packages/mcp-server/src/backend.ts
 ```
 
 **Expected Output:**
+
 ```typescript
 const compendiumTools = new CompendiumTools({ foundryClient, logger, systemRegistry });
 ```
@@ -172,6 +179,7 @@ grep "DSA5Species" packages/mcp-server/src/systems/dsa5/filters.ts | head -5
 ```
 
 **Expected Output:**
+
 ```typescript
 export const DSA5Species = [
   'mensch',      // Human
@@ -209,6 +217,7 @@ grep -A 5 "validActorTypes" packages/foundry-module/src/data-access.ts
 ```
 
 **Expected Output:**
+
 ```typescript
 const validActorTypes = ['character', 'npc', 'creature'];
 if (!validActorTypes.includes(sourceDocument.type)) {
@@ -228,6 +237,7 @@ git log --oneline -5
 ```
 
 **Expected Output:**
+
 ```
 5b87f17 feat: Implement complete SystemRegistry Pattern with DSA5 adapter
 2d1ee80 fix: Add full support for creature actor type in DSA5
@@ -248,6 +258,7 @@ git diff --stat 2d1ee80^..5b87f17 | grep "files changed"
 ```
 
 **Expected Output:**
+
 ```
 21 files changed, 3935 insertions(+), 138 deletions(-)
 ```
@@ -264,6 +275,7 @@ These tests would require a running Foundry VTT instance with DSA5:
 ### TEST 11: SystemRegistry Runtime (Conceptual)
 
 **Test Scenario:**
+
 ```typescript
 // When backend starts
 const registry = getSystemRegistry(logger);
@@ -276,6 +288,7 @@ expect(adapter.canHandle('dsa5')).toBe(true);
 ```
 
 **Manual Test:** Start MCP server and check logs for:
+
 ```
 System registry initialized
 supportedSystems: ['dnd5e', 'pf2e', 'dsa5']
@@ -286,17 +299,18 @@ supportedSystems: ['dnd5e', 'pf2e', 'dsa5']
 ### TEST 12: DSA5 Filter Matching (Conceptual)
 
 **Test Scenario:**
+
 ```typescript
 const filters = {
   level: 3,
-  species: 'zwerg'
+  species: 'zwerg',
 };
 
 const creature = {
   systemData: {
     level: 3,
-    species: 'Zwerg'
-  }
+    species: 'Zwerg',
+  },
 };
 
 const matches = matchesDSA5Filters(creature, filters);
@@ -308,27 +322,28 @@ expect(matches).toBe(true);
 ### TEST 13: Creature Creation (BUG #2 Fix - Conceptual)
 
 **Test Scenario in Foundry VTT:**
+
 ```typescript
 // Should work for all 3 types:
 createActorFromCompendium({
-  packId: "world.creatures",
-  itemId: "orkId123",
-  names: ["Test-Ork"]
-})
+  packId: 'world.creatures',
+  itemId: 'orkId123',
+  names: ['Test-Ork'],
+});
 // Expected: ✅ Ork created successfully
 
 createActorFromCompendium({
-  packId: "world.npcs",
-  itemId: "npcId123",
-  names: ["Test-NPC"]
-})
+  packId: 'world.npcs',
+  itemId: 'npcId123',
+  names: ['Test-NPC'],
+});
 // Expected: ✅ NPC created successfully
 
 createActorFromCompendium({
-  packId: "world.characters",
-  itemId: "charId123",
-  names: ["Test-Character"]
-})
+  packId: 'world.characters',
+  itemId: 'charId123',
+  names: ['Test-Character'],
+});
 // Expected: ✅ Character created successfully
 ```
 
@@ -376,12 +391,14 @@ _________________________________________
 ## ✅ Success Criteria
 
 **Minimum to PASS:**
+
 - All TEST 1-10 must pass (100%)
 - Build completes (some TypeScript warnings OK)
 - Both commits present in git history
 - All 3 adapters registered in backend.ts
 
 **Ready for PR when:**
+
 - ✅ All 10 tests pass
 - ✅ Build completes
 - ✅ No TypeScript errors in systems/ folder

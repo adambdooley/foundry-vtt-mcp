@@ -53,40 +53,43 @@ export class MapGenerationTools {
           properties: {
             prompt: {
               type: 'string',
-              description: 'Map description (will be enhanced with "2d DnD battlemap" trigger and perspective)'
+              description:
+                'Map description (will be enhanced with "2d DnD battlemap" trigger and perspective)',
             },
             scene_name: {
               type: 'string',
-              description: 'Short, creative name for the Foundry scene (e.g., "Harbor District", "Moonlit Tavern", "Crystal Caverns"). Be creative and evocative!'
+              description:
+                'Short, creative name for the Foundry scene (e.g., "Harbor District", "Moonlit Tavern", "Crystal Caverns"). Be creative and evocative!',
             },
             size: {
               type: 'string',
               enum: ['small', 'medium', 'large'],
               default: 'medium',
-              description: 'Map size (small=1024px, medium=1536px, large=2048px)'
+              description: 'Map size (small=1024px, medium=1536px, large=2048px)',
             },
             grid_size: {
               type: 'number',
               default: 70,
-              description: 'Pixels per 5ft square for Foundry scene setup'
-            }
+              description: 'Pixels per 5ft square for Foundry scene setup',
+            },
           },
-          required: ['prompt', 'scene_name']
-        }
+          required: ['prompt', 'scene_name'],
+        },
       },
       {
         name: 'check-map-status',
-        description: 'Check status of map generation job. Progress updates appear automatically in Foundry VTT. DO NOT check frequently - this wastes tokens. Only check if user explicitly asks for status.',
+        description:
+          'Check status of map generation job. Progress updates appear automatically in Foundry VTT. DO NOT check frequently - this wastes tokens. Only check if user explicitly asks for status.',
         inputSchema: {
           type: 'object',
           properties: {
             job_id: {
               type: 'string',
-              description: 'Job ID to check status for'
-            }
+              description: 'Job ID to check status for',
+            },
           },
-          required: ['job_id']
-        }
+          required: ['job_id'],
+        },
       },
       {
         name: 'cancel-map-job',
@@ -96,11 +99,11 @@ export class MapGenerationTools {
           properties: {
             job_id: {
               type: 'string',
-              description: 'Job ID to cancel'
-            }
+              description: 'Job ID to cancel',
+            },
           },
-          required: ['job_id']
-        }
+          required: ['job_id'],
+        },
       },
       {
         name: 'list-scenes',
@@ -111,15 +114,15 @@ export class MapGenerationTools {
             filter: {
               type: 'string',
               description: 'Optional filter to search scene names (case-insensitive)',
-              default: ''
+              default: '',
             },
             include_active_only: {
               type: 'boolean',
               description: 'Only return the currently active scene',
-              default: false
-            }
-          }
-        }
+              default: false,
+            },
+          },
+        },
       },
       {
         name: 'switch-scene',
@@ -129,17 +132,17 @@ export class MapGenerationTools {
           properties: {
             scene_identifier: {
               type: 'string',
-              description: 'Scene name or ID to switch to'
+              description: 'Scene name or ID to switch to',
             },
             optimize_view: {
               type: 'boolean',
               description: 'Automatically optimize the view for the scene',
-              default: true
-            }
+              default: true,
+            },
           },
-          required: ['scene_identifier']
-        }
-      }
+          required: ['scene_identifier'],
+        },
+      },
     ];
   }
 
@@ -160,7 +163,10 @@ export class MapGenerationTools {
   async switchScene(input: any): Promise<any> {
     const safeInput = input ?? {};
     try {
-      const sceneIdentifier = typeof safeInput.scene_identifier === 'string' ? safeInput.scene_identifier : safeInput.sceneId;
+      const sceneIdentifier =
+        typeof safeInput.scene_identifier === 'string'
+          ? safeInput.scene_identifier
+          : safeInput.sceneId;
       if (!sceneIdentifier || typeof sceneIdentifier !== 'string' || !sceneIdentifier.trim()) {
         return { success: false, error: 'scene_identifier is required' };
       }
@@ -193,7 +199,8 @@ export class MapGenerationTools {
       }
 
       const size = typeof safeInput.size === 'string' ? safeInput.size : 'medium';
-      const gridSizeRaw = typeof safeInput.grid_size === 'number' ? safeInput.grid_size : Number(safeInput.grid_size);
+      const gridSizeRaw =
+        typeof safeInput.grid_size === 'number' ? safeInput.grid_size : Number(safeInput.grid_size);
       const gridSize = Number.isFinite(gridSizeRaw) ? gridSizeRaw : 70;
 
       const params = {
@@ -234,7 +241,8 @@ export class MapGenerationTools {
   async checkMapStatus(input: any): Promise<any> {
     const safeInput = input ?? {};
     try {
-      const jobIdCandidate = typeof safeInput.job_id === 'string' ? safeInput.job_id : safeInput.jobId;
+      const jobIdCandidate =
+        typeof safeInput.job_id === 'string' ? safeInput.job_id : safeInput.jobId;
       const jobId = typeof jobIdCandidate === 'string' ? jobIdCandidate.trim() : '';
       if (!jobId) {
         return 'Error: job_id is required.';
@@ -242,7 +250,9 @@ export class MapGenerationTools {
 
       this.logger.info('Map status check requested via MCP', { jobId, input: safeInput });
 
-      const response = await this.foundryClient.query('foundry-mcp-bridge.check-map-status', { job_id: jobId });
+      const response = await this.foundryClient.query('foundry-mcp-bridge.check-map-status', {
+        job_id: jobId,
+      });
       if (response?.error) {
         const message = response?.message ?? response?.error ?? 'Failed to check job status';
         return `Error: ${message}`;
@@ -261,7 +271,10 @@ export class MapGenerationTools {
           return `Job ${jobId} in progress. Stage: ${job.current_stage ?? 'Processing'}. Progress: ${job.progress_percent ?? 0}%`;
         case 'complete': {
           const duration = job.result?.generation_time_ms;
-          const durationText = typeof duration === 'number' ? ` Generation time: ${Math.round(duration / 1000)}s.` : '';
+          const durationText =
+            typeof duration === 'number'
+              ? ` Generation time: ${Math.round(duration / 1000)}s.`
+              : '';
           return `Job ${jobId} completed successfully.${durationText}`;
         }
         case 'failed':
@@ -280,7 +293,8 @@ export class MapGenerationTools {
   async cancelMapJob(input: any): Promise<any> {
     const safeInput = input ?? {};
     try {
-      const jobIdCandidate = typeof safeInput.job_id === 'string' ? safeInput.job_id : safeInput.jobId;
+      const jobIdCandidate =
+        typeof safeInput.job_id === 'string' ? safeInput.job_id : safeInput.jobId;
       const jobId = typeof jobIdCandidate === 'string' ? jobIdCandidate.trim() : '';
       if (!jobId) {
         return 'Error: job_id is required.';
@@ -288,13 +302,20 @@ export class MapGenerationTools {
 
       this.logger.info('Map job cancellation requested via MCP', { jobId, input: safeInput });
 
-      const response = await this.foundryClient.query('foundry-mcp-bridge.cancel-map-job', { job_id: jobId });
+      const response = await this.foundryClient.query('foundry-mcp-bridge.cancel-map-job', {
+        job_id: jobId,
+      });
       if (response?.error) {
         const message = response?.message ?? response?.error ?? 'Failed to cancel map job';
         return `Error: ${message}`;
       }
 
-      const status = typeof response?.status === 'string' ? response.status : (response?.success ? 'success' : 'unknown');
+      const status =
+        typeof response?.status === 'string'
+          ? response.status
+          : response?.success
+            ? 'success'
+            : 'unknown';
       const message = response?.message ?? 'Map generation job cancelled.';
       return `${message} (status: ${status})`;
     } catch (error: any) {
@@ -327,5 +348,3 @@ export class MapGenerationTools {
     this.logger.info('MapGenerationTools shutdown complete');
   }
 }
-
-

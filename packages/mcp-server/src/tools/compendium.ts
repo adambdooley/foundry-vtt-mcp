@@ -2,8 +2,20 @@ import { z } from 'zod';
 import { FoundryClient } from '../foundry-client.js';
 import { Logger } from '../logger.js';
 import { SystemRegistry } from '../systems/system-registry.js';
-import { detectGameSystem, getSystemPaths, getCreatureLevel, getCreatureType, hasSpellcasting, formatSystemError, type GameSystem } from '../utils/system-detection.js';
-import { GenericFiltersSchema, describeFilters, type GenericFilters } from '../utils/compendium-filters.js';
+import {
+  detectGameSystem,
+  getSystemPaths,
+  getCreatureLevel,
+  getCreatureType,
+  hasSpellcasting,
+  formatSystemError,
+  type GameSystem,
+} from '../utils/system-detection.js';
+import {
+  GenericFiltersSchema,
+  describeFilters,
+  type GenericFilters,
+} from '../utils/compendium-filters.js';
 
 export interface CompendiumToolsOptions {
   foundryClient: FoundryClient;
@@ -40,13 +52,15 @@ export class CompendiumTools {
     return [
       {
         name: 'search-compendium',
-        description: 'Search through compendium packs by name. IMPORTANT LIMITATIONS: (1) Text search only matches entity NAMES - descriptions and traits are NOT searchable. (2) Filters use name heuristics only (not actual system data) and only work on Actor packs - challengeRating and creatureType filters search for keywords like "ancient", "legendary", "humanoid", etc. in entity names. For accurate filtering by level/CR, traits, or rarity, use list-creatures-by-criteria instead. For best results, use broad name-based searches (e.g., "dragon", "knight") and inspect individual items with get-compendium-item.',
+        description:
+          'Search through compendium packs by name. IMPORTANT LIMITATIONS: (1) Text search only matches entity NAMES - descriptions and traits are NOT searchable. (2) Filters use name heuristics only (not actual system data) and only work on Actor packs - challengeRating and creatureType filters search for keywords like "ancient", "legendary", "humanoid", etc. in entity names. For accurate filtering by level/CR, traits, or rarity, use list-creatures-by-criteria instead. For best results, use broad name-based searches (e.g., "dragon", "knight") and inspect individual items with get-compendium-item.',
         inputSchema: {
           type: 'object',
           properties: {
             query: {
               type: 'string',
-              description: 'Search query to find items in compendiums by name only. Use broad, simple terms (e.g., "dragon", "sword", "feat"). Descriptions and traits are NOT searchable.',
+              description:
+                'Search query to find items in compendiums by name only. Use broad, simple terms (e.g., "dragon", "sword", "feat"). Descriptions and traits are NOT searchable.',
             },
             packType: {
               type: 'string',
@@ -54,41 +68,59 @@ export class CompendiumTools {
             },
             filters: {
               type: 'object',
-              description: 'LIMITED FUNCTIONALITY: Only works on Actor packs using name-based heuristics. challengeRating searches for keywords like "ancient" (CR 15+), "adult" (CR 10+), "captain" (CR 5+). creatureType searches for type keywords in names. Does NOT check actual system data. For accurate filtering, use list-creatures-by-criteria instead.',
+              description:
+                'LIMITED FUNCTIONALITY: Only works on Actor packs using name-based heuristics. challengeRating searches for keywords like "ancient" (CR 15+), "adult" (CR 10+), "captain" (CR 5+). creatureType searches for type keywords in names. Does NOT check actual system data. For accurate filtering, use list-creatures-by-criteria instead.',
               properties: {
                 challengeRating: {
                   oneOf: [
                     { type: 'number', description: 'Exact CR value (e.g., 12)' },
-                    { 
+                    {
                       type: 'object',
                       properties: {
                         min: { type: 'number', description: 'Minimum CR' },
-                        max: { type: 'number', description: 'Maximum CR' }
-                      }
-                    }
-                  ]
+                        max: { type: 'number', description: 'Maximum CR' },
+                      },
+                    },
+                  ],
                 },
                 creatureType: {
                   type: 'string',
-                  description: 'Creature type (e.g., "humanoid", "dragon", "beast", "undead", "fey", "fiend", "celestial", "construct", "elemental", "giant", "monstrosity", "ooze", "plant")',
-                  enum: ['humanoid', 'dragon', 'beast', 'undead', 'fey', 'fiend', 'celestial', 'construct', 'elemental', 'giant', 'monstrosity', 'ooze', 'plant', 'aberration']
+                  description:
+                    'Creature type (e.g., "humanoid", "dragon", "beast", "undead", "fey", "fiend", "celestial", "construct", "elemental", "giant", "monstrosity", "ooze", "plant")',
+                  enum: [
+                    'humanoid',
+                    'dragon',
+                    'beast',
+                    'undead',
+                    'fey',
+                    'fiend',
+                    'celestial',
+                    'construct',
+                    'elemental',
+                    'giant',
+                    'monstrosity',
+                    'ooze',
+                    'plant',
+                    'aberration',
+                  ],
                 },
                 size: {
                   type: 'string',
                   description: 'Creature size (e.g., "medium", "large", "huge")',
-                  enum: ['tiny', 'small', 'medium', 'large', 'huge', 'gargantuan']
+                  enum: ['tiny', 'small', 'medium', 'large', 'huge', 'gargantuan'],
                 },
                 alignment: {
                   type: 'string',
-                  description: 'Creature alignment (e.g., "lawful good", "chaotic evil", "neutral")'
+                  description:
+                    'Creature alignment (e.g., "lawful good", "chaotic evil", "neutral")',
                 },
                 hasLegendaryActions: {
                   type: 'boolean',
-                  description: 'Filter for creatures with legendary actions'
+                  description: 'Filter for creatures with legendary actions',
                 },
                 spellcaster: {
                   type: 'boolean',
-                  description: 'Filter for creatures that can cast spells (D&D 5e)'
+                  description: 'Filter for creatures that can cast spells (D&D 5e)',
                 },
                 // Pathfinder 2e specific filters
                 level: {
@@ -98,31 +130,32 @@ export class CompendiumTools {
                       type: 'object',
                       properties: {
                         min: { type: 'number', description: 'Minimum level' },
-                        max: { type: 'number', description: 'Maximum level' }
-                      }
-                    }
+                        max: { type: 'number', description: 'Maximum level' },
+                      },
+                    },
                   ],
-                  description: 'Creature level (Pathfinder 2e, -1 to 25+)'
+                  description: 'Creature level (Pathfinder 2e, -1 to 25+)',
                 },
                 traits: {
                   type: 'array',
                   items: { type: 'string' },
-                  description: 'Creature traits to filter by (Pathfinder 2e)'
+                  description: 'Creature traits to filter by (Pathfinder 2e)',
                 },
                 rarity: {
                   type: 'string',
                   enum: ['common', 'uncommon', 'rare', 'unique'],
-                  description: 'Creature rarity (Pathfinder 2e)'
+                  description: 'Creature rarity (Pathfinder 2e)',
                 },
                 hasSpells: {
                   type: 'boolean',
-                  description: 'Filter for spellcasting creatures (Pathfinder 2e)'
-                }
-              }
+                  description: 'Filter for spellcasting creatures (Pathfinder 2e)',
+                },
+              },
             },
             limit: {
               type: 'number',
-              description: 'Maximum number of results to return (default: 50 for discovery searches, max: 50)',
+              description:
+                'Maximum number of results to return (default: 50 for discovery searches, max: 50)',
               minimum: 1,
               maximum: 50,
             },
@@ -132,7 +165,8 @@ export class CompendiumTools {
       },
       {
         name: 'get-compendium-item',
-        description: 'Retrieve detailed information about a specific compendium item. Use compact mode for UI performance when full details are not needed.',
+        description:
+          'Retrieve detailed information about a specific compendium item. Use compact mode for UI performance when full details are not needed.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -146,8 +180,9 @@ export class CompendiumTools {
             },
             compact: {
               type: 'boolean',
-              description: 'Return condensed stat block (recommended for UI performance). Includes key stats, abilities, and actions but omits lengthy descriptions and technical data.',
-              default: false
+              description:
+                'Return condensed stat block (recommended for UI performance). Includes key stats, abilities, and actions but omits lengthy descriptions and technical data.',
+              default: false,
             },
           },
           required: ['packId', 'itemId'],
@@ -155,7 +190,8 @@ export class CompendiumTools {
       },
       {
         name: 'list-creatures-by-criteria',
-        description: 'MULTI-SYSTEM CREATURE DISCOVERY: Get a comprehensive list of creatures matching specific criteria. Supports D&D 5e (Challenge Rating) and Pathfinder 2e (Level) with automatic system detection. Perfect for encounter building - returns minimal data so Claude can use built-in monster knowledge to identify suitable creatures by name, then pull full details only for final selections. Features intelligent pack prioritization and high result limits for complete surveys.',
+        description:
+          'MULTI-SYSTEM CREATURE DISCOVERY: Get a comprehensive list of creatures matching specific criteria. Supports D&D 5e (Challenge Rating) and Pathfinder 2e (Level) with automatic system detection. Perfect for encounter building - returns minimal data so Claude can use built-in monster knowledge to identify suitable creatures by name, then pull full details only for final selections. Features intelligent pack prioritization and high result limits for complete surveys.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -163,34 +199,50 @@ export class CompendiumTools {
               oneOf: [
                 { type: 'number', description: 'Exact CR value (e.g., 12)' },
                 { type: 'string', description: 'Exact CR value as string (e.g., "12")' },
-                { 
+                {
                   type: 'object',
                   properties: {
                     min: { type: 'number', description: 'Minimum CR (default: 0)' },
-                    max: { type: 'number', description: 'Maximum CR (default: 30)' }
+                    max: { type: 'number', description: 'Maximum CR (default: 30)' },
                   },
-                  description: 'CR range object (e.g., {"min": 10, "max": 15})'
-                }
+                  description: 'CR range object (e.g., {"min": 10, "max": 15})',
+                },
               ],
-              description: 'Filter by Challenge Rating - accepts number, string, or range object. Use ranges for broader discovery (e.g., {"min": 10, "max": 15}) or exact values (12 or "12")'
+              description:
+                'Filter by Challenge Rating - accepts number, string, or range object. Use ranges for broader discovery (e.g., {"min": 10, "max": 15}) or exact values (12 or "12")',
             },
             creatureType: {
               type: 'string',
               description: 'Filter by creature type',
-              enum: ['humanoid', 'dragon', 'beast', 'undead', 'fey', 'fiend', 'celestial', 'construct', 'elemental', 'giant', 'monstrosity', 'ooze', 'plant', 'aberration']
+              enum: [
+                'humanoid',
+                'dragon',
+                'beast',
+                'undead',
+                'fey',
+                'fiend',
+                'celestial',
+                'construct',
+                'elemental',
+                'giant',
+                'monstrosity',
+                'ooze',
+                'plant',
+                'aberration',
+              ],
             },
             size: {
               type: 'string',
               description: 'Filter by creature size',
-              enum: ['tiny', 'small', 'medium', 'large', 'huge', 'gargantuan']
+              enum: ['tiny', 'small', 'medium', 'large', 'huge', 'gargantuan'],
             },
             hasSpells: {
               type: 'boolean',
-              description: 'Filter for spellcasting creatures'
+              description: 'Filter for spellcasting creatures',
             },
             hasLegendaryActions: {
               type: 'boolean',
-              description: 'Filter for creatures with legendary actions (D&D 5e)'
+              description: 'Filter for creatures with legendary actions (D&D 5e)',
             },
             // Pathfinder 2e specific filters
             level: {
@@ -201,33 +253,34 @@ export class CompendiumTools {
                   type: 'object',
                   properties: {
                     min: { type: 'number', description: 'Minimum level (default: -1)' },
-                    max: { type: 'number', description: 'Maximum level (default: 25)' }
+                    max: { type: 'number', description: 'Maximum level (default: 25)' },
                   },
-                  description: 'Level range object (e.g., {"min": 10, "max": 15})'
-                }
+                  description: 'Level range object (e.g., {"min": 10, "max": 15})',
+                },
               ],
-              description: 'Filter by creature level (Pathfinder 2e, -1 to 25+)'
+              description: 'Filter by creature level (Pathfinder 2e, -1 to 25+)',
             },
             traits: {
               type: 'array',
               items: { type: 'string' },
-              description: 'Filter by creature traits (Pathfinder 2e)'
+              description: 'Filter by creature traits (Pathfinder 2e)',
             },
             rarity: {
               type: 'string',
               enum: ['common', 'uncommon', 'rare', 'unique'],
-              description: 'Filter by rarity (Pathfinder 2e)'
+              description: 'Filter by rarity (Pathfinder 2e)',
             },
             limit: {
               type: 'number',
-              description: 'Maximum results to return (default: 500 for comprehensive surveys, max: 1000)',
+              description:
+                'Maximum results to return (default: 500 for comprehensive surveys, max: 1000)',
               minimum: 1,
               maximum: 1000,
-              default: 500
-            }
+              default: 500,
+            },
           },
-          required: []
-        }
+          required: [],
+        },
       },
       {
         name: 'list-compendium-packs',
@@ -274,9 +327,9 @@ export class CompendiumTools {
         }
       } else {
         // Log the problematic args for debugging
-        this.logger.debug('Failed to parse search args, using fallback', { 
+        this.logger.debug('Failed to parse search args, using fallback', {
           args: typeof args === 'object' ? JSON.stringify(args) : args,
-          error: zodError instanceof Error ? zodError.message : 'Unknown parsing error'
+          error: zodError instanceof Error ? zodError.message : 'Unknown parsing error',
         });
         throw zodError;
       }
@@ -288,7 +341,7 @@ export class CompendiumTools {
     this.logger.info('Compendium search with system detection', {
       gameSystem,
       query,
-      filters: filters ? describeFilters(filters, gameSystem) : 'none'
+      filters: filters ? describeFilters(filters, gameSystem) : 'none',
     });
 
     try {
@@ -317,10 +370,11 @@ export class CompendiumTools {
         showing: limitedResults.length,
         hasMore: results.length > limit,
       };
-
     } catch (error) {
       this.logger.error('Failed to search compendium', error);
-      throw new Error(`Failed to search compendium: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to search compendium: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
@@ -366,7 +420,7 @@ export class CompendiumTools {
           stats: compactStats,
           properties: this.extractItemProperties(item),
           items: (item.items || []).slice(0, 5), // Limit items to prevent bloat
-          mode: 'compact'
+          mode: 'compact',
         };
       } else {
         // Full response
@@ -378,13 +432,14 @@ export class CompendiumTools {
           items: item.items || [],
           effects: item.effects || [],
           fullData: item.fullData,
-          mode: 'full'
+          mode: 'full',
         };
       }
-
     } catch (error) {
       this.logger.error('Failed to get compendium item', error);
-      throw new Error(`Failed to retrieve item: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to retrieve item: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
@@ -395,58 +450,83 @@ export class CompendiumTools {
     // Use generic filters schema to support both systems
     const schema = z.object({
       // D&D 5e: challengeRating
-      challengeRating: z.union([
-        z.object({
-          min: z.number().optional().default(0),
-          max: z.number().optional().default(30)
-        }),
-        z.string().refine((val) => {
-          try {
-            const parsed = JSON.parse(val);
-            return typeof parsed === 'object' && parsed !== null &&
-                   (typeof parsed.min === 'number' || typeof parsed.max === 'number');
-          } catch {
-            return false;
-          }
-        }, {
-          message: 'Challenge rating range must be valid JSON object with min/max numbers'
-        }).transform((val) => {
-          const parsed = JSON.parse(val);
-          return {
-            min: parsed.min || 0,
-            max: parsed.max || 30
-          };
-        }),
-        z.number(),
-        z.string().refine((val) => !isNaN(parseFloat(val)), {
-          message: 'Challenge rating must be a valid number'
-        }).transform((val) => parseFloat(val))
-      ]).optional(),
+      challengeRating: z
+        .union([
+          z.object({
+            min: z.number().optional().default(0),
+            max: z.number().optional().default(30),
+          }),
+          z
+            .string()
+            .refine(
+              val => {
+                try {
+                  const parsed = JSON.parse(val);
+                  return (
+                    typeof parsed === 'object' &&
+                    parsed !== null &&
+                    (typeof parsed.min === 'number' || typeof parsed.max === 'number')
+                  );
+                } catch {
+                  return false;
+                }
+              },
+              {
+                message: 'Challenge rating range must be valid JSON object with min/max numbers',
+              }
+            )
+            .transform(val => {
+              const parsed = JSON.parse(val);
+              return {
+                min: parsed.min || 0,
+                max: parsed.max || 30,
+              };
+            }),
+          z.number(),
+          z
+            .string()
+            .refine(val => !isNaN(parseFloat(val)), {
+              message: 'Challenge rating must be a valid number',
+            })
+            .transform(val => parseFloat(val)),
+        ])
+        .optional(),
 
       // Pathfinder 2e: level
-      level: z.union([
-        z.object({
-          min: z.number().optional().default(-1),
-          max: z.number().optional().default(25)
-        }),
-        z.string().refine((val) => {
-          try {
-            const parsed = JSON.parse(val);
-            return typeof parsed === 'object' && parsed !== null &&
-                   (typeof parsed.min === 'number' || typeof parsed.max === 'number');
-          } catch {
-            return false;
-          }
-        }).transform((val) => {
-          const parsed = JSON.parse(val);
-          return {
-            min: parsed.min ?? -1,
-            max: parsed.max ?? 25
-          };
-        }),
-        z.number(),
-        z.string().refine((val) => !isNaN(parseFloat(val))).transform((val) => parseFloat(val))
-      ]).optional(),
+      level: z
+        .union([
+          z.object({
+            min: z.number().optional().default(-1),
+            max: z.number().optional().default(25),
+          }),
+          z
+            .string()
+            .refine(val => {
+              try {
+                const parsed = JSON.parse(val);
+                return (
+                  typeof parsed === 'object' &&
+                  parsed !== null &&
+                  (typeof parsed.min === 'number' || typeof parsed.max === 'number')
+                );
+              } catch {
+                return false;
+              }
+            })
+            .transform(val => {
+              const parsed = JSON.parse(val);
+              return {
+                min: parsed.min ?? -1,
+                max: parsed.max ?? 25,
+              };
+            }),
+          z.number(),
+          z
+            .string()
+            .refine(val => !isNaN(parseFloat(val)))
+            .transform(val => parseFloat(val)),
+        ])
+        .optional(),
 
       // Common filters
       creatureType: z.string().optional(), // Accept any string, validate per system
@@ -457,22 +537,38 @@ export class CompendiumTools {
       rarity: z.enum(['common', 'uncommon', 'rare', 'unique']).optional(),
 
       // Spellcasting flags (different names per system)
-      hasSpells: z.union([
-        z.boolean(),
-        z.string().refine((val) => ['true', 'false'].includes(val.toLowerCase())).transform(val => val.toLowerCase() === 'true')
-      ]).optional(),
-      hasLegendaryActions: z.union([
-        z.boolean(),
-        z.string().refine((val) => ['true', 'false'].includes(val.toLowerCase())).transform(val => val.toLowerCase() === 'true')
-      ]).optional(),
+      hasSpells: z
+        .union([
+          z.boolean(),
+          z
+            .string()
+            .refine(val => ['true', 'false'].includes(val.toLowerCase()))
+            .transform(val => val.toLowerCase() === 'true'),
+        ])
+        .optional(),
+      hasLegendaryActions: z
+        .union([
+          z.boolean(),
+          z
+            .string()
+            .refine(val => ['true', 'false'].includes(val.toLowerCase()))
+            .transform(val => val.toLowerCase() === 'true'),
+        ])
+        .optional(),
 
-      limit: z.union([
-        z.number().min(1).max(1000),
-        z.string().refine((val) => {
-          const num = parseInt(val, 10);
-          return !isNaN(num) && num >= 1 && num <= 1000;
-        }).transform(val => parseInt(val, 10))
-      ]).optional().default(100),
+      limit: z
+        .union([
+          z.number().min(1).max(1000),
+          z
+            .string()
+            .refine(val => {
+              const num = parseInt(val, 10);
+              return !isNaN(num) && num >= 1 && num <= 1000;
+            })
+            .transform(val => parseInt(val, 10)),
+        ])
+        .optional()
+        .default(100),
     });
 
     let params;
@@ -482,8 +578,12 @@ export class CompendiumTools {
     } catch (parseError) {
       this.logger.error('Failed to parse creature criteria parameters', { args, parseError });
       if (parseError instanceof z.ZodError) {
-        const errorDetails = parseError.errors.map(err => `${err.path.join('.')}: ${err.message}`).join('; ');
-        throw new Error(`Parameter validation failed: ${errorDetails}. Received args: ${JSON.stringify(args)}`);
+        const errorDetails = parseError.errors
+          .map(err => `${err.path.join('.')}: ${err.message}`)
+          .join('; ');
+        throw new Error(
+          `Parameter validation failed: ${errorDetails}. Received args: ${JSON.stringify(args)}`
+        );
       }
       throw parseError;
     }
@@ -492,44 +592,51 @@ export class CompendiumTools {
     const criteriaDescription = this.describeCriteria(params, gameSystem);
     this.logger.info('Creature criteria search with system detection', {
       gameSystem,
-      criteria: criteriaDescription
+      criteria: criteriaDescription,
     });
 
     try {
-      const results = await this.foundryClient.query('foundry-mcp-bridge.listCreaturesByCriteria', params);
+      const results = await this.foundryClient.query(
+        'foundry-mcp-bridge.listCreaturesByCriteria',
+        params
+      );
 
       this.logger.debug('Creature criteria search completed', {
         gameSystem,
         criteriaCount: Object.keys(params).length,
         totalFound: results.response?.creatures?.length || 0,
         limit: params.limit,
-        packsSearched: results.response?.searchSummary?.packsSearched || 0
+        packsSearched: results.response?.searchSummary?.packsSearched || 0,
       });
 
       // Extract search summary for transparency
       const searchSummary = results.response?.searchSummary || {
         packsSearched: 0,
         topPacks: [],
-        totalCreaturesFound: results.response?.creatures?.length || 0
+        totalCreaturesFound: results.response?.creatures?.length || 0,
       };
 
       return {
         gameSystem, // Include detected system
         criteriaDescription, // Human-readable criteria
-        creatures: (results.response?.creatures || results).map((creature: any) => this.formatCreatureListItem(creature, gameSystem)),
+        creatures: (results.response?.creatures || results).map((creature: any) =>
+          this.formatCreatureListItem(creature, gameSystem)
+        ),
         totalFound: results.response?.creatures?.length || results.length,
         criteria: params,
         searchSummary: {
           ...searchSummary,
           searchStrategy: `Prioritized pack search - ${gameSystem === 'pf2e' ? 'PF2e' : 'D&D 5e'} content first, then modules, then campaign-specific`,
-          note: 'Packs searched in priority order to find most relevant creatures first'
+          note: 'Packs searched in priority order to find most relevant creatures first',
         },
-        optimizationNote: 'Use creature names to identify suitable options, then call get-compendium-item for final details only'
+        optimizationNote:
+          'Use creature names to identify suitable options, then call get-compendium-item for final details only',
       };
-
     } catch (error) {
       this.logger.error('Failed to list creatures by criteria', error);
-      throw new Error(`Failed to list creatures: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to list creatures: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
@@ -546,14 +653,12 @@ export class CompendiumTools {
       const packs = await this.foundryClient.query('foundry-mcp-bridge.getAvailablePacks');
 
       // Filter by type if specified
-      const filteredPacks = type 
-        ? packs.filter((pack: any) => pack.type === type)
-        : packs;
+      const filteredPacks = type ? packs.filter((pack: any) => pack.type === type) : packs;
 
-      this.logger.debug('Successfully retrieved compendium packs', { 
+      this.logger.debug('Successfully retrieved compendium packs', {
         total: packs.length,
         filtered: filteredPacks.length,
-        type 
+        type,
       });
 
       return {
@@ -567,10 +672,11 @@ export class CompendiumTools {
         total: filteredPacks.length,
         availableTypes: [...new Set(packs.map((pack: any) => pack.type))],
       };
-
     } catch (error) {
       this.logger.error('Failed to list compendium packs', error);
-      throw new Error(`Failed to list compendium packs: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to list compendium packs: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
@@ -610,8 +716,26 @@ export class CompendiumTools {
           if (gameSystem === 'pf2e' && Array.isArray(creatureType)) {
             stats.traits = creatureType;
             // Also extract primary creature type from traits if available
-            const creatureTraits = ['aberration', 'animal', 'beast', 'celestial', 'construct', 'dragon', 'elemental', 'fey', 'fiend', 'fungus', 'humanoid', 'monitor', 'ooze', 'plant', 'undead'];
-            const primaryType = creatureType.find((t: string) => creatureTraits.includes(t.toLowerCase()));
+            const creatureTraits = [
+              'aberration',
+              'animal',
+              'beast',
+              'celestial',
+              'construct',
+              'dragon',
+              'elemental',
+              'fey',
+              'fiend',
+              'fungus',
+              'humanoid',
+              'monitor',
+              'ooze',
+              'plant',
+              'undead',
+            ];
+            const primaryType = creatureType.find((t: string) =>
+              creatureTraits.includes(t.toLowerCase())
+            );
             if (primaryType) stats.creatureType = primaryType;
           } else {
             stats.creatureType = creatureType;
@@ -637,7 +761,8 @@ export class CompendiumTools {
         if (size) stats.size = size;
 
         // Alignment (different paths but similar concept)
-        const alignment = system.details?.alignment?.value || system.details?.alignment || system.alignment;
+        const alignment =
+          system.details?.alignment?.value || system.details?.alignment || system.alignment;
         if (alignment) stats.alignment = alignment;
 
         // PF2e specific: Rarity
@@ -680,20 +805,20 @@ export class CompendiumTools {
 
   private formatDetailedCompendiumItem(item: any): any {
     const formatted = this.formatCompendiumItem(item);
-    
+
     // Add more detailed information
     formatted.system = this.sanitizeSystemData(item.system || {});
     formatted.fullDescription = this.extractFullDescription(item);
     formatted.properties = this.extractItemProperties(item);
-    
+
     return formatted;
   }
 
   private extractDescription(item: any): string {
     const system = item.system || {};
-    
+
     // Try different common description fields
-    const description = 
+    const description =
       system.description?.value ||
       system.description?.content ||
       system.description ||
@@ -705,8 +830,8 @@ export class CompendiumTools {
 
   private extractFullDescription(item: any): string {
     const system = item.system || {};
-    
-    const description = 
+
+    const description =
       system.description?.value ||
       system.description?.content ||
       system.description ||
@@ -718,11 +843,11 @@ export class CompendiumTools {
 
   private createItemSummary(item: any): string {
     const parts = [];
-    
+
     parts.push(`${item.type} from ${item.packLabel}`);
-    
+
     const system = item.system || {};
-    
+
     // Add relevant summary information based on item type
     switch (item.type.toLowerCase()) {
       case 'spell':
@@ -741,10 +866,11 @@ export class CompendiumTools {
       case 'equipment':
       case 'item':
         if (system.rarity) parts.push(system.rarity);
-        if (system.price?.value) parts.push(`${system.price.value} ${system.price.denomination || 'gp'}`);
+        if (system.price?.value)
+          parts.push(`${system.price.value} ${system.price.denomination || 'gp'}`);
         break;
     }
-    
+
     return parts.join(' • ');
   }
 
@@ -753,7 +879,7 @@ export class CompendiumTools {
     const formatted: any = {
       name: creature.name,
       id: creature.id,
-      pack: { id: creature.pack, label: creature.packLabel }
+      pack: { id: creature.pack, label: creature.packLabel },
     };
 
     if (gameSystem) {
@@ -772,8 +898,26 @@ export class CompendiumTools {
         if (gameSystem === 'pf2e' && Array.isArray(creatureType)) {
           formatted.traits = creatureType;
           // Extract primary type from traits
-          const creatureTraits = ['aberration', 'animal', 'beast', 'celestial', 'construct', 'dragon', 'elemental', 'fey', 'fiend', 'fungus', 'humanoid', 'monitor', 'ooze', 'plant', 'undead'];
-          const primaryType = creatureType.find((t: string) => creatureTraits.includes(t.toLowerCase()));
+          const creatureTraits = [
+            'aberration',
+            'animal',
+            'beast',
+            'celestial',
+            'construct',
+            'dragon',
+            'elemental',
+            'fey',
+            'fiend',
+            'fungus',
+            'humanoid',
+            'monitor',
+            'ooze',
+            'plant',
+            'undead',
+          ];
+          const primaryType = creatureType.find((t: string) =>
+            creatureTraits.includes(t.toLowerCase())
+          );
           if (primaryType) formatted.creatureType = primaryType;
         } else {
           formatted.creatureType = creatureType;
@@ -792,13 +936,16 @@ export class CompendiumTools {
       // Feature flags
       const hasSpells = hasSpellcasting(creature, gameSystem);
       formatted.flags = {
-        spellcaster: hasSpells
+        spellcaster: hasSpells,
       };
 
       // D&D 5e specific flags
       if (gameSystem === 'dnd5e') {
-        const hasLegendary = !!(system.resources?.legact || system.legendary ||
-                          (system.resources?.legres && system.resources.legres.value > 0));
+        const hasLegendary = !!(
+          system.resources?.legact ||
+          system.legendary ||
+          (system.resources?.legres && system.resources.legres.value > 0)
+        );
         formatted.flags.legendary = hasLegendary;
 
         const typeStr = typeof creatureType === 'string' ? creatureType.toLowerCase() : '';
@@ -809,13 +956,24 @@ export class CompendiumTools {
     } else {
       // Legacy fallback (D&D 5e assumptions)
       const challengeRating = creature.challengeRating ?? system.details?.cr ?? system.cr ?? 0;
-      const creatureType = creature.creatureType ?? system.details?.type?.value ?? system.type?.value ?? 'unknown';
+      const creatureType =
+        creature.creatureType ?? system.details?.type?.value ?? system.type?.value ?? 'unknown';
       const size = creature.size ?? system.traits?.size ?? system.size ?? 'medium';
 
-      const hasSpells = creature.hasSpells ?? !!(system.spells || system.attributes?.spellcasting ||
-                       (system.details?.spellLevel && system.details.spellLevel > 0));
-      const hasLegendary = creature.hasLegendaryActions ?? !!(system.resources?.legact || system.legendary ||
-                          (system.resources?.legres && system.resources.legres.value > 0));
+      const hasSpells =
+        creature.hasSpells ??
+        !!(
+          system.spells ||
+          system.attributes?.spellcasting ||
+          (system.details?.spellLevel && system.details.spellLevel > 0)
+        );
+      const hasLegendary =
+        creature.hasLegendaryActions ??
+        !!(
+          system.resources?.legact ||
+          system.legendary ||
+          (system.resources?.legres && system.resources.legres.value > 0)
+        );
 
       formatted.challengeRating = challengeRating;
       formatted.creatureType = creatureType;
@@ -825,7 +983,7 @@ export class CompendiumTools {
         legendary: hasLegendary,
         undead: creatureType.toLowerCase() === 'undead',
         dragon: creatureType.toLowerCase() === 'dragon',
-        fiend: creatureType.toLowerCase() === 'fiend'
+        fiend: creatureType.toLowerCase() === 'fiend',
       };
     }
 
@@ -875,17 +1033,17 @@ export class CompendiumTools {
   private extractCompactStats(item: any): any {
     const system = item.system || {};
     const stats: any = {};
-    
+
     // Core combat stats
     if (system.attributes?.ac?.value) stats.armorClass = system.attributes.ac.value;
     if (system.attributes?.hp?.max) stats.hitPoints = system.attributes.hp.max;
     if (system.details?.cr !== undefined) stats.challengeRating = system.details.cr;
-    
+
     // Basic info
     if (system.details?.type?.value) stats.creatureType = system.details.type.value;
     if (system.traits?.size) stats.size = system.traits.size;
     if (system.details?.alignment) stats.alignment = system.details.alignment;
-    
+
     // Key abilities (only show notable ones)
     if (system.abilities) {
       const abilities: any = {};
@@ -893,14 +1051,15 @@ export class CompendiumTools {
         const abil = ability as any;
         if (abil.value !== undefined) {
           const mod = Math.floor((abil.value - 10) / 2);
-          if (Math.abs(mod) >= 2) { // Only show significant modifiers
+          if (Math.abs(mod) >= 2) {
+            // Only show significant modifiers
             abilities[key.toUpperCase()] = { value: abil.value, modifier: mod };
           }
         }
       }
       if (Object.keys(abilities).length > 0) stats.abilities = abilities;
     }
-    
+
     // Speed
     if (system.attributes?.movement) {
       const movement = system.attributes.movement;
@@ -910,7 +1069,7 @@ export class CompendiumTools {
       if (movement.swim) speeds.push(`swim ${movement.swim} ft`);
       if (speeds.length > 0) stats.speed = speeds.join(', ');
     }
-    
+
     return stats;
   }
 
@@ -952,17 +1111,17 @@ export class CompendiumTools {
   private sanitizeSystemData(systemData: any): any {
     // Remove potentially large or unnecessary fields
     const sanitized = { ...systemData };
-    
+
     // Remove large description fields (already handled separately)
     delete sanitized.description;
     delete sanitized.details;
-    
+
     // Remove internal/technical fields
     delete sanitized._id;
     delete sanitized.folder;
     delete sanitized.sort;
     delete sanitized.ownership;
-    
+
     return sanitized;
   }
 

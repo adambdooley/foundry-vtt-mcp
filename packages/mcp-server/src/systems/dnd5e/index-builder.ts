@@ -39,9 +39,13 @@ export class DnD5eIndexBuilder implements IndexBuilder {
       const enhancedCreatures: DnD5eCreatureIndex[] = [];
 
       // Show initial progress notification
-      console.log(`[${this.moduleId}] Starting D&D 5e creature index build from ${actorPacks.length} packs...`);
+      console.log(
+        `[${this.moduleId}] Starting D&D 5e creature index build from ${actorPacks.length} packs...`
+      );
       if (typeof ui !== 'undefined' && ui.notifications) {
-        ui.notifications.info(`Starting enhanced creature index build from ${actorPacks.length} packs...`);
+        ui.notifications.info(
+          `Starting enhanced creature index build from ${actorPacks.length} packs...`
+        );
       }
 
       for (let i = 0; i < actorPacks.length; i++) {
@@ -83,11 +87,12 @@ export class DnD5eIndexBuilder implements IndexBuilder {
               );
             }
           }
-
         } catch (error) {
           console.warn(`[${this.moduleId}] Failed to process pack ${pack.metadata.label}:`, error);
           if (typeof ui !== 'undefined' && ui.notifications) {
-            ui.notifications.warn(`Warning: Failed to index pack "${pack.metadata.label}" - continuing with other packs`);
+            ui.notifications.warn(
+              `Warning: Failed to index pack "${pack.metadata.label}" - continuing with other packs`
+            );
           }
         }
       }
@@ -107,7 +112,6 @@ export class DnD5eIndexBuilder implements IndexBuilder {
       }
 
       return enhancedCreatures;
-
     } catch (error) {
       if (progressNotification && typeof ui !== 'undefined') {
         progressNotification.remove();
@@ -126,7 +130,9 @@ export class DnD5eIndexBuilder implements IndexBuilder {
   /**
    * Extract creature data from a single compendium pack
    */
-  async extractDataFromPack(pack: any): Promise<{ creatures: DnD5eCreatureIndex[]; errors: number }> {
+  async extractDataFromPack(
+    pack: any
+  ): Promise<{ creatures: DnD5eCreatureIndex[]; errors: number }> {
     const creatures: DnD5eCreatureIndex[] = [];
     let errors = 0;
 
@@ -146,15 +152,19 @@ export class DnD5eIndexBuilder implements IndexBuilder {
             creatures.push(result.creature);
             errors += result.errors;
           }
-
         } catch (error) {
-          console.warn(`[${this.moduleId}] Failed to extract data from ${doc.name} in ${pack.metadata.label}:`, error);
+          console.warn(
+            `[${this.moduleId}] Failed to extract data from ${doc.name} in ${pack.metadata.label}:`,
+            error
+          );
           errors++;
         }
       }
-
     } catch (error) {
-      console.warn(`[${this.moduleId}] Failed to load documents from ${pack.metadata.label}:`, error);
+      console.warn(
+        `[${this.moduleId}] Failed to load documents from ${pack.metadata.label}:`,
+        error
+      );
       errors++;
     }
 
@@ -164,16 +174,24 @@ export class DnD5eIndexBuilder implements IndexBuilder {
   /**
    * Extract D&D 5e creature data from a single document
    */
-  extractCreatureData(doc: any, pack: any): { creature: DnD5eCreatureIndex; errors: number } | null {
+  extractCreatureData(
+    doc: any,
+    pack: any
+  ): { creature: DnD5eCreatureIndex; errors: number } | null {
     try {
       const system = doc.system || {};
 
       // Extract challenge rating with comprehensive fallbacks
-      let challengeRating = system.details?.cr ??
-                           system.details?.cr?.value ??
-                           system.cr?.value ?? system.cr ??
-                           system.attributes?.cr?.value ?? system.attributes?.cr ??
-                           system.challenge?.rating ?? system.challenge?.cr ?? 0;
+      let challengeRating =
+        system.details?.cr ??
+        system.details?.cr?.value ??
+        system.cr?.value ??
+        system.cr ??
+        system.attributes?.cr?.value ??
+        system.attributes?.cr ??
+        system.challenge?.rating ??
+        system.challenge?.cr ??
+        0;
 
       // Handle null values
       if (challengeRating === null || challengeRating === undefined) {
@@ -191,11 +209,15 @@ export class DnD5eIndexBuilder implements IndexBuilder {
       challengeRating = Number(challengeRating) || 0;
 
       // Extract creature type
-      let creatureType = system.details?.type?.value ??
-                         system.details?.type ??
-                         system.type?.value ?? system.type ??
-                         system.race?.value ?? system.race ??
-                         system.details?.race ?? 'unknown';
+      let creatureType =
+        system.details?.type?.value ??
+        system.details?.type ??
+        system.type?.value ??
+        system.type ??
+        system.race?.value ??
+        system.race ??
+        system.details?.race ??
+        'unknown';
 
       if (creatureType === null || creatureType === undefined || creatureType === '') {
         creatureType = 'unknown';
@@ -206,51 +228,74 @@ export class DnD5eIndexBuilder implements IndexBuilder {
       }
 
       // Extract size
-      let size = system.traits?.size?.value || system.traits?.size ||
-                 system.size?.value || system.size ||
-                 system.details?.size || 'medium';
+      let size =
+        system.traits?.size?.value ||
+        system.traits?.size ||
+        system.size?.value ||
+        system.size ||
+        system.details?.size ||
+        'medium';
 
       if (typeof size !== 'string') {
         size = String(size || 'medium');
       }
 
       // Extract hit points
-      const hitPoints = system.attributes?.hp?.max || system.hp?.max ||
-                       system.attributes?.hp?.value || system.hp?.value ||
-                       system.health?.max || system.health?.value || 0;
+      const hitPoints =
+        system.attributes?.hp?.max ||
+        system.hp?.max ||
+        system.attributes?.hp?.value ||
+        system.hp?.value ||
+        system.health?.max ||
+        system.health?.value ||
+        0;
 
       // Extract armor class
-      const armorClass = system.attributes?.ac?.value || system.ac?.value ||
-                        system.attributes?.ac || system.ac ||
-                        system.armor?.value || system.armor || 10;
+      const armorClass =
+        system.attributes?.ac?.value ||
+        system.ac?.value ||
+        system.attributes?.ac ||
+        system.ac ||
+        system.armor?.value ||
+        system.armor ||
+        10;
 
       // Extract alignment
-      let alignment = system.details?.alignment?.value || system.details?.alignment ||
-                      system.alignment?.value || system.alignment || 'unaligned';
+      let alignment =
+        system.details?.alignment?.value ||
+        system.details?.alignment ||
+        system.alignment?.value ||
+        system.alignment ||
+        'unaligned';
 
       if (typeof alignment !== 'string') {
         alignment = String(alignment || 'unaligned');
       }
 
       // Check for spellcasting
-      const hasSpellcasting = !!(system.spells ||
-                                system.attributes?.spellcasting ||
-                                (system.details?.spellLevel && system.details.spellLevel > 0) ||
-                                (system.resources?.spell && system.resources.spell.max > 0) ||
-                                system.spellcasting ||
-                                system.traits?.spellcasting ||
-                                system.details?.spellcaster);
+      const hasSpellcasting = !!(
+        system.spells ||
+        system.attributes?.spellcasting ||
+        (system.details?.spellLevel && system.details.spellLevel > 0) ||
+        (system.resources?.spell && system.resources.spell.max > 0) ||
+        system.spellcasting ||
+        system.traits?.spellcasting ||
+        system.details?.spellcaster
+      );
 
       // Check for legendary actions
-      const hasLegendaryActions = !!(system.resources?.legact ||
-                                    system.legendary ||
-                                    (system.resources?.legres && system.resources.legres.value > 0) ||
-                                    system.details?.legendary ||
-                                    system.traits?.legendary ||
-                                    (system.resources?.legendary && system.resources.legendary.max > 0));
+      const hasLegendaryActions = !!(
+        system.resources?.legact ||
+        system.legendary ||
+        (system.resources?.legres && system.resources.legres.value > 0) ||
+        system.details?.legendary ||
+        system.traits?.legendary ||
+        (system.resources?.legendary && system.resources.legendary.max > 0)
+      );
 
       // Extract character level (for PCs)
-      const level = system.details?.level?.value || system.details?.level || system.level || undefined;
+      const level =
+        system.details?.level?.value || system.details?.level || system.level || undefined;
 
       // Successful extraction
       return {
@@ -271,12 +316,11 @@ export class DnD5eIndexBuilder implements IndexBuilder {
             hasSpellcasting,
             hasLegendaryActions,
             hitPoints,
-            armorClass
-          }
+            armorClass,
+          },
         },
-        errors: 0
+        errors: 0,
       };
-
     } catch (error) {
       console.warn(`[${this.moduleId}] Failed to extract D&D 5e data from ${doc.name}:`, error);
 
@@ -298,10 +342,10 @@ export class DnD5eIndexBuilder implements IndexBuilder {
             armorClass: 10,
             hasSpellcasting: false,
             hasLegendaryActions: false,
-            alignment: 'unaligned'
-          }
+            alignment: 'unaligned',
+          },
         },
-        errors: 1
+        errors: 1,
       };
     }
   }

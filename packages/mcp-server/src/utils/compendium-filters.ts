@@ -25,10 +25,10 @@ export const DnD5eCreatureTypes = [
   'monstrosity',
   'ooze',
   'plant',
-  'undead'
+  'undead',
 ] as const;
 
-export type DnD5eCreatureType = typeof DnD5eCreatureTypes[number];
+export type DnD5eCreatureType = (typeof DnD5eCreatureTypes)[number];
 
 /**
  * Pathfinder 2e creature types (traits)
@@ -49,39 +49,41 @@ export const PF2eCreatureTypes = [
   'monitor',
   'ooze',
   'plant',
-  'undead'
+  'undead',
 ] as const;
 
-export type PF2eCreatureType = typeof PF2eCreatureTypes[number];
+export type PF2eCreatureType = (typeof PF2eCreatureTypes)[number];
 
 /**
  * Pathfinder 2e rarity levels
  */
 export const PF2eRarities = ['common', 'uncommon', 'rare', 'unique'] as const;
-export type PF2eRarity = typeof PF2eRarities[number];
+export type PF2eRarity = (typeof PF2eRarities)[number];
 
 /**
  * Common creature sizes (used by both systems)
  */
 export const CreatureSizes = ['tiny', 'small', 'medium', 'large', 'huge', 'gargantuan'] as const;
-export type CreatureSize = typeof CreatureSizes[number];
+export type CreatureSize = (typeof CreatureSizes)[number];
 
 /**
  * D&D 5e filter schema
  */
 export const DnD5eFiltersSchema = z.object({
-  challengeRating: z.union([
-    z.number(),
-    z.object({
-      min: z.number().optional(),
-      max: z.number().optional()
-    })
-  ]).optional(),
+  challengeRating: z
+    .union([
+      z.number(),
+      z.object({
+        min: z.number().optional(),
+        max: z.number().optional(),
+      }),
+    ])
+    .optional(),
   creatureType: z.enum(DnD5eCreatureTypes).optional(),
   size: z.enum(CreatureSizes).optional(),
   alignment: z.string().optional(),
   hasLegendaryActions: z.boolean().optional(),
-  spellcaster: z.boolean().optional()
+  spellcaster: z.boolean().optional(),
 });
 
 export type DnD5eFilters = z.infer<typeof DnD5eFiltersSchema>;
@@ -90,19 +92,21 @@ export type DnD5eFilters = z.infer<typeof DnD5eFiltersSchema>;
  * Pathfinder 2e filter schema
  */
 export const PF2eFiltersSchema = z.object({
-  level: z.union([
-    z.number().min(-1).max(30), // PF2e levels range from -1 to 25+ (accounting for higher levels)
-    z.object({
-      min: z.number().min(-1).optional(),
-      max: z.number().max(30).optional()
-    })
-  ]).optional(),
+  level: z
+    .union([
+      z.number().min(-1).max(30), // PF2e levels range from -1 to 25+ (accounting for higher levels)
+      z.object({
+        min: z.number().min(-1).optional(),
+        max: z.number().max(30).optional(),
+      }),
+    ])
+    .optional(),
   creatureType: z.enum(PF2eCreatureTypes).optional(),
   traits: z.array(z.string()).optional(), // Array of trait names
   rarity: z.enum(PF2eRarities).optional(),
   size: z.enum(CreatureSizes).optional(),
   alignment: z.string().optional(),
-  hasSpells: z.boolean().optional() // PF2e uses spellcasting entries instead of "spellcaster"
+  hasSpells: z.boolean().optional(), // PF2e uses spellcasting entries instead of "spellcaster"
 });
 
 export type PF2eFilters = z.infer<typeof PF2eFiltersSchema>;
@@ -113,22 +117,26 @@ export type PF2eFilters = z.infer<typeof PF2eFiltersSchema>;
  */
 export const GenericFiltersSchema = z.object({
   // D&D 5e fields
-  challengeRating: z.union([
-    z.number(),
-    z.object({
-      min: z.number().optional(),
-      max: z.number().optional()
-    })
-  ]).optional(),
+  challengeRating: z
+    .union([
+      z.number(),
+      z.object({
+        min: z.number().optional(),
+        max: z.number().optional(),
+      }),
+    ])
+    .optional(),
 
   // PF2e fields
-  level: z.union([
-    z.number().min(-1).max(30),
-    z.object({
-      min: z.number().min(-1).optional(),
-      max: z.number().max(30).optional()
-    })
-  ]).optional(),
+  level: z
+    .union([
+      z.number().min(-1).max(30),
+      z.object({
+        min: z.number().min(-1).optional(),
+        max: z.number().max(30).optional(),
+      }),
+    ])
+    .optional(),
 
   // Common fields (work slightly differently per system)
   creatureType: z.string().optional(), // Accept any string, validate per system
@@ -140,7 +148,7 @@ export const GenericFiltersSchema = z.object({
   // Spellcasting flags (different names per system)
   hasLegendaryActions: z.boolean().optional(), // D&D 5e specific
   spellcaster: z.boolean().optional(), // D&D 5e terminology
-  hasSpells: z.boolean().optional() // PF2e terminology
+  hasSpells: z.boolean().optional(), // PF2e terminology
 });
 
 export type GenericFilters = z.infer<typeof GenericFiltersSchema>;
@@ -174,7 +182,11 @@ export function isValidCreatureType(creatureType: string, system: GameSystem): b
  * Convert filters from one system to another (best effort)
  * Used when user provides D&D 5e filters but world is PF2e (or vice versa)
  */
-export function convertFilters(filters: GenericFilters, fromSystem: GameSystem, toSystem: GameSystem): GenericFilters {
+export function convertFilters(
+  filters: GenericFilters,
+  fromSystem: GameSystem,
+  toSystem: GameSystem
+): GenericFilters {
   const converted = { ...filters };
 
   // Convert CR <-> Level

@@ -7,7 +7,11 @@ import axios from 'axios';
 import WebSocket from 'ws';
 import { Logger } from './logger.js';
 import { getHiddenProcessSpawnOptions, getAppDataDir } from './utils/platform.js';
-import { detectComfyUIInstallation, isValidComfyUIPath, getDefaultPythonCommand as getComfyUIPythonCommand } from './utils/comfyui-paths.js';
+import {
+  detectComfyUIInstallation,
+  isValidComfyUIPath,
+  getDefaultPythonCommand as getComfyUIPythonCommand,
+} from './utils/comfyui-paths.js';
 
 export interface ComfyUIWorkflowInput {
   prompt: string;
@@ -41,7 +45,7 @@ export interface ComfyUIHealthInfo {
 const SIZE_MAPPING = {
   small: 1024,
   medium: 1536,
-  large: 2048
+  large: 2048,
 } as const;
 
 export class ComfyUIClient {
@@ -52,7 +56,10 @@ export class ComfyUIClient {
   private clientId: string;
   private logStream?: fss.WriteStream | undefined;
   private ws?: WebSocket;
-  private progressCallbacks: Map<string, (progress: { currentStep: number; totalSteps: number }) => void> = new Map();
+  private progressCallbacks: Map<
+    string,
+    (progress: { currentStep: number; totalSteps: number }) => void
+  > = new Map();
 
   constructor(options: { logger: Logger; config?: Partial<ComfyUIConfig> }) {
     this.logger = options.logger.child({ component: 'ComfyUIClient' });
@@ -70,7 +77,7 @@ export class ComfyUIClient {
       port: 31411,
       pythonCommand: defaultPython,
       autoStart: true,
-      ...options.config
+      ...options.config,
     };
 
     this.baseUrl = `http://${this.config.host}:${this.config.port}`;
@@ -79,7 +86,7 @@ export class ComfyUIClient {
       baseUrl: this.baseUrl,
       installPath: this.config.installPath,
       detected: !!detectedPath,
-      clientId: this.clientId
+      clientId: this.clientId,
     });
 
     // Initialize WebSocket connection for real-time progress
@@ -105,7 +112,7 @@ export class ComfyUIClient {
         }
       });
 
-      this.ws.on('error', (error) => {
+      this.ws.on('error', error => {
         this.logger.warn('ComfyUI WebSocket error', { error: error.message });
       });
 
@@ -125,18 +132,24 @@ export class ComfyUIClient {
       this.logger.info('ComfyUI progress update', { currentStep: value, totalSteps: max });
 
       // Notify all registered progress callbacks
-      this.progressCallbacks.forEach((callback) => {
+      this.progressCallbacks.forEach(callback => {
         callback({ currentStep: value, totalSteps: max });
       });
     }
 
     // Handle executing messages: {"type": "executing", "data": {"node": "5", "prompt_id": "..."}}
     if (message.type === 'executing' && message.data) {
-      this.logger.debug('ComfyUI executing node', { node: message.data.node, promptId: message.data.prompt_id });
+      this.logger.debug('ComfyUI executing node', {
+        node: message.data.node,
+        promptId: message.data.prompt_id,
+      });
     }
   }
 
-  registerProgressCallback(promptId: string, callback: (progress: { currentStep: number; totalSteps: number }) => void): void {
+  registerProgressCallback(
+    promptId: string,
+    callback: (progress: { currentStep: number; totalSteps: number }) => void
+  ): void {
     this.progressCallbacks.set(promptId, callback);
   }
 
@@ -160,7 +173,7 @@ export class ComfyUIClient {
       this.logger.debug('ComfyUI installation found', { path: this.config.installPath });
     } else {
       this.logger.warn('ComfyUI installation not found', {
-        expectedPath: this.config.installPath
+        expectedPath: this.config.installPath,
       });
     }
 
@@ -172,7 +185,7 @@ export class ComfyUIClient {
 
     try {
       const response = await axios.get(`${this.baseUrl}/system_stats`, {
-        timeout: 5000
+        timeout: 5000,
       });
 
       const responseTime = Date.now() - startTime;
@@ -182,15 +195,15 @@ export class ComfyUIClient {
         available: true,
         responseTime,
         systemInfo: response.data,
-        gpuInfo
+        gpuInfo,
       };
     } catch (error) {
       this.logger.debug('ComfyUI health check failed', {
-        error: error instanceof Error ? error.message : 'Unknown error'
+        error: error instanceof Error ? error.message : 'Unknown error',
       });
 
       return {
-        available: false
+        available: false,
       };
     }
   }
@@ -221,7 +234,9 @@ export class ComfyUIClient {
     // Skip process spawning if no install path (remote mode)
     if (!this.config.installPath) {
       this.logger.info('ComfyUI in remote mode - skipping service start');
-      throw new Error('Cannot start ComfyUI service in remote mode. Ensure remote ComfyUI instance is running.');
+      throw new Error(
+        'Cannot start ComfyUI service in remote mode. Ensure remote ComfyUI instance is running.'
+      );
     }
 
     if (this.process && !this.process.killed) {
@@ -237,7 +252,7 @@ export class ComfyUIClient {
     this.logger.info('Starting ComfyUI service', {
       installPath: this.config.installPath,
       pythonCommand: this.config.pythonCommand,
-      port: this.config.port
+      port: this.config.port,
     });
 
     const mainPyPath = path.join(this.config.installPath!, 'main.py');
@@ -248,20 +263,26 @@ export class ComfyUIClient {
 
     const spawnOptions = getHiddenProcessSpawnOptions();
 
-    this.process = spawn(this.config.pythonCommand, [
-      mainPyPath,
-      '--port', this.config.port.toString(),
-      '--listen', this.config.host,
-      '--disable-auto-launch',
-      '--dont-print-server'
-    ], {
-      cwd: this.config.installPath,
-      ...spawnOptions,
-      env: {
-        ...process.env,
-        PYTHONUNBUFFERED: '1'
+    this.process = spawn(
+      this.config.pythonCommand,
+      [
+        mainPyPath,
+        '--port',
+        this.config.port.toString(),
+        '--listen',
+        this.config.host,
+        '--disable-auto-launch',
+        '--dont-print-server',
+      ],
+      {
+        cwd: this.config.installPath,
+        ...spawnOptions,
+        env: {
+          ...process.env,
+          PYTHONUNBUFFERED: '1',
+        },
       }
-    });
+    );
 
     // Unref on Mac/Linux so process doesn't keep Node.js alive
     if (spawnOptions.detached) {
@@ -269,7 +290,7 @@ export class ComfyUIClient {
     }
 
     // Handle process events
-    this.process.on('error', (error) => {
+    this.process.on('error', error => {
       this.logger.error('ComfyUI process error', { error: error.message });
     });
 
@@ -284,7 +305,7 @@ export class ComfyUIClient {
 
     // Log output to file (only if stdio is pipe, not ignore)
     if (this.process.stderr && typeof this.process.stderr !== 'string') {
-      this.process.stderr.on('data', (data) => {
+      this.process.stderr.on('data', data => {
         if (this.logStream) {
           this.logStream.write(`[STDERR] ${data}`);
         }
@@ -292,7 +313,7 @@ export class ComfyUIClient {
     }
 
     if (this.process.stdout && typeof this.process.stdout !== 'string') {
-      this.process.stdout.on('data', (data) => {
+      this.process.stdout.on('data', data => {
         if (this.logStream) {
           this.logStream.write(`[STDOUT] ${data}`);
         }
@@ -350,7 +371,7 @@ export class ComfyUIClient {
 
       if (health.available) {
         this.logger.info('ComfyUI service is ready', {
-          responseTime: health.responseTime
+          responseTime: health.responseTime,
         });
         return;
       }
@@ -370,16 +391,20 @@ export class ComfyUIClient {
     const workflow = this.buildWorkflow(input);
 
     try {
-      const response = await axios.post(`${this.baseUrl}/prompt`, {
-        prompt: workflow,
-        client_id: this.clientId
-      }, {
-        timeout: 10000
-      });
+      const response = await axios.post(
+        `${this.baseUrl}/prompt`,
+        {
+          prompt: workflow,
+          client_id: this.clientId,
+        },
+        {
+          timeout: 10000,
+        }
+      );
 
       this.logger.info('ComfyUI job submitted', {
         promptId: response.data.prompt_id,
-        clientId: this.clientId
+        clientId: this.clientId,
       });
 
       return response.data;
@@ -389,7 +414,7 @@ export class ComfyUIClient {
       this.logger.error('Failed to submit job to ComfyUI', {
         error: error instanceof Error ? error.message : 'Unknown error',
         status: responseStatus,
-        response: responseData
+        response: responseData,
       });
       throw error;
     }
@@ -411,11 +436,15 @@ export class ComfyUIClient {
 
       // Check history for completed jobs
       const historyResponse = await axios.get(`${this.baseUrl}/history/${promptId}`, {
-        timeout: 5000
+        timeout: 5000,
       });
 
       const historyKeys = Object.keys(historyResponse.data);
-      this.logger.info('History response', { promptId, historyKeys, hasData: historyKeys.length > 0 });
+      this.logger.info('History response', {
+        promptId,
+        historyKeys,
+        hasData: historyKeys.length > 0,
+      });
 
       if (historyResponse.data && historyKeys.length > 0) {
         this.logger.info('Job found in history - complete', { promptId });
@@ -424,7 +453,7 @@ export class ComfyUIClient {
 
       // Check queue for pending/running jobs
       const queueResponse = await axios.get(`${this.baseUrl}/queue`, {
-        timeout: 5000
+        timeout: 5000,
       });
 
       const queueData = queueResponse.data;
@@ -436,7 +465,7 @@ export class ComfyUIClient {
         runningCount,
         pendingCount,
         runningIds: queueData.queue_running?.map((item: any) => item[1]) || [],
-        pendingIds: queueData.queue_pending?.map((item: any) => item[1]) || []
+        pendingIds: queueData.queue_pending?.map((item: any) => item[1]) || [],
       });
 
       // Check running queue and extract progress info
@@ -461,12 +490,15 @@ export class ComfyUIClient {
           status: 'running',
           currentStep,
           totalSteps,
-          estimatedTimeRemaining
+          estimatedTimeRemaining,
         };
       }
 
       // Check pending queue
-      if (queueData.queue_pending && queueData.queue_pending.some((item: any) => item[1] === promptId)) {
+      if (
+        queueData.queue_pending &&
+        queueData.queue_pending.some((item: any) => item[1] === promptId)
+      ) {
         this.logger.info('Job found in pending queue', { promptId });
         return { status: 'queued' };
       }
@@ -477,7 +509,7 @@ export class ComfyUIClient {
     } catch (error) {
       this.logger.error('Failed to get job status from ComfyUI', {
         promptId,
-        error: error instanceof Error ? error.message : 'Unknown error'
+        error: error instanceof Error ? error.message : 'Unknown error',
       });
       return { status: 'failed' };
     }
@@ -486,7 +518,7 @@ export class ComfyUIClient {
   async getJobImages(promptId: string): Promise<string[]> {
     try {
       const historyResponse = await axios.get(`${this.baseUrl}/history/${promptId}`, {
-        timeout: 5000
+        timeout: 5000,
       });
 
       const history = historyResponse.data;
@@ -516,7 +548,7 @@ export class ComfyUIClient {
     } catch (error) {
       this.logger.error('Failed to get job images from ComfyUI', {
         promptId,
-        error: error instanceof Error ? error.message : 'Unknown error'
+        error: error instanceof Error ? error.message : 'Unknown error',
       });
       return [];
     }
@@ -527,14 +559,14 @@ export class ComfyUIClient {
       const response = await axios.get(`${this.baseUrl}/view`, {
         params: { filename },
         responseType: 'arraybuffer',
-        timeout: 30000
+        timeout: 30000,
       });
 
       return Buffer.from(response.data);
     } catch (error) {
       this.logger.error('Failed to download image from ComfyUI', {
         filename,
-        error: error instanceof Error ? error.message : 'Unknown error'
+        error: error instanceof Error ? error.message : 'Unknown error',
       });
       throw error;
     }
@@ -542,16 +574,20 @@ export class ComfyUIClient {
 
   async cancelJob(promptId: string): Promise<boolean> {
     try {
-      const response = await axios.post(`${this.baseUrl}/interrupt`, {}, {
-        timeout: 5000
-      });
+      const response = await axios.post(
+        `${this.baseUrl}/interrupt`,
+        {},
+        {
+          timeout: 5000,
+        }
+      );
 
       this.logger.info('ComfyUI job cancelled', { promptId });
       return response.status === 200;
     } catch (error) {
       this.logger.error('Failed to cancel ComfyUI job', {
         promptId,
-        error: error instanceof Error ? error.message : 'Unknown error'
+        error: error instanceof Error ? error.message : 'Unknown error',
       });
       return false;
     }
@@ -562,76 +598,85 @@ export class ComfyUIClient {
     const enhancedPrompt = `2d DnD battlemap of ${input.prompt}, top-down view, overhead perspective, aerial`;
 
     // Negative prompt optimized for battlemap generation
-    const negativePrompt = 'grid, low angle, isometric, oblique, horizon, text, watermark, logo, caption, people, creatures, monsters, blurry, artifacts';
+    const negativePrompt =
+      'grid, low angle, isometric, oblique, horizon, text, watermark, logo, caption, people, creatures, monsters, blurry, artifacts';
 
     // Map quality setting to diffusion steps
     const quality = input.quality || 'low';
     const steps = quality === 'high' ? 35 : quality === 'medium' ? 20 : 8;
 
     return {
-      "1": { // CheckpointLoaderSimple
-        "inputs": {
-          "ckpt_name": "dDBattlemapsSDXL10_upscaleV10.safetensors"
+      '1': {
+        // CheckpointLoaderSimple
+        inputs: {
+          ckpt_name: 'dDBattlemapsSDXL10_upscaleV10.safetensors',
         },
-        "class_type": "CheckpointLoaderSimple"
+        class_type: 'CheckpointLoaderSimple',
       },
-      "2": { // CLIP Text Encode (Positive)
-        "inputs": {
-          "text": enhancedPrompt,
-          "clip": ["1", 1]
+      '2': {
+        // CLIP Text Encode (Positive)
+        inputs: {
+          text: enhancedPrompt,
+          clip: ['1', 1],
         },
-        "class_type": "CLIPTextEncode"
+        class_type: 'CLIPTextEncode',
       },
-      "3": { // CLIP Text Encode (Negative)
-        "inputs": {
-          "text": negativePrompt,
-          "clip": ["1", 1]
+      '3': {
+        // CLIP Text Encode (Negative)
+        inputs: {
+          text: negativePrompt,
+          clip: ['1', 1],
         },
-        "class_type": "CLIPTextEncode"
+        class_type: 'CLIPTextEncode',
       },
-      "4": { // Empty Latent Image
-        "inputs": {
-          "width": input.width,
-          "height": input.height,
-          "batch_size": 1
+      '4': {
+        // Empty Latent Image
+        inputs: {
+          width: input.width,
+          height: input.height,
+          batch_size: 1,
         },
-        "class_type": "EmptyLatentImage"
+        class_type: 'EmptyLatentImage',
       },
-      "5": { // KSampler - Configurable quality via steps
-        "inputs": {
-          "seed": input.seed || Math.floor(Math.random() * 1000000),
-          "steps": steps, // low=8, medium=20, high=35
-          "cfg": 2.5, // Lower CFG for faster convergence
-          "denoise": 1.0,
-          "sampler_name": "dpmpp_2m_sde", // SDE variant for better quality at low steps
-          "scheduler": "karras",
-          "model": ["1", 0],
-          "positive": ["2", 0],
-          "negative": ["3", 0],
-          "latent_image": ["4", 0]
+      '5': {
+        // KSampler - Configurable quality via steps
+        inputs: {
+          seed: input.seed || Math.floor(Math.random() * 1000000),
+          steps: steps, // low=8, medium=20, high=35
+          cfg: 2.5, // Lower CFG for faster convergence
+          denoise: 1.0,
+          sampler_name: 'dpmpp_2m_sde', // SDE variant for better quality at low steps
+          scheduler: 'karras',
+          model: ['1', 0],
+          positive: ['2', 0],
+          negative: ['3', 0],
+          latent_image: ['4', 0],
         },
-        "class_type": "KSampler"
+        class_type: 'KSampler',
       },
-      "9": { // VAE Loader
-        "inputs": {
-          "vae_name": "sdxl_vae.safetensors"
+      '9': {
+        // VAE Loader
+        inputs: {
+          vae_name: 'sdxl_vae.safetensors',
         },
-        "class_type": "VAELoader"
+        class_type: 'VAELoader',
       },
-      "6": { // VAE Decode
-        "inputs": {
-          "samples": ["5", 0],
-          "vae": ["9", 0]
+      '6': {
+        // VAE Decode
+        inputs: {
+          samples: ['5', 0],
+          vae: ['9', 0],
         },
-        "class_type": "VAEDecode"
+        class_type: 'VAEDecode',
       },
-      "7": { // Save Image
-        "inputs": {
-          "filename_prefix": "battlemap",
-          "images": ["6", 0]
+      '7': {
+        // Save Image
+        inputs: {
+          filename_prefix: 'battlemap',
+          images: ['6', 0],
         },
-        "class_type": "SaveImage"
-      }
+        class_type: 'SaveImage',
+      },
     };
   }
 

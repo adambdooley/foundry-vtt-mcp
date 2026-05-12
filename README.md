@@ -1,6 +1,6 @@
 # Foundry VTT MCP Bridge
 
-Connect Foundry VTT to Claude Desktop for AI-powered campaign management through the Model Context Protocol (MCP). It currently supports Dungeons and Dragons Fifth Edition and Pathfinder Second Edition. The majority of MCP tools are system agnostic but character creation and compendium tools are only able to work with D&D5e and PF2E. 
+Connect Foundry VTT to Claude Desktop for AI-powered campaign management through the Model Context Protocol (MCP). It currently supports Dungeons and Dragons Fifth Edition and Pathfinder Second Edition. The majority of MCP tools are system agnostic but character creation and compendium tools are only able to work with D&D5e and PF2E.
 
 ## Overview
 
@@ -25,7 +25,7 @@ This project was built with the assistance of Claude Code. If you like this proj
 - **Claude Desktop** with MCP support
 - **Windows** (for automated installer) or **Node.js 18+** for manual installation
 
-### Option 1: Windows Installer 
+### Option 1: Windows Installer
 
 [Video guide for Windows Installer](https://youtu.be/Se04A21wrbE)
 
@@ -39,25 +39,27 @@ This project was built with the assistance of Claude Code. If you like this proj
 4. Enable "Foundry MCP Bridge" in your Foundry Module Management
 
 ### Option 2: Mac Installer
+
 1.  Download the latest `FoundryMCPServer-vx.x.x.dmg` from [Releases](https://github.com/adambdooley/foundry-vtt-mcp/releases)
-2. Run the package installer inside the dmg - it will:
+2.  Run the package installer inside the dmg - it will:
     - Open DMG and double-click the PKG installer
     - Configure the Claude Desktop MCP server settings
     - Optionally install the Foundry module and ComfyUI Map Generation to your Foundry VTT installation
-3. Restart Claude Desktop
-4. Enable "Foundry MCP Bridge" in your Foundry Module Management
-
+3.  Restart Claude Desktop
+4.  Enable "Foundry MCP Bridge" in your Foundry Module Management
 
 ### Option 3: Manual Installation
 
 #### Install the Foundry Module
+
 1. Open Foundry VTT (v13 or v14)
 2. Select install module in the Foundry Add-ons menu
-2. At the bottom of the window, add the Manifest URL as: https://github.com/adambdooley/foundry-vtt-mcp/blob/master/packages/foundry-module/module.json and click install
-3. Enable "Foundry MCP Bridge" in Module Management
+3. At the bottom of the window, add the Manifest URL as: https://github.com/adambdooley/foundry-vtt-mcp/blob/master/packages/foundry-module/module.json and click install
+4. Enable "Foundry MCP Bridge" in Module Management
    - **Do not change the module ID or folder name.** The MCP backend and the Claude integration both expect the module to live in a directory called `foundry-mcp-bridge`. Renaming the ID in `module.json` breaks socket routing and stops Claude from seeing the backend.
 
 #### Install the MCP Server
+
 ```bash
 # Clone repository
 git clone https://github.com/adambdooley/foundry-vtt-mcp.git
@@ -70,6 +72,7 @@ npm run build
 ```
 
 #### Configure Claude Desktop
+
 Add this to your Claude Desktop configuration (claude_desktop_config.json) file:
 
 ```json
@@ -92,19 +95,19 @@ Starting Claude Desktop will start the MCP Server.
 ### Getting Started
 
 1. Start Foundry VTT and load your world
-3. Open Claude Desktop
-4. Chat with Claude about your currently loaded Foundry World 
+2. Open Claude Desktop
+3. Chat with Claude about your currently loaded Foundry World
 
 ## Example Usage
 
 Once connected, ask Claude Desktop:
 
-- *"Show me my character Clark's stats"*
-- *"Find all CR 12 humanoid creatures for an encounter"*  
-- *"Create a quest about investigating missing villagers"*
-- *"Roll a stealth check for Tulkas"*
-- *"What's in the current Foundry scene?"*
-- *"Create me a small map of a Riverside Cottage in Foundry"*
+- _"Show me my character Clark's stats"_
+- _"Find all CR 12 humanoid creatures for an encounter"_
+- _"Create a quest about investigating missing villagers"_
+- _"Roll a stealth check for Tulkas"_
+- _"What's in the current Foundry scene?"_
+- _"Create me a small map of a Riverside Cottage in Foundry"_
 
 ## Features
 
@@ -124,40 +127,40 @@ Once connected, ask Claude Desktop:
 ## MCP Tools
 
 - **1** get-world-info
-- **2** list-scenes 
-- **3** get-current-scene 
+- **2** list-scenes
+- **3** get-current-scene
 - **4** get-available-conditions  
-- **5** list-compendium-packs 
-- **6** list-characters 
+- **5** list-compendium-packs
+- **6** list-characters
 - **7** get-character  
 - **8** search-character-items  
-- **9** get-character-entity 
+- **9** get-character-entity
 - **10** get-token-details
 - **11** toggle-token-condition (add)  
-- **12** toggle-token-condition (remove) 
-- **13** update-token 
-- **14** search-compendium 
-- **15** get-compendium-item 
-- **16** get-compendium-entry-full 
+- **12** toggle-token-condition (remove)
+- **13** update-token
+- **14** search-compendium
+- **15** get-compendium-item
+- **16** get-compendium-entry-full
 - **17** list-creatures-by-criteria  
 - **18** list-journals  
-- **19** create-quest-journal 
-- **20** update-quest-journal 
-- **21** search-journals 
-- **22** link-quest-to-npc 
-- **23** list-actor-ownership 
+- **19** create-quest-journal
+- **20** update-quest-journal
+- **21** search-journals
+- **22** link-quest-to-npc
+- **23** list-actor-ownership
 - **24** assign-actor-ownership
-- **25** remove-actor-ownership 
-- **26** move-token 
-- **27** use-item 
-- **28** request-player-rolls 
-- **29** generate-map 
-- **30** check-map-status 
-- **31** cancel-map-job 
+- **25** remove-actor-ownership
+- **26** move-token
+- **27** use-item
+- **28** request-player-rolls
+- **29** generate-map
+- **30** check-map-status
+- **31** cancel-map-job
 - **32** switch-scene  
-- **33** create-actor-from-compendium 
-- **34** list-dsa5-archetypes 
-- **35** create-dsa5-character-from-archetype 
+- **33** create-actor-from-compendium
+- **34** list-dsa5-archetypes
+- **35** create-dsa5-character-from-archetype
 - **36** create-campaign-dashboard
 
 ## Settings
@@ -168,12 +171,12 @@ Once connected, ask Claude Desktop:
 - **Map Generation Service Configuration** Configure Map Generation button leads to Map Generation Service sub-menu (Details below)
 - **Enable MCP Bridge** This should be checked by default and the status should show as connected. It can be used to turn off the MCP Bridge connection within the game without the need to disable the add-on itself.
 - **Connection Type** Can be set to Auto for automatic detection of connection type. Can also be set to force either WebRTC for Internet connections or Websocket for Local connections.
-- **Websocket Server Host** IP Address of Claude Desktop MCP Server location. Only used for local network websocket connections. Remote Servers use WebRT. Defaults to localhost.  
+- **Websocket Server Host** IP Address of Claude Desktop MCP Server location. Only used for local network websocket connections. Remote Servers use WebRT. Defaults to localhost.
 - **Allow Write Operations** This will prevent Claude from making any changes to world content and restrict it to reading only
 - **Max Actors Per Request** This is a failsafe to stop a massive amount of actors being created from one single request. It does not limit the amount of characters being created by multiple requests
 - **Show Connection Messages** This can turn off the banner messages for connections for Foundry MCP Bridge
 - **Auto-Reconnect on Disconnect** Will automatically attempt to reconnect if the connection is lost
-- **Connection Check Frequency** How often it will check connection status  
+- **Connection Check Frequency** How often it will check connection status
 
 ### Enhanced Creature Index Sub-menu
 
@@ -227,7 +230,7 @@ The MCP schema smoke test verifies that tool schemas load correctly and do not e
 npm -w @foundry-mcp/server run build
 npm run test:mcp:schema
 ```
-  
+
 ## Support & Development
 
 - **Issues**: Report bugs on [GitHub Issues](https://github.com/adambdooley/foundry-vtt-mcp/issues)

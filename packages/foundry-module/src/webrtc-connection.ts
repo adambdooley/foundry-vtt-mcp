@@ -23,8 +23,10 @@ export class WebRTCConnection {
   constructor(private config: WebRTCConfig) {}
 
   async connect(onMessage: (message: any) => Promise<void>): Promise<void> {
-    if (this.connectionState === CONNECTION_STATES.CONNECTED ||
-        this.connectionState === CONNECTION_STATES.CONNECTING) {
+    if (
+      this.connectionState === CONNECTION_STATES.CONNECTED ||
+      this.connectionState === CONNECTION_STATES.CONNECTING
+    ) {
       return;
     }
 
@@ -35,13 +37,13 @@ export class WebRTCConnection {
     try {
       // Step 1: Create WebRTC peer connection
       this.peerConnection = new RTCPeerConnection({
-        iceServers: this.config.stunServers.map(url => ({ urls: url }))
+        iceServers: this.config.stunServers.map(url => ({ urls: url })),
       });
 
       // Step 2: Create data channel
       this.dataChannel = this.peerConnection.createDataChannel('foundry-mcp', {
         ordered: true,
-        maxRetransmits: 10
+        maxRetransmits: 10,
       });
 
       this.setupDataChannelHandlers();
@@ -58,7 +60,6 @@ export class WebRTCConnection {
       await this.sendSignalingOffer(this.peerConnection.localDescription!);
 
       this.log('WebRTC connection initiated');
-
     } catch (error) {
       this.log(`WebRTC connection failed: ${error}`);
       this.connectionState = CONNECTION_STATES.DISCONNECTED;
@@ -79,11 +80,11 @@ export class WebRTCConnection {
       this.connectionState = CONNECTION_STATES.DISCONNECTED;
     };
 
-    this.dataChannel.onerror = (error) => {
+    this.dataChannel.onerror = error => {
       this.log(`WebRTC data channel error: ${error}`);
     };
 
-    this.dataChannel.onmessage = async (event) => {
+    this.dataChannel.onmessage = async event => {
       try {
         const message = JSON.parse(event.data);
         if (this.messageHandler) {
@@ -153,7 +154,7 @@ export class WebRTCConnection {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ offer }),
-        signal: AbortSignal.timeout(this.config.connectionTimeout * 1000)
+        signal: AbortSignal.timeout(this.config.connectionTimeout * 1000),
       });
 
       if (!response.ok) {
@@ -168,10 +169,7 @@ export class WebRTCConnection {
       }
 
       this.log('Received WebRTC answer from server via HTTP');
-      await this.peerConnection?.setRemoteDescription(
-        new RTCSessionDescription(answer)
-      );
-
+      await this.peerConnection?.setRemoteDescription(new RTCSessionDescription(answer));
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
       this.log(`Signaling via HTTP failed: ${errorMsg}`);
@@ -206,14 +204,16 @@ export class WebRTCConnection {
 
       // WebRTC SCTP constants (keep in sync with server config.ts WEBRTC_CONSTANTS)
       const MAX_MESSAGE_SIZE = 65536; // 64KB - SCTP hard limit
-      const CHUNK_SIZE = 50 * 1024;    // 50KB - safe threshold for chunking
+      const CHUNK_SIZE = 50 * 1024; // 50KB - safe threshold for chunking
 
       if (size > CHUNK_SIZE) {
         // Split large message into chunks
         const totalChunks = Math.ceil(json.length / CHUNK_SIZE);
         const chunkId = `chunk-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
-        this.log(`Chunking large message: ${size} bytes → ${totalChunks} chunks (type: ${message.type})`);
+        this.log(
+          `Chunking large message: ${size} bytes → ${totalChunks} chunks (type: ${message.type})`
+        );
 
         for (let i = 0; i < totalChunks; i++) {
           const start = i * CHUNK_SIZE;
@@ -227,7 +227,7 @@ export class WebRTCConnection {
             totalChunks: totalChunks,
             chunk: chunk,
             originalType: message.type,
-            originalId: message.id
+            originalId: message.id,
           };
 
           const chunkJson = JSON.stringify(chunkMessage);
@@ -236,8 +236,8 @@ export class WebRTCConnection {
           if (chunkJson.length > MAX_MESSAGE_SIZE) {
             throw new Error(
               `Chunk ${i + 1}/${totalChunks} size ${chunkJson.length} exceeds ` +
-              `SCTP maxMessageSize of ${MAX_MESSAGE_SIZE} bytes. ` +
-              `Original message may be too large to chunk safely.`
+                `SCTP maxMessageSize of ${MAX_MESSAGE_SIZE} bytes. ` +
+                `Original message may be too large to chunk safely.`
             );
           }
 

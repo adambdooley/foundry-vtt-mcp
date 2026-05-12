@@ -232,4 +232,8 @@ export interface GenericCreatureIndex extends SystemCreatureIndex {
 /**
  * Union type of all creature index types
  */
-export type AnyCreatureIndex = DnD5eCreatureIndex | PF2eCreatureIndex | DSA5CreatureIndex | GenericCreatureIndex;
+export type AnyCreatureIndex =
+  | DnD5eCreatureIndex
+  | PF2eCreatureIndex
+  | DSA5CreatureIndex
+  | GenericCreatureIndex;

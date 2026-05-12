@@ -32,11 +32,13 @@ export const CharacterEffectSchema = z.object({
   name: z.string(),
   icon: z.string().optional(),
   disabled: z.boolean(),
-  duration: z.object({
-    type: z.string(),
-    duration: z.number().optional(),
-    remaining: z.number().optional(),
-  }).optional(),
+  duration: z
+    .object({
+      type: z.string(),
+      duration: z.number().optional(),
+      remaining: z.number().optional(),
+    })
+    .optional(),
 });
 
 export const CharacterInfoSchema = z.object({
@@ -157,11 +159,13 @@ export const TokenDetailsSchema = SceneTokenSchema.extend({
   scale: z.number(),
   alpha: z.number(),
   actorLink: z.boolean(),
-  actorData: z.object({
-    name: z.string(),
-    type: z.string(),
-    img: z.string().optional(),
-  }).optional(),
+  actorData: z
+    .object({
+      name: z.string(),
+      type: z.string(),
+      img: z.string().optional(),
+    })
+    .optional(),
 });
 
 /**
@@ -219,17 +223,17 @@ export const BridgeStatusSchema = z.object({
  */
 export const CampaignPartStatusSchema = z.enum([
   'not_started',
-  'in_progress', 
+  'in_progress',
   'completed',
-  'skipped'
+  'skipped',
 ]);
 
 export const CampaignPartTypeSchema = z.enum([
   'main_part',
-  'sub_part', 
+  'sub_part',
   'chapter',
   'session',
-  'optional'
+  'optional',
 ]);
 
 export const LevelRecommendationSchema = z.object({
@@ -304,17 +308,23 @@ export const CampaignTemplateSchema = z.object({
   id: z.string(),
   name: z.string(),
   description: z.string(),
-  parts: z.array(z.object({
-    title: z.string(),
-    description: z.string(),
-    type: CampaignPartTypeSchema,
-    dependencies: z.array(z.string()).default([]),
-    subParts: z.array(z.object({
+  parts: z.array(
+    z.object({
       title: z.string(),
       description: z.string(),
       type: CampaignPartTypeSchema,
-    })).optional(),
-    levelRecommendation: LevelRecommendationSchema,
-  })),
+      dependencies: z.array(z.string()).default([]),
+      subParts: z
+        .array(
+          z.object({
+            title: z.string(),
+            description: z.string(),
+            type: CampaignPartTypeSchema,
+          })
+        )
+        .optional(),
+      levelRecommendation: LevelRecommendationSchema,
+    })
+  ),
   metadata: CampaignMetadataSchema.partial(),
 });

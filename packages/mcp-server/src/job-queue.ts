@@ -73,7 +73,7 @@ const JOB_STAGES = {
   DETECTING_WALLS: 'Detecting walls and structures',
   CREATING_SCENE: 'Creating Foundry scene data',
   COMPLETE: 'Generation complete',
-  FAILED: 'Generation failed'
+  FAILED: 'Generation failed',
 } as const;
 
 const SIZE_CONFIG = {
@@ -81,20 +81,20 @@ const SIZE_CONFIG = {
     pixels: 512,
     estimated_time_ms: 30000, // 30 seconds
     priority_weight: 1,
-    grid_squares: Math.floor(512 / 70)
+    grid_squares: Math.floor(512 / 70),
   },
   medium: {
     pixels: 768,
     estimated_time_ms: 45000, // 45 seconds
     priority_weight: 2,
-    grid_squares: Math.floor(768 / 70)
+    grid_squares: Math.floor(768 / 70),
   },
   large: {
     pixels: 1024,
     estimated_time_ms: 60000, // 60 seconds
     priority_weight: 3,
-    grid_squares: Math.floor(1024 / 70)
-  }
+    grid_squares: Math.floor(1024 / 70),
+  },
 } as const;
 
 export class JobQueue {
@@ -104,11 +104,13 @@ export class JobQueue {
   private config: JobQueueConfig;
   private cleanupTimer?: NodeJS.Timeout | undefined;
   private jobIdCounter = 0;
-  private onJobCompleted: ((jobId: string, data: JobCompletionNotificationData) => void) | undefined;
+  private onJobCompleted:
+    | ((jobId: string, data: JobCompletionNotificationData) => void)
+    | undefined;
 
   constructor(options: {
     logger: Logger;
-    onJobCompleted?: (jobId: string, data: JobCompletionNotificationData) => void
+    onJobCompleted?: (jobId: string, data: JobCompletionNotificationData) => void;
   }) {
     this.logger = options.logger.child({ component: 'JobQueue' });
     this.onJobCompleted = options.onJobCompleted;
@@ -116,7 +118,7 @@ export class JobQueue {
       ttl_minutes: 30,
       max_concurrent_jobs: 2,
       max_retry_attempts: 3,
-      retry_backoff_ms: 2000
+      retry_backoff_ms: 2000,
     };
 
     this.startCleanupTimer();
@@ -133,7 +135,7 @@ export class JobQueue {
       if (existingJob && !['failed', 'expired'].includes(existingJob.status)) {
         this.logger.info('Returning existing job for identical request', {
           jobId: existingJobId,
-          status: existingJob.status
+          status: existingJob.status,
         });
         return existingJob;
       }
@@ -153,7 +155,7 @@ export class JobQueue {
       current_stage: JOB_STAGES.QUEUED,
       attempts: 0,
       max_attempts: this.config.max_retry_attempts,
-      estimated_duration_ms: estimatedDuration
+      estimated_duration_ms: estimatedDuration,
     };
 
     this.jobs.set(jobId, job);
@@ -163,7 +165,7 @@ export class JobQueue {
       jobId,
       prompt: params.params.prompt,
       size: params.params.size,
-      estimatedDuration
+      estimatedDuration,
     });
 
     return job;
@@ -199,7 +201,7 @@ export class JobQueue {
     this.logger.debug('Job progress updated', {
       jobId,
       progress: job.progress_percent,
-      stage
+      stage,
     });
   }
 
@@ -219,7 +221,7 @@ export class JobQueue {
     this.logger.info('Job completed', {
       jobId,
       completionTime,
-      wallsDetected: result.walls_detected
+      wallsDetected: result.walls_detected,
     });
 
     // Notify completion for scene creation
@@ -230,7 +232,7 @@ export class JobQueue {
         imageWidth: 1024, // Default, could be extracted from job params
         imageHeight: 1024, // Default, could be extracted from job params
         gridSize: job.params.grid_size || 100,
-        walls: result.foundry_scene_payload?.walls || []
+        walls: result.foundry_scene_payload?.walls || [],
       };
 
       try {
@@ -257,7 +259,7 @@ export class JobQueue {
       this.logger.error('Job failed permanently', {
         jobId,
         attempts: job.attempts,
-        error
+        error,
       });
     } else {
       job.status = 'queued';
@@ -266,7 +268,7 @@ export class JobQueue {
         jobId,
         attempts: job.attempts,
         maxAttempts: job.max_attempts,
-        error
+        error,
       });
     }
   }
@@ -293,20 +295,22 @@ export class JobQueue {
     const allJobs = Array.from(this.jobs.values());
 
     const completedJobs = allJobs.filter(j => j.status === 'complete');
-    const avgCompletionTime = completedJobs.length > 0
-      ? completedJobs.reduce((sum, job) => {
-          const completionTime = (job.completed_at || 0) - (job.started_at || job.created_at);
-          return sum + completionTime;
-        }, 0) / completedJobs.length
-      : 0;
+    const avgCompletionTime =
+      completedJobs.length > 0
+        ? completedJobs.reduce((sum, job) => {
+            const completionTime = (job.completed_at || 0) - (job.started_at || job.created_at);
+            return sum + completionTime;
+          }, 0) / completedJobs.length
+        : 0;
 
     const startedJobs = allJobs.filter(j => j.started_at);
-    const avgQueueTime = startedJobs.length > 0
-      ? startedJobs.reduce((sum, job) => {
-          const queueTime = (job.started_at || 0) - job.created_at;
-          return sum + queueTime;
-        }, 0) / startedJobs.length
-      : 0;
+    const avgQueueTime =
+      startedJobs.length > 0
+        ? startedJobs.reduce((sum, job) => {
+            const queueTime = (job.started_at || 0) - job.created_at;
+            return sum + queueTime;
+          }, 0) / startedJobs.length
+        : 0;
 
     return {
       total_jobs: allJobs.length,
@@ -315,7 +319,7 @@ export class JobQueue {
       completed_jobs: completedJobs.length,
       failed_jobs: allJobs.filter(j => j.status === 'failed').length,
       avg_completion_time_ms: avgCompletionTime,
-      avg_queue_time_ms: avgQueueTime
+      avg_queue_time_ms: avgQueueTime,
     };
   }
 
@@ -331,13 +335,10 @@ export class JobQueue {
     const hashInput = JSON.stringify({
       prompt: params.prompt.trim().toLowerCase(),
       size: params.size,
-      grid_size: params.grid_size
+      grid_size: params.grid_size,
     });
 
-    return createHash('sha256')
-      .update(hashInput)
-      .digest('hex')
-      .substring(0, 16);
+    return createHash('sha256').update(hashInput).digest('hex').substring(0, 16);
   }
 
   private startCleanupTimer(): void {

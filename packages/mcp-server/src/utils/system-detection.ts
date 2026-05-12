@@ -23,7 +23,10 @@ let cachedSystemId: string | null = null;
  * Detect the active Foundry game system
  * Results are cached to avoid repeated queries
  */
-export async function detectGameSystem(foundryClient: FoundryClient, logger?: Logger): Promise<GameSystem> {
+export async function detectGameSystem(
+  foundryClient: FoundryClient,
+  logger?: Logger
+): Promise<GameSystem> {
   if (cachedSystem) {
     return cachedSystem;
   }
@@ -88,7 +91,7 @@ export const SystemPaths = {
     skills: 'system.skills',
     spells: 'system.spells',
     legendaryActions: 'system.resources.legact',
-    legendaryResistances: 'system.resources.legres'
+    legendaryResistances: 'system.resources.legres',
   },
   pf2e: {
     // Pathfinder 2e specific paths
@@ -106,8 +109,8 @@ export const SystemPaths = {
     saves: 'system.saves',
     // PF2e doesn't have CR or legendary actions
     challengeRating: null,
-    legendaryActions: null
-  }
+    legendaryActions: null,
+  },
 } as const;
 
 /**

@@ -1,6 +1,6 @@
 {
   "name": "foundry-mcp-integration",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "description": "MCP server that bridges Foundry VTT game data with Claude Desktop",
   "private": true,
   "workspaces": [
@@ -27,7 +27,8 @@
     "audit:deps": "npm audit && npm run audit --workspaces --if-present",
     "audit:unused": "npx knip",
     "audit:circular": "npx madge --circular --extensions ts packages/mcp-server/src packages/foundry-module/src shared/src",
-    "size:analyze": "npm run bundle:server && npx esbuild-analyzer packages/mcp-server/dist/backend.bundle.cjs"
+    "size:analyze": "npm run bundle:server && npx esbuild-analyzer packages/mcp-server/dist/backend.bundle.cjs",
+    "prepare": "husky"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",
@@ -38,7 +39,9 @@
     "eslint": "^8.0.0",
     "eslint-config-prettier": "^9.0.0",
     "eslint-plugin-prettier": "^5.0.0",
+    "husky": "^9.1.7",
     "knip": "^5.64.1",
+    "lint-staged": "^16.4.0",
     "madge": "^8.0.0",
     "prettier": "^3.0.0",
     "typescript": "^5.0.0",
@@ -62,6 +65,11 @@
     "tabletop",
     "rpg"
   ],
+  "lint-staged": {
+    "*.{ts,js,json,md}": [
+      "prettier --write"
+    ]
+  },
   "dependencies": {
     "@primno/dpapi": "^2.0.1"
   }

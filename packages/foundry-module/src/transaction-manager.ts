@@ -38,7 +38,7 @@ export class TransactionManager {
     };
 
     this.activeTransactions.set(transactionId, transaction);
-    
+
     return transactionId;
   }
 
@@ -65,21 +65,22 @@ export class TransactionManager {
 
     transaction.completed = true;
     this.activeTransactions.delete(transactionId);
-    
+
     // Add to history (keep last 50 transactions)
     this.transactionHistory.push(transaction);
     if (this.transactionHistory.length > 50) {
       this.transactionHistory.shift();
     }
-
   }
 
   /**
    * Rollback a transaction (undo all actions)
    */
-  async rollbackTransaction(transactionId: string): Promise<{ success: boolean; errors: string[] }> {
+  async rollbackTransaction(
+    transactionId: string
+  ): Promise<{ success: boolean; errors: string[] }> {
     let transaction = this.activeTransactions.get(transactionId);
-    
+
     // Also check completed transactions for rollback
     if (!transaction) {
       transaction = this.transactionHistory.find(t => t.id === transactionId);
@@ -93,13 +94,12 @@ export class TransactionManager {
       throw new Error(`Transaction ${transactionId} has already been rolled back`);
     }
 
-    
     const errors: string[] = [];
 
     // Rollback actions in reverse order
     for (let i = transaction.actions.length - 1; i >= 0; i--) {
       const action = transaction.actions[i];
-      
+
       try {
         await this.rollbackAction(action);
       } catch (error) {
@@ -110,7 +110,7 @@ export class TransactionManager {
     }
 
     transaction.rolledBack = true;
-    
+
     // Remove from active transactions if it was there
     this.activeTransactions.delete(transactionId);
 
@@ -153,7 +153,7 @@ export class TransactionManager {
           await actor.delete();
         }
         break;
-        
+
       case 'Token':
         // Find token in current scene
         const scene = (game.scenes as any).current;
@@ -164,7 +164,7 @@ export class TransactionManager {
           }
         }
         break;
-        
+
       default:
         throw new Error(`Rollback not implemented for entity type: ${action.entityType}`);
     }
@@ -185,7 +185,7 @@ export class TransactionManager {
           await actor.update(action.originalData);
         }
         break;
-        
+
       default:
         throw new Error(`Rollback not implemented for entity type: ${action.entityType}`);
     }
@@ -203,7 +203,7 @@ export class TransactionManager {
       case 'Actor':
         await Actor.create(action.originalData);
         break;
-        
+
       default:
         throw new Error(`Rollback not implemented for entity type: ${action.entityType}`);
     }

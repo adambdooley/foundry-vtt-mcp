@@ -7,6 +7,7 @@ This document provides a comprehensive, step-by-step migration plan for bringing
 **Migration Target:** v0.6.3 (Stable release with all features)
 
 **Tools to Migrate:**
+
 1. get-character-entity
 2. move-token
 3. update-token
@@ -22,6 +23,7 @@ This document provides a comprehensive, step-by-step migration plan for bringing
 ## Pre-Migration Checklist
 
 ### Environment Setup
+
 - [ ] Verify baseline branch is checked out and clean
 - [ ] Create new migration branch from baseline: `git checkout -b migrate-token-tools-v0.6.3`
 - [ ] Ensure Node.js dependencies are installed: `npm install`
@@ -30,12 +32,14 @@ This document provides a comprehensive, step-by-step migration plan for bringing
 - [ ] Backup current Foundry data directory
 
 ### Documentation Review
+
 - [ ] Read MISSING_TOOLS.md completely
 - [ ] Review TOOL_INVENTORY.md for context
 - [ ] Check DOCUMENTATION_COMPARISON.md for doc updates needed
 - [ ] Review broken branch commit history: `git log claude/update-docs-v0.6.2-01Kba6k5nEDbUNjHDrkhUniB`
 
 ### Code Review
+
 - [ ] Extract and review broken branch files:
   ```bash
   git show claude/update-docs-v0.6.2-01Kba6k5nEDbUNjHDrkhUniB:packages/mcp-server/src/tools/character.ts > /tmp/character-broken.ts
@@ -52,6 +56,7 @@ This document provides a comprehensive, step-by-step migration plan for bringing
 **File:** `/packages/mcp-server/src/tools/character.ts`
 
 **Changes Required:**
+
 1. Add `get-character-entity` tool definition to `getToolDefinitions()`
 2. Add `handleGetCharacterEntity` method
 3. Update `get-character` description to mention lazy-loading
@@ -201,11 +206,13 @@ async handleGetCharacterEntity(args: any): Promise<any> {
 Location: In `getToolDefinitions()`, update the `get-character` tool description:
 
 Replace:
+
 ```typescript
 description: 'Retrieve detailed information about a specific character by name or ID',
 ```
 
 With:
+
 ```typescript
 description: 'Retrieve character information optimized for minimal token usage. Returns: full stats (abilities, skills, saves, AC, HP), action names, active effects/conditions (name only), and ALL items with minimal metadata (name, type, equipped status) without descriptions. PF2e-specific: includes traits arrays for items/actions, action costs, rarity, and level. D&D 5e-specific: includes attunement status. Perfect for filtering (e.g., "deviant" trait feats, "fire" trait spells in PF2e), checking equipment, or identifying what to investigate further. Use get-character-entity to fetch full details for specific items, actions, spells, or effects.',
 ```
@@ -214,12 +221,14 @@ description: 'Retrieve character information optimized for minimal token usage. 
 Location: In `formatItems` method
 
 Change from:
+
 ```typescript
 private formatItems(items: any[]): any[] {
   return items.slice(0, 20).map(item => ({ // Limit to 20 items
 ```
 
 To:
+
 ```typescript
 private formatItems(items: any[]): any[] {
   return items.map(item => ({ // Return ALL items
@@ -231,6 +240,7 @@ And remove description truncation (keep minimal metadata only).
 Location: In `formatCharacterResponse` method
 
 Add after items/effects formatting:
+
 ```typescript
 // Add actions with minimal data (name, traits, action cost only - no variants)
 if (characterData.actions && characterData.actions.length > 0) {
@@ -239,6 +249,7 @@ if (characterData.actions && characterData.actions.length > 0) {
 ```
 
 And add the `formatActions` method:
+
 ```typescript
 private formatActions(actions: any[]): any[] {
   // Return minimal action data - just enough to identify and filter
@@ -271,16 +282,20 @@ private formatActions(actions: any[]): any[] {
 #### Verification Steps for Phase 1
 
 **Test 1.1: Build Check**
+
 ```bash
 cd /packages/mcp-server
 npm run build
 ```
+
 Expected: No compilation errors
 
 **Test 1.2: Type Check**
+
 ```bash
 npm run type-check
 ```
+
 Expected: No type errors
 
 ---
@@ -292,18 +307,21 @@ Expected: No type errors
 **File:** `/packages/mcp-server/src/tools/token-manipulation.ts` (NEW FILE)
 
 **Step 2.1.1: Create File**
+
 ```bash
 touch packages/mcp-server/src/tools/token-manipulation.ts
 ```
 
 **Step 2.1.2: Copy Complete Implementation**
 Extract from broken branch:
+
 ```bash
 git show claude/update-docs-v0.6.2-01Kba6k5nEDbUNjHDrkhUniB:packages/mcp-server/src/tools/token-manipulation.ts > packages/mcp-server/src/tools/token-manipulation.ts
 ```
 
 **Step 2.1.3: Verify File Contents**
 The file should contain:
+
 - Imports (z, FoundryClient, Logger)
 - TokenManipulationToolsOptions interface
 - TokenManipulationTools class with:
@@ -323,9 +341,11 @@ The file should contain:
 #### Verification Steps for Phase 2
 
 **Test 2.1: Build Check**
+
 ```bash
 npm run build
 ```
+
 Expected: No compilation errors
 
 ---
@@ -366,7 +386,7 @@ const allTools = [
   ...diceRollTools.getToolDefinitions(),
   ...campaignManagementTools.getToolDefinitions(),
   ...ownershipTools.getToolDefinitions(),
-  ...tokenManipulationTools.getToolDefinitions(),  // ADD THIS LINE
+  ...tokenManipulationTools.getToolDefinitions(), // ADD THIS LINE
   ...mapGenerationTools.getToolDefinitions(),
   // ... DSA5 tools if present
 ];
@@ -404,16 +424,20 @@ case 'get-available-conditions':
 #### Verification Steps for Phase 3
 
 **Test 3.1: Build Check**
+
 ```bash
 npm run build
 ```
+
 Expected: No compilation errors, dist/ folder contains new files
 
 **Test 3.2: Tool Count Verification**
 Start MCP server and check tool list:
+
 ```bash
 node packages/mcp-server/dist/index.js
 ```
+
 Expected: 32 tools listed (26 baseline + 6 token + 1 character entity)
 
 ---
@@ -603,12 +627,14 @@ case 'foundry-mcp-bridge.getAvailableConditions': {
 #### Verification Steps for Phase 4
 
 **Test 4.1: Module Build**
+
 ```bash
 cd packages/foundry-module
 # If there's a build step, run it
 ```
 
 **Test 4.2: Install Module in Foundry**
+
 1. Copy module to Foundry's Data/modules folder
 2. Enable module in Foundry
 3. Reload Foundry
@@ -616,17 +642,18 @@ cd packages/foundry-module
 
 **Test 4.3: Test Each Handler Manually**
 Use browser console in Foundry:
+
 ```javascript
 // Test getAvailableConditions
 game.socket.emit('module.foundry-mcp-bridge', {
   action: 'foundry-mcp-bridge.getAvailableConditions',
-  args: {}
+  args: {},
 });
 
 // Test getTokenDetails (replace with real token ID)
 game.socket.emit('module.foundry-mcp-bridge', {
   action: 'foundry-mcp-bridge.getTokenDetails',
-  args: { tokenId: 'someTokenId' }
+  args: { tokenId: 'someTokenId' },
 });
 ```
 
@@ -652,19 +679,19 @@ describe('CharacterTools - get-character-entity', () => {
 
   beforeEach(() => {
     mockFoundryClient = {
-      query: vi.fn()
+      query: vi.fn(),
     };
     mockLogger = {
       child: vi.fn(() => mockLogger),
       info: vi.fn(),
       debug: vi.fn(),
       error: vi.fn(),
-      warn: vi.fn()
+      warn: vi.fn(),
     };
 
     characterTools = new CharacterTools({
       foundryClient: mockFoundryClient,
-      logger: mockLogger
+      logger: mockLogger,
     });
   });
 
@@ -680,17 +707,17 @@ describe('CharacterTools - get-character-entity', () => {
           system: {
             description: { value: 'A sharp blade' },
             traits: { value: ['martial'], rarity: 'common' },
-            level: { value: 1 }
-          }
-        }
-      ]
+            level: { value: 1 },
+          },
+        },
+      ],
     };
 
     mockFoundryClient.query.mockResolvedValue(mockCharacterData);
 
     const result = await characterTools.handleGetCharacterEntity({
       characterIdentifier: 'Test Character',
-      entityIdentifier: 'item1'
+      entityIdentifier: 'item1',
     });
 
     expect(result.entityType).toBe('item');
@@ -700,16 +727,14 @@ describe('CharacterTools - get-character-entity', () => {
 
   it('should retrieve item entity by name (case-insensitive)', async () => {
     const mockCharacterData = {
-      items: [
-        { id: 'item1', name: 'Longsword', type: 'weapon', system: {} }
-      ]
+      items: [{ id: 'item1', name: 'Longsword', type: 'weapon', system: {} }],
     };
 
     mockFoundryClient.query.mockResolvedValue(mockCharacterData);
 
     const result = await characterTools.handleGetCharacterEntity({
       characterIdentifier: 'Test',
-      entityIdentifier: 'longsword'  // lowercase
+      entityIdentifier: 'longsword', // lowercase
     });
 
     expect(result.name).toBe('Longsword');
@@ -721,7 +746,7 @@ describe('CharacterTools - get-character-entity', () => {
     await expect(
       characterTools.handleGetCharacterEntity({
         characterIdentifier: 'Test',
-        entityIdentifier: 'nonexistent'
+        entityIdentifier: 'nonexistent',
       })
     ).rejects.toThrow('Entity "nonexistent" not found');
   });
@@ -742,18 +767,18 @@ describe('TokenManipulationTools', () => {
 
   beforeEach(() => {
     mockFoundryClient = {
-      query: vi.fn()
+      query: vi.fn(),
     };
     mockLogger = {
       child: vi.fn(() => mockLogger),
       info: vi.fn(),
       debug: vi.fn(),
-      error: vi.fn()
+      error: vi.fn(),
     };
 
     tokenTools = new TokenManipulationTools({
       foundryClient: mockFoundryClient,
-      logger: mockLogger
+      logger: mockLogger,
     });
   });
 
@@ -765,7 +790,7 @@ describe('TokenManipulationTools', () => {
         tokenId: 'token1',
         x: 100,
         y: 200,
-        animate: true
+        animate: true,
       });
 
       expect(result.success).toBe(true);
@@ -779,7 +804,7 @@ describe('TokenManipulationTools', () => {
       const result = await tokenTools.handleMoveToken({
         tokenId: 'token1',
         x: 100,
-        y: 200
+        y: 200,
       });
 
       expect(result.animated).toBe(false);
@@ -793,7 +818,7 @@ describe('TokenManipulationTools', () => {
       await expect(
         tokenTools.handleUpdateToken({
           tokenId: 'token1',
-          updates: { disposition: 5 }  // Invalid
+          updates: { disposition: 5 }, // Invalid
         })
       ).rejects.toThrow();
     });
@@ -804,7 +829,7 @@ describe('TokenManipulationTools', () => {
       await expect(
         tokenTools.handleUpdateToken({
           tokenId: 'token1',
-          updates: { rotation: 400 }  // > 360
+          updates: { rotation: 400 }, // > 360
         })
       ).rejects.toThrow();
     });
@@ -815,9 +840,9 @@ describe('TokenManipulationTools', () => {
       mockFoundryClient.query.mockResolvedValue({
         conditions: [
           { id: 'prone', label: 'Prone', icon: 'icons/prone.png' },
-          { id: 'blinded', label: 'Blinded', icon: 'icons/blinded.png' }
+          { id: 'blinded', label: 'Blinded', icon: 'icons/blinded.png' },
         ],
-        gameSystem: 'dnd5e'
+        gameSystem: 'dnd5e',
       });
 
       const result = await tokenTools.handleGetAvailableConditions({});
@@ -830,6 +855,7 @@ describe('TokenManipulationTools', () => {
 ```
 
 **Step 5.1.3: Run Unit Tests**
+
 ```bash
 cd packages/mcp-server
 npm test
@@ -840,12 +866,14 @@ npm test
 **Step 5.2.1: Test with D&D5e System**
 
 Prerequisites:
+
 - Foundry VTT running
 - D&D5e world loaded
 - Test character created
 - Tokens on scene
 
 Test Script:
+
 ```javascript
 // In Claude Desktop, test each tool:
 
@@ -874,17 +902,20 @@ Test Script:
 **Step 5.2.2: Test with PF2e System**
 
 Repeat above tests with PF2e-specific content:
+
 - PF2e character with feats/traits
 - PF2e conditions (more extensive than D&D5e)
 
 **Step 5.2.3: Test with DSA5 System (CRITICAL)**
 
 Repeat all tests with DSA5:
+
 - DSA5 character (Held)
 - DSA5 items (Ausrüstung)
 - DSA5 conditions (Status)
 
 Special focus:
+
 - Verify condition system works with DSA5's unique status effects
 - Check character entity retrieval with DSA5 item structure
 - Test tokens with DSA5 actors
@@ -892,6 +923,7 @@ Special focus:
 ### Task 5.3: Error Handling Tests
 
 **Test 5.3.1: Invalid Inputs**
+
 ```javascript
 // Test invalid token IDs
 - move-token with nonexistent token ID
@@ -904,6 +936,7 @@ Special focus:
 ```
 
 **Test 5.3.2: Edge Cases**
+
 ```javascript
 // Test boundary conditions
 - Rotation: 0, 360, negative values
@@ -956,6 +989,7 @@ At the top of the file:
 ## [0.6.3] - 2024-XX-XX
 
 ### Added
+
 - **7 New MCP Tools:**
   - `get-character-entity` - Deep-dive into character items, actions, and effects with full descriptions
   - `move-token` - Move tokens with optional animation
@@ -966,15 +1000,18 @@ At the top of the file:
   - `get-available-conditions` - Discover available conditions for current game system
 
 ### Changed
+
 - Updated `get-character` tool to use lazy-loading pattern (returns minimal item metadata)
 - Character API now returns all items (not limited to 20)
 - Character API includes action names with traits for filtering
 
 ### Fixed
+
 - Migrated stable token manipulation features from v0.6.2 development branch
 - Improved character entity retrieval performance
 
 ### Notes
+
 - This release combines the stable DSA5 support from v0.6.1 with new token manipulation features
 - All new tools are compatible with D&D5e, PF2e, and DSA5
 - Total MCP tools: 32 (26 from v0.6.1 + 6 token tools + 1 character entity tool)
@@ -990,17 +1027,21 @@ At the top of the file:
 ## v0.6.3 Migration (Current)
 
 Successfully migrated 7 tools from v0.6.2 development branch:
+
 - Token manipulation tools (6 new tools)
 - Character entity deep-dive tool (1 new tool)
 
 ### Token Manipulation Capabilities
+
 The MCP bridge now supports comprehensive token management:
+
 - Movement and positioning
 - Property updates (visibility, disposition, size)
 - Status effect/condition management
 - Token inspection and deletion
 
 ### Character API Enhancement
+
 - Lazy-loading pattern for character data
 - `get-character` returns minimal metadata for all items
 - `get-character-entity` fetches full details on demand
@@ -1010,6 +1051,7 @@ The MCP bridge now supports comprehensive token management:
 ### Task 6.4: Create/Update Token Documentation
 
 **Option A: Create TOKEN_TOOLS.md**
+
 ```markdown
 # Token Manipulation Tools
 
@@ -1027,6 +1069,7 @@ Expand the Token Manipulation section with examples.
 ### Task 7.1: Full System Test
 
 **Step 7.1.1: Clean Build**
+
 ```bash
 # Clean all build artifacts
 rm -rf packages/mcp-server/dist
@@ -1039,6 +1082,7 @@ npm run build
 
 **Step 7.1.2: Version Bump**
 Update package.json versions:
+
 ```bash
 # In packages/mcp-server/package.json
 "version": "0.6.3"
@@ -1049,6 +1093,7 @@ Update package.json versions:
 
 **Step 7.1.3: Test All 32 Tools**
 Create comprehensive test checklist:
+
 - [ ] All 26 original tools still work
 - [ ] 6 token tools work with D&D5e
 - [ ] 6 token tools work with PF2e
@@ -1058,6 +1103,7 @@ Create comprehensive test checklist:
 ### Task 7.2: Git Workflow
 
 **Step 7.2.1: Commit Changes**
+
 ```bash
 git add .
 git commit -m "feat: Add 7 MCP tools for token manipulation and character entities (v0.6.3)
@@ -1075,6 +1121,7 @@ Compatible with D&D5e, PF2e, and DSA5"
 ```
 
 **Step 7.2.2: Merge to Baseline**
+
 ```bash
 git checkout claude/dsa5-system-adapter-01QvdK2JiF6vRxwsjJQGT1F9
 git merge --no-ff migrate-token-tools-v0.6.3
@@ -1082,6 +1129,7 @@ git tag v0.6.3
 ```
 
 **Step 7.2.3: Push Changes**
+
 ```bash
 git push origin claude/dsa5-system-adapter-01QvdK2JiF6vRxwsjJQGT1F9
 git push origin v0.6.3
@@ -1090,6 +1138,7 @@ git push origin v0.6.3
 ### Task 7.3: Release
 
 **Step 7.3.1: Build Installers**
+
 ```bash
 # Windows installer
 npm run build:installer:windows
@@ -1099,6 +1148,7 @@ npm run build:installer:mac
 ```
 
 **Step 7.3.2: Create GitHub Release**
+
 - Tag: v0.6.3
 - Title: "v0.6.3 - Token Manipulation & Character Entity Tools"
 - Attach installers
@@ -1111,6 +1161,7 @@ npm run build:installer:mac
 If critical issues are discovered:
 
 **Step R.1: Immediate Rollback**
+
 ```bash
 git checkout claude/dsa5-system-adapter-01QvdK2JiF6vRxwsjJQGT1F9
 git reset --hard v0.6.1  # or last known good commit
@@ -1118,12 +1169,14 @@ git reset --hard v0.6.1  # or last known good commit
 
 **Step R.2: Document Issues**
 Create issue in GitHub with:
+
 - Description of problem
 - Steps to reproduce
 - Affected systems (D&D5e/PF2e/DSA5)
 - Error logs
 
 **Step R.3: Fix and Re-Migrate**
+
 - Isolate problematic tool(s)
 - Fix issues
 - Re-run migration for specific tools
@@ -1150,22 +1203,23 @@ Migration is considered successful when:
 
 ## Timeline Estimate
 
-| Phase | Tasks | Estimated Time | Notes |
-|-------|-------|----------------|-------|
-| **Phase 1** | Character tool update | 1 hour | Straightforward code addition |
-| **Phase 2** | Token tools file creation | 30 minutes | Copy file from broken branch |
-| **Phase 3** | Index.ts integration | 1 hour | Careful handler registration |
-| **Phase 4** | Foundry module handlers | 2-3 hours | Most complex phase |
-| **Phase 5** | Testing | 4-6 hours | Comprehensive across 3 systems |
-| **Phase 6** | Documentation | 2 hours | Updates to 3-4 files |
-| **Phase 7** | Verification & deployment | 2 hours | Final checks and release |
-| **TOTAL** | | **12-16 hours** | ~2 days with breaks |
+| Phase       | Tasks                     | Estimated Time  | Notes                          |
+| ----------- | ------------------------- | --------------- | ------------------------------ |
+| **Phase 1** | Character tool update     | 1 hour          | Straightforward code addition  |
+| **Phase 2** | Token tools file creation | 30 minutes      | Copy file from broken branch   |
+| **Phase 3** | Index.ts integration      | 1 hour          | Careful handler registration   |
+| **Phase 4** | Foundry module handlers   | 2-3 hours       | Most complex phase             |
+| **Phase 5** | Testing                   | 4-6 hours       | Comprehensive across 3 systems |
+| **Phase 6** | Documentation             | 2 hours         | Updates to 3-4 files           |
+| **Phase 7** | Verification & deployment | 2 hours         | Final checks and release       |
+| **TOTAL**   |                           | **12-16 hours** | ~2 days with breaks            |
 
 ---
 
 ## Contact & Support
 
 If issues arise during migration:
+
 1. Check RISK_ANALYSIS.md for known risks and mitigations
 2. Review MISSING_TOOLS.md for implementation details
 3. Consult broken branch commit history for context

@@ -14,14 +14,13 @@ export class CampaignHooks {
   register(): void {
     if (this.isRegistered) return;
 
-
     // Try multiple potential hook names for different Foundry versions
     const hookNames = [
       'renderJournalTextPageSheet',
-      'renderJournalPageSheet', 
+      'renderJournalPageSheet',
       'renderJournalSheet',
       'renderJournalEntryPageSheet',
-      'renderApplication'
+      'renderApplication',
     ];
 
     hookNames.forEach(hookName => {
@@ -29,7 +28,7 @@ export class CampaignHooks {
         this.onRenderJournalSheet(app, html, data);
       });
     });
-    
+
     this.isRegistered = true;
   }
 
@@ -41,7 +40,7 @@ export class CampaignHooks {
 
     // Note: Foundry VTT doesn't have Hooks.off, so we just mark as unregistered
     // The hooks will be cleaned up when the module is disabled
-    
+
     this.isRegistered = false;
   }
 
@@ -54,7 +53,7 @@ export class CampaignHooks {
       if (!app || !html || app._state === -1) {
         return;
       }
-      
+
       // Small delay to avoid race condition with Foundry's internal DOM manipulation
       setTimeout(() => {
         // Double-check the app is still valid after delay
@@ -75,22 +74,22 @@ export class CampaignHooks {
     try {
       // Defensive checks to prevent null errors during journal close/destruction
       if (!app || !html) return;
-      
+
       // Check if app is being closed or destroyed
       if (app._state === -1 || app.closing) {
         return;
       }
-      
+
       // Convert html to jQuery if it isn't already
       const $html = html.jquery ? html : $(html);
-      
+
       // Additional DOM validation - ensure the HTML element exists and is connected
       if (!$html[0] || !$html[0].isConnected) {
         return;
       }
-      
+
       // Only process if this looks like a campaign dashboard
-      const isCampaignDashboard = 
+      const isCampaignDashboard =
         (app.object?.name || app.object?.parent?.name || '')?.includes('Campaign Dashboard') ||
         $html.find('.campaign-status-toggle').length > 0;
 
@@ -116,7 +115,7 @@ export class CampaignHooks {
       }
 
       // Load previously saved status flags (if any) for this entry
-      const statusFlags = entry.getFlag("world", "campaignStatus") || {};
+      const statusFlags = entry.getFlag('world', 'campaignStatus') || {};
 
       // Find all campaign status toggle elements with defensive error handling
       let statusToggles;
@@ -126,7 +125,7 @@ export class CampaignHooks {
         // If DOM query fails, journal is likely being destroyed
         return;
       }
-      
+
       if (!statusToggles || statusToggles.length === 0) {
         return;
       }
@@ -136,7 +135,7 @@ export class CampaignHooks {
         const $element = $(element);
         const campaignId = $element.data('campaign-id');
         const partId = $element.data('part-id');
-        
+
         if (!campaignId || !partId) {
           console.warn('[Campaign Status] Toggle missing data attributes:', element);
           return;
@@ -144,7 +143,7 @@ export class CampaignHooks {
 
         const flagKey = `${campaignId}-${partId}`;
         const savedStatus = statusFlags[flagKey];
-        
+
         if (savedStatus) {
           // Update element to match saved status
           this.updateToggleVisual($element, savedStatus);
@@ -155,7 +154,6 @@ export class CampaignHooks {
       statusToggles.on('click', (event: JQuery.ClickEvent) => {
         this.onStatusToggleClick(event, entry, statusFlags);
       });
-
     } catch (error) {
       console.error('Error setting up campaign dashboard interactivity:', error);
     }
@@ -164,11 +162,15 @@ export class CampaignHooks {
   /**
    * Handle status toggle clicks
    */
-  private async onStatusToggleClick(event: JQuery.ClickEvent, entry: any, statusFlags: any): Promise<void> {
+  private async onStatusToggleClick(
+    event: JQuery.ClickEvent,
+    entry: any,
+    statusFlags: any
+  ): Promise<void> {
     try {
       event.preventDefault();
       event.stopPropagation();
-      
+
       const target = $(event.currentTarget);
       const campaignId = target.data('campaign-id');
       const partId = target.data('part-id');
@@ -190,23 +192,22 @@ export class CampaignHooks {
 
       // Update visual immediately for responsiveness
       this.updateToggleVisual(target, nextStatus);
-      
+
       // Update the flags object
       statusFlags[flagKey] = nextStatus;
-      
+
       try {
         // Persist the new state in the journal entry's flags
-        await entry.setFlag("world", "campaignStatus", statusFlags);
-        
+        await entry.setFlag('world', 'campaignStatus', statusFlags);
+
         // Success - no notification banner needed (visual feedback already provided by toggle)
       } catch (error) {
         console.error('[Campaign Status] Failed to save status:', error);
         ui.notifications?.error('Failed to save campaign progress');
-        
+
         // Revert visual change on error
         this.updateToggleVisual(target, currentStatus);
       }
-
     } catch (error) {
       console.error('Error handling status toggle click:', error);
       ui.notifications?.error('Failed to update campaign progress');
@@ -240,15 +241,15 @@ export class CampaignHooks {
   private updateToggleVisual(toggle: JQuery, newStatus: string): void {
     // Remove all status classes
     toggle.removeClass('not-started in-progress completed skipped');
-    
+
     // Add new status class
     const cssClass = newStatus.replace('_', '-');
     toggle.addClass(cssClass);
-    
+
     // Update icon and text
     const statusIcon = this.getStatusIcon(newStatus);
     const statusDisplay = this.formatStatus(newStatus);
-    
+
     toggle.html(`${statusIcon} ${statusDisplay}`);
     toggle.attr('title', `Click to change status: ${statusDisplay}`);
   }
@@ -258,10 +259,10 @@ export class CampaignHooks {
    */
   private getStatusIcon(status: string): string {
     const icons = {
-      'not_started': '⚪',
-      'in_progress': '🔄',
-      'completed': '✅', 
-      'skipped': '⏭️'
+      not_started: '⚪',
+      in_progress: '🔄',
+      completed: '✅',
+      skipped: '⏭️',
     };
     return icons[status as keyof typeof icons] || '❓';
   }
@@ -272,6 +273,4 @@ export class CampaignHooks {
   private formatStatus(status: string): string {
     return status.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
   }
-
-
 }

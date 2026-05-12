@@ -5,6 +5,7 @@
 This document provides an in-depth analysis of the 7 MCP tools present in the broken branch (`claude/update-docs-v0.6.2-01Kba6k5nEDbUNjHDrkhUniB`) that are missing from the baseline branch (`claude/dsa5-system-adapter-01QvdK2JiF6vRxwsjJQGT1F9`).
 
 **Tools to Migrate:**
+
 1. **get-character-entity** - Character entity deep-dive (character.ts)
 2. **move-token** - Token positioning with animation (token-manipulation.ts)
 3. **update-token** - Token property updates (token-manipulation.ts)
@@ -14,6 +15,7 @@ This document provides an in-depth analysis of the 7 MCP tools present in the br
 7. **get-available-conditions** - Condition discovery (token-manipulation.ts)
 
 **File Locations:**
+
 - `/packages/mcp-server/src/tools/character.ts` - 1 new tool
 - `/packages/mcp-server/src/tools/token-manipulation.ts` - 6 new tools (NEW FILE)
 
@@ -30,9 +32,11 @@ This document provides an in-depth analysis of the 7 MCP tools present in the br
 **Risk Level:** LOW
 
 #### Purpose
+
 Provides lazy-loading pattern for character data. The main `get-character` tool returns minimal item/action/effect metadata to reduce token usage. This tool fetches complete details for a specific entity when needed.
 
 #### Use Case
+
 ```
 User: "Tell me about Valeros's Flaming Longsword"
 1. Claude calls get-character("Valeros") → gets item list with minimal data
@@ -42,6 +46,7 @@ User: "Tell me about Valeros's Flaming Longsword"
 ```
 
 #### Input Schema
+
 ```typescript
 {
   characterIdentifier: string,  // Character name or ID
@@ -50,6 +55,7 @@ User: "Tell me about Valeros's Flaming Longsword"
 ```
 
 #### Output Schema
+
 ```typescript
 // For items:
 {
@@ -208,6 +214,7 @@ async handleGetCharacterEntity(args: any): Promise<any> {
 ```
 
 #### Tool Definition Code
+
 ```typescript
 {
   name: 'get-character-entity',
@@ -230,18 +237,22 @@ async handleGetCharacterEntity(args: any): Promise<any> {
 ```
 
 #### Dependencies
+
 - **FoundryClient** - Existing, used for `getCharacterInfo` query
 - **Logger** - Existing
 - **Zod** - Existing (schema validation)
 - **No new dependencies**
 
 #### DSA5 Compatibility
+
 ✅ **FULLY COMPATIBLE**
+
 - Works with any game system
 - Entity structure is system-agnostic
 - DSA5 items/effects/actions follow same pattern as D&D5e/PF2e
 
 #### Migration Complexity: LOW
+
 - **Code Change:** Add 1 method to existing CharacterTools class
 - **Testing Required:** Test with D&D5e, PF2e, and DSA5 characters
 - **Breaking Changes:** None (additive only)
@@ -253,9 +264,11 @@ async handleGetCharacterEntity(args: any): Promise<any> {
 **NEW FILE REQUIRED:** `packages/mcp-server/src/tools/token-manipulation.ts`
 
 ### Overview
+
 All 6 token tools are in a new `TokenManipulationTools` class in a new file. This is a clean addition with no modifications to existing code.
 
 **Class Structure:**
+
 ```typescript
 export class TokenManipulationTools {
   private foundryClient: FoundryClient;
@@ -266,14 +279,28 @@ export class TokenManipulationTools {
     this.logger = logger.child({ component: 'TokenManipulationTools' });
   }
 
-  getToolDefinitions() { /* Returns array of 6 tool definitions */ }
+  getToolDefinitions() {
+    /* Returns array of 6 tool definitions */
+  }
 
-  async handleMoveToken(args: any): Promise<any> { /* Implementation */ }
-  async handleUpdateToken(args: any): Promise<any> { /* Implementation */ }
-  async handleDeleteTokens(args: any): Promise<any> { /* Implementation */ }
-  async handleGetTokenDetails(args: any): Promise<any> { /* Implementation */ }
-  async handleToggleTokenCondition(args: any): Promise<any> { /* Implementation */ }
-  async handleGetAvailableConditions(args: any): Promise<any> { /* Implementation */ }
+  async handleMoveToken(args: any): Promise<any> {
+    /* Implementation */
+  }
+  async handleUpdateToken(args: any): Promise<any> {
+    /* Implementation */
+  }
+  async handleDeleteTokens(args: any): Promise<any> {
+    /* Implementation */
+  }
+  async handleGetTokenDetails(args: any): Promise<any> {
+    /* Implementation */
+  }
+  async handleToggleTokenCondition(args: any): Promise<any> {
+    /* Implementation */
+  }
+  async handleGetAvailableConditions(args: any): Promise<any> {
+    /* Implementation */
+  }
 }
 ```
 
@@ -287,9 +314,11 @@ export class TokenManipulationTools {
 **Risk Level:** LOW
 
 #### Purpose
+
 Move a token to a new position on the current scene, with optional animation.
 
 #### Input Schema
+
 ```typescript
 {
   tokenId: string,      // Required: Token ID
@@ -300,6 +329,7 @@ Move a token to a new position on the current scene, with optional animation.
 ```
 
 #### Output Schema
+
 ```typescript
 {
   success: true,
@@ -310,6 +340,7 @@ Move a token to a new position on the current scene, with optional animation.
 ```
 
 #### Implementation Code
+
 ```typescript
 async handleMoveToken(args: any): Promise<any> {
   const schema = z.object({
@@ -348,9 +379,11 @@ async handleMoveToken(args: any): Promise<any> {
 ```
 
 #### Foundry Module Requirement
+
 **Required:** Foundry module must implement `foundry-mcp-bridge.moveToken` handler
 **File:** `packages/foundry-module/scripts/mcp-bridge.js`
 **Implementation needed:**
+
 ```javascript
 case 'foundry-mcp-bridge.moveToken': {
   const { tokenId, x, y, animate } = args;
@@ -363,6 +396,7 @@ case 'foundry-mcp-bridge.moveToken': {
 ```
 
 #### DSA5 Compatibility
+
 ✅ **FULLY COMPATIBLE** - Tokens are system-agnostic
 
 ---
@@ -375,9 +409,11 @@ case 'foundry-mcp-bridge.moveToken': {
 **Risk Level:** MEDIUM
 
 #### Purpose
+
 Update various properties of a token (visibility, disposition, size, rotation, elevation, name).
 
 #### Input Schema
+
 ```typescript
 {
   tokenId: string,      // Required: Token ID
@@ -397,6 +433,7 @@ Update various properties of a token (visibility, disposition, size, rotation, e
 ```
 
 #### Output Schema
+
 ```typescript
 {
   success: true,
@@ -407,6 +444,7 @@ Update various properties of a token (visibility, disposition, size, rotation, e
 ```
 
 #### Implementation Code
+
 ```typescript
 async handleUpdateToken(args: any): Promise<any> {
   const schema = z.object({
@@ -452,6 +490,7 @@ async handleUpdateToken(args: any): Promise<any> {
 ```
 
 #### Foundry Module Requirement
+
 ```javascript
 case 'foundry-mcp-bridge.updateToken': {
   const { tokenId, updates } = args;
@@ -464,6 +503,7 @@ case 'foundry-mcp-bridge.updateToken': {
 ```
 
 #### DSA5 Compatibility
+
 ✅ **FULLY COMPATIBLE**
 
 ---
@@ -476,9 +516,11 @@ case 'foundry-mcp-bridge.updateToken': {
 **Risk Level:** MEDIUM (destructive operation)
 
 #### Purpose
+
 Delete one or more tokens from the current scene. Supports bulk deletion.
 
 #### Input Schema
+
 ```typescript
 {
   tokenIds: string[]    // Required: Array of token IDs (min 1)
@@ -486,6 +528,7 @@ Delete one or more tokens from the current scene. Supports bulk deletion.
 ```
 
 #### Output Schema
+
 ```typescript
 {
   success: boolean,
@@ -496,6 +539,7 @@ Delete one or more tokens from the current scene. Supports bulk deletion.
 ```
 
 #### Implementation Code
+
 ```typescript
 async handleDeleteTokens(args: any): Promise<any> {
   const schema = z.object({
@@ -531,6 +575,7 @@ async handleDeleteTokens(args: any): Promise<any> {
 ```
 
 #### Foundry Module Requirement
+
 ```javascript
 case 'foundry-mcp-bridge.deleteTokens': {
   const { tokenIds } = args;
@@ -562,10 +607,13 @@ case 'foundry-mcp-bridge.deleteTokens': {
 ```
 
 #### DSA5 Compatibility
+
 ✅ **FULLY COMPATIBLE**
 
 #### Safety Considerations
+
 ⚠️ **DESTRUCTIVE OPERATION**
+
 - Should confirm before deleting multiple tokens
 - No undo mechanism in Foundry (relies on Foundry's history)
 - Consider adding confirmation prompt in tool description
@@ -580,16 +628,19 @@ case 'foundry-mcp-bridge.deleteTokens': {
 **Risk Level:** LOW
 
 #### Purpose
+
 Get comprehensive information about a specific token, including position, appearance, linked actor data, and status effects.
 
 #### Input Schema
+
 ```typescript
 {
-  tokenId: string      // Required: Token ID
+  tokenId: string; // Required: Token ID
 }
 ```
 
 #### Output Schema
+
 ```typescript
 {
   id: string,
@@ -619,6 +670,7 @@ Get comprehensive information about a specific token, including position, appear
 ```
 
 #### Implementation Code
+
 ```typescript
 async handleGetTokenDetails(args: any): Promise<any> {
   const schema = z.object({
@@ -693,6 +745,7 @@ private getDispositionName(disposition: number): string {
 ```
 
 #### Foundry Module Requirement
+
 ```javascript
 case 'foundry-mcp-bridge.getTokenDetails': {
   const { tokenId } = args;
@@ -726,6 +779,7 @@ case 'foundry-mcp-bridge.getTokenDetails': {
 ```
 
 #### DSA5 Compatibility
+
 ✅ **FULLY COMPATIBLE**
 
 ---
@@ -738,9 +792,11 @@ case 'foundry-mcp-bridge.getTokenDetails': {
 **Risk Level:** MEDIUM
 
 #### Purpose
+
 Apply or remove status effects/conditions on tokens (e.g., Prone, Poisoned, Blinded). System-aware - uses different condition sets for D&D5e, PF2e, and DSA5.
 
 #### Input Schema
+
 ```typescript
 {
   tokenId: string,        // Required: Token ID
@@ -750,6 +806,7 @@ Apply or remove status effects/conditions on tokens (e.g., Prone, Poisoned, Blin
 ```
 
 #### Output Schema
+
 ```typescript
 {
   success: true,
@@ -761,6 +818,7 @@ Apply or remove status effects/conditions on tokens (e.g., Prone, Poisoned, Blin
 ```
 
 #### Implementation Code
+
 ```typescript
 async handleToggleTokenCondition(args: any): Promise<any> {
   const schema = z.object({
@@ -798,6 +856,7 @@ async handleToggleTokenCondition(args: any): Promise<any> {
 ```
 
 #### Foundry Module Requirement
+
 ```javascript
 case 'foundry-mcp-bridge.toggleTokenCondition': {
   const { tokenId, conditionId, active } = args;
@@ -830,6 +889,7 @@ case 'foundry-mcp-bridge.toggleTokenCondition': {
 ```
 
 #### DSA5 Compatibility
+
 ⚠️ **SYSTEM-SPECIFIC TESTING REQUIRED**
 
 **D&D 5e Conditions:** Blinded, Charmed, Deafened, Frightened, Grappled, Incapacitated, Invisible, Paralyzed, Petrified, Poisoned, Prone, Restrained, Stunned, Unconscious
@@ -837,6 +897,7 @@ case 'foundry-mcp-bridge.toggleTokenCondition': {
 **PF2e Conditions:** Blinded, Broken, Clumsy, Concealed, Confused, Controlled, Dazzled, Deafened, Doomed, Drained, Dying, Encumbered, Enfeebled, Fascinated, Fatigued, Flat-Footed, Fleeing, Friendly, Frightened, Grabbed, Helpful, Hidden, Hostile, Immobilized, Indifferent, Invisible, Observed, Paralyzed, Persistent Damage, Petrified, Prone, Quickened, Restrained, Sickened, Slowed, Stunned, Stupefied, Unconscious, Undetected, Unfriendly, Unnoticed, Wounded
 
 **DSA5 Conditions:** Must verify DSA5 system's condition implementation
+
 - DSA5 may use different status effect names
 - Testing required with DSA5 world
 
@@ -850,14 +911,18 @@ case 'foundry-mcp-bridge.toggleTokenCondition': {
 **Risk Level:** LOW
 
 #### Purpose
+
 Retrieve a list of all available status effects/conditions for the current game system. This helps Claude know which conditions can be applied with `toggle-token-condition`.
 
 #### Input Schema
+
 ```typescript
-{}  // No parameters
+{
+} // No parameters
 ```
 
 #### Output Schema
+
 ```typescript
 {
   success: true,
@@ -871,6 +936,7 @@ Retrieve a list of all available status effects/conditions for the current game 
 ```
 
 #### Implementation Code
+
 ```typescript
 async handleGetAvailableConditions(args: any): Promise<any> {
   this.logger.info('Getting available conditions');
@@ -894,6 +960,7 @@ async handleGetAvailableConditions(args: any): Promise<any> {
 ```
 
 #### Foundry Module Requirement
+
 ```javascript
 case 'foundry-mcp-bridge.getAvailableConditions': {
   const conditions = CONFIG.statusEffects.map(effect => ({
@@ -910,21 +977,22 @@ case 'foundry-mcp-bridge.getAvailableConditions': {
 ```
 
 #### DSA5 Compatibility
+
 ✅ **SHOULD WORK** - Returns system-specific conditions
 
 ---
 
 ## Summary Table
 
-| Tool | File | Lines of Code | Dependencies | DSA5 Compat | Risk | Priority |
-|------|------|---------------|--------------|-------------|------|----------|
-| get-character-entity | character.ts | ~100 | None (existing) | ✅ Full | LOW | MEDIUM |
-| move-token | token-manipulation.ts | ~40 | FoundryModule | ✅ Full | LOW | HIGH |
-| update-token | token-manipulation.ts | ~50 | FoundryModule | ✅ Full | MEDIUM | HIGH |
-| delete-tokens | token-manipulation.ts | ~45 | FoundryModule | ✅ Full | MEDIUM | HIGH |
-| get-token-details | token-manipulation.ts | ~80 | FoundryModule | ✅ Full | LOW | HIGH |
-| toggle-token-condition | token-manipulation.ts | ~40 | FoundryModule | ⚠️ Test | MEDIUM | HIGH |
-| get-available-conditions | token-manipulation.ts | ~30 | FoundryModule | ✅ Full | LOW | HIGH |
+| Tool                     | File                  | Lines of Code | Dependencies    | DSA5 Compat | Risk   | Priority |
+| ------------------------ | --------------------- | ------------- | --------------- | ----------- | ------ | -------- |
+| get-character-entity     | character.ts          | ~100          | None (existing) | ✅ Full     | LOW    | MEDIUM   |
+| move-token               | token-manipulation.ts | ~40           | FoundryModule   | ✅ Full     | LOW    | HIGH     |
+| update-token             | token-manipulation.ts | ~50           | FoundryModule   | ✅ Full     | MEDIUM | HIGH     |
+| delete-tokens            | token-manipulation.ts | ~45           | FoundryModule   | ✅ Full     | MEDIUM | HIGH     |
+| get-token-details        | token-manipulation.ts | ~80           | FoundryModule   | ✅ Full     | LOW    | HIGH     |
+| toggle-token-condition   | token-manipulation.ts | ~40           | FoundryModule   | ⚠️ Test     | MEDIUM | HIGH     |
+| get-available-conditions | token-manipulation.ts | ~30           | FoundryModule   | ✅ Full     | LOW    | HIGH     |
 
 **Total Complexity:** ~385 lines of new code across 2 files
 
@@ -935,6 +1003,7 @@ case 'foundry-mcp-bridge.getAvailableConditions': {
 All 7 tools require **Foundry module updates** to add handlers in `packages/foundry-module/scripts/mcp-bridge.js`:
 
 ### Required Handlers
+
 1. `foundry-mcp-bridge.moveToken` - Move token with animation
 2. `foundry-mcp-bridge.updateToken` - Update token properties
 3. `foundry-mcp-bridge.deleteTokens` - Bulk delete tokens
@@ -992,26 +1061,33 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 ## Key Implementation Notes
 
 ### 1. Character Tool Changes (character.ts)
+
 **Existing Changes in Broken Branch:**
+
 - Updated `get-character` description to mention lazy-loading pattern
 - Added `get-character-entity` tool definition
 - Added `handleGetCharacterEntity` method
 - Modified `formatCharacterResponse` to include actions array (minimal data)
 
 **Differences from Baseline:**
+
 - Baseline character.ts limits items to 20 with truncated descriptions
 - Broken branch returns ALL items with minimal metadata (no descriptions)
 - Broken branch adds actions array to response
 
 ### 2. Token Manipulation (token-manipulation.ts)
+
 **Entirely New File:**
+
 - 410 lines total
 - Self-contained class
 - No dependencies on other tools
 - Clean integration point
 
 ### 3. Type Safety
+
 All tools use Zod for runtime type validation:
+
 ```typescript
 const schema = z.object({
   tokenId: z.string(),
@@ -1022,7 +1098,9 @@ const validatedArgs = schema.parse(args);
 ```
 
 ### 4. Error Handling
+
 Consistent error handling pattern across all tools:
+
 ```typescript
 try {
   // Implementation
@@ -1037,6 +1115,7 @@ try {
 ## Testing Requirements
 
 ### Unit Tests Needed
+
 1. **get-character-entity**
    - Test with D&D5e character items
    - Test with PF2e character feats/spells
@@ -1053,6 +1132,7 @@ try {
    - Test bulk deletion
 
 ### Integration Tests Needed
+
 1. **Foundry Module Integration**
    - Test each handler in live Foundry instance
    - Test with D&D5e system
@@ -1073,6 +1153,7 @@ try {
 ## Migration Checklist
 
 ### MCP Server Changes
+
 - [ ] Add `get-character-entity` to CharacterTools class
 - [ ] Create `token-manipulation.ts` file
 - [ ] Implement TokenManipulationTools class
@@ -1081,6 +1162,7 @@ try {
 - [ ] Update TypeScript types if needed
 
 ### Foundry Module Changes
+
 - [ ] Add `moveToken` handler
 - [ ] Add `updateToken` handler
 - [ ] Add `deleteTokens` handler
@@ -1090,6 +1172,7 @@ try {
 - [ ] Test all handlers in Foundry
 
 ### Testing
+
 - [ ] Unit tests for all 7 tools
 - [ ] Integration tests with D&D5e
 - [ ] Integration tests with PF2e
@@ -1098,6 +1181,7 @@ try {
 - [ ] Error handling tests
 
 ### Documentation
+
 - [ ] Update README.md tool count (32)
 - [ ] Add token manipulation category to README
 - [ ] Update CHANGELOG.md (v0.6.3)
@@ -1111,6 +1195,7 @@ try {
 The 7 missing tools represent a **well-architected addition** to the MCP server:
 
 **Strengths:**
+
 - ✅ Clean separation (new file for token tools)
 - ✅ Consistent patterns (same as existing tools)
 - ✅ Good error handling
@@ -1118,6 +1203,7 @@ The 7 missing tools represent a **well-architected addition** to the MCP server:
 - ✅ System-agnostic design (mostly)
 
 **Risks:**
+
 - ⚠️ Condition system may need DSA5-specific testing
 - ⚠️ Destructive operations (delete-tokens) need safeguards
 - ⚠️ Foundry module must be updated simultaneously

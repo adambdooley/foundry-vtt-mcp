@@ -27,12 +27,14 @@ This guide covers the complete installation of the Foundry VTT AI Model Integrat
 ### Option 2: Manual Installation
 
 #### Install the Foundry Module
+
 1. Open Foundry VTT (v13 or v14)
 2. Select install module in the Foundry Add-ons menu
-2. At the bottom of the window, add the Manifest URL as: https://github.com/adambdooley/foundry-vtt-mcp/blob/master/packages/foundry-module/module.json and click install
-3. Enable "Foundry MCP Bridge" in Module Management
+3. At the bottom of the window, add the Manifest URL as: https://github.com/adambdooley/foundry-vtt-mcp/blob/master/packages/foundry-module/module.json and click install
+4. Enable "Foundry MCP Bridge" in Module Management
 
 #### Install the MCP Server
+
 ```bash
 # Clone repository
 git clone https://github.com/adambdooley/foundry-vtt-mcp.git
@@ -45,6 +47,7 @@ npm run build
 ```
 
 #### Configure Claude Desktop
+
 Add this to your Claude Desktop configuration (claude_desktop_config.json) file:
 
 ```json
@@ -116,10 +119,12 @@ Starting Claude Desktop will start the MCP Server.
 ## Uninstallation
 
 ### Windows
+
 1. **Disable module** in Foundry world settings
 2. **Run Foundry MCP Bridge Unistaller in Add or Remove Programs** (Windows Only)
 3. **Restart Claude Desktop**
 
 ### Manual
+
 - **Foundry Module**: Uninstall in Foundry Add-ons
 - **Foundry MCP Server**: Delete the folder with the server and Remove MCP server configuration from claude_desktop_config.json

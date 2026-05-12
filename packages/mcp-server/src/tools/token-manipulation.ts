@@ -23,7 +23,8 @@ export class TokenManipulationTools {
     return [
       {
         name: 'move-token',
-        description: 'Move a token to a new position on the current scene. Can optionally animate the movement.',
+        description:
+          'Move a token to a new position on the current scene. Can optionally animate the movement.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -50,7 +51,8 @@ export class TokenManipulationTools {
       },
       {
         name: 'update-token',
-        description: 'Update various properties of a token such as visibility, disposition, size, rotation, elevation, or name',
+        description:
+          'Update various properties of a token such as visibility, disposition, size, rotation, elevation, or name',
         inputSchema: {
           type: 'object',
           properties: {
@@ -129,7 +131,8 @@ export class TokenManipulationTools {
       },
       {
         name: 'get-token-details',
-        description: 'Get detailed information about a specific token including all properties and linked actor data',
+        description:
+          'Get detailed information about a specific token including all properties and linked actor data',
         inputSchema: {
           type: 'object',
           properties: {
@@ -143,7 +146,8 @@ export class TokenManipulationTools {
       },
       {
         name: 'toggle-token-condition',
-        description: 'Toggle a status effect/condition on or off for a token. Use this to apply or remove conditions like Prone, Poisoned, Blinded, etc.',
+        description:
+          'Toggle a status effect/condition on or off for a token. Use this to apply or remove conditions like Prone, Poisoned, Blinded, etc.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -153,11 +157,13 @@ export class TokenManipulationTools {
             },
             conditionId: {
               type: 'string',
-              description: 'The ID of the condition/status effect to toggle (e.g., "prone", "poisoned", "blinded")',
+              description:
+                'The ID of the condition/status effect to toggle (e.g., "prone", "poisoned", "blinded")',
             },
             active: {
               type: 'boolean',
-              description: 'Optional: true to add the condition, false to remove it. If not specified, will toggle the current state.',
+              description:
+                'Optional: true to add the condition, false to remove it. If not specified, will toggle the current state.',
             },
           },
           required: ['tokenId', 'conditionId'],
@@ -165,7 +171,8 @@ export class TokenManipulationTools {
       },
       {
         name: 'get-available-conditions',
-        description: 'Get a list of all available status effects/conditions that can be applied to tokens in the current game system',
+        description:
+          'Get a list of all available status effects/conditions that can be applied to tokens in the current game system',
         inputSchema: {
           type: 'object',
           properties: {},
@@ -202,10 +209,11 @@ export class TokenManipulationTools {
         newPosition: { x, y },
         animated: animate,
       };
-
     } catch (error) {
       this.logger.error('Failed to move token', error);
-      throw new Error(`Failed to move token: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to move token: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
@@ -244,10 +252,11 @@ export class TokenManipulationTools {
         updated: true,
         appliedUpdates: updates,
       };
-
     } catch (error) {
       this.logger.error('Failed to update token', error);
-      throw new Error(`Failed to update token: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to update token: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
@@ -276,10 +285,11 @@ export class TokenManipulationTools {
         tokenIds: result.tokenIds,
         errors: result.errors,
       };
-
     } catch (error) {
       this.logger.error('Failed to delete tokens', error);
-      throw new Error(`Failed to delete tokens: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to delete tokens: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
@@ -297,13 +307,17 @@ export class TokenManipulationTools {
         tokenId,
       });
 
-      this.logger.debug('Retrieved token details', { tokenId, hasActorData: !!tokenData.actorData });
+      this.logger.debug('Retrieved token details', {
+        tokenId,
+        hasActorData: !!tokenData.actorData,
+      });
 
       return this.formatTokenDetails(tokenData);
-
     } catch (error) {
       this.logger.error('Failed to get token details', error);
-      throw new Error(`Failed to get token details: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to get token details: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
@@ -331,13 +345,15 @@ export class TokenManipulationTools {
         elevation: tokenData.elevation,
         lockRotation: tokenData.lockRotation,
       },
-      actor: tokenData.actorData ? {
-        id: tokenData.actorId,
-        name: tokenData.actorData.name,
-        type: tokenData.actorData.type,
-        img: tokenData.actorData.img,
-        isLinked: tokenData.actorLink,
-      } : null,
+      actor: tokenData.actorData
+        ? {
+            id: tokenData.actorId,
+            name: tokenData.actorData.name,
+            type: tokenData.actorData.type,
+            img: tokenData.actorData.img,
+            isLinked: tokenData.actorLink,
+          }
+        : null,
     };
   }
 
@@ -381,10 +397,11 @@ export class TokenManipulationTools {
         isActive: result.isActive,
         conditionName: result.conditionName,
       };
-
     } catch (error) {
       this.logger.error('Failed to toggle token condition', error);
-      throw new Error(`Failed to toggle token condition: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to toggle token condition: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
@@ -392,7 +409,10 @@ export class TokenManipulationTools {
     this.logger.info('Getting available conditions');
 
     try {
-      const result = await this.foundryClient.query('foundry-mcp-bridge.get-available-conditions', {});
+      const result = await this.foundryClient.query(
+        'foundry-mcp-bridge.get-available-conditions',
+        {}
+      );
 
       this.logger.debug('Retrieved available conditions', { count: result.conditions?.length });
 
@@ -401,10 +421,11 @@ export class TokenManipulationTools {
         conditions: result.conditions,
         gameSystem: result.gameSystem,
       };
-
     } catch (error) {
       this.logger.error('Failed to get available conditions', error);
-      throw new Error(`Failed to get available conditions: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to get available conditions: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 }

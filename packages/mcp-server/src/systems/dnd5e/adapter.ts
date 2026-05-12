@@ -5,8 +5,18 @@
  * Handles creature indexing, filtering, formatting, and data extraction.
  */
 
-import type { SystemAdapter, SystemMetadata, SystemCreatureIndex, DnD5eCreatureIndex } from '../types.js';
-import { DnD5eFiltersSchema, matchesDnD5eFilters, describeDnD5eFilters, type DnD5eFilters } from './filters.js';
+import type {
+  SystemAdapter,
+  SystemMetadata,
+  SystemCreatureIndex,
+  DnD5eCreatureIndex,
+} from '../types.js';
+import {
+  DnD5eFiltersSchema,
+  matchesDnD5eFilters,
+  describeDnD5eFilters,
+  type DnD5eFilters,
+} from './filters.js';
 
 /**
  * D&D 5e system adapter
@@ -18,13 +28,14 @@ export class DnD5eAdapter implements SystemAdapter {
       name: 'dnd5e',
       displayName: 'Dungeons & Dragons 5th Edition',
       version: '1.0.0',
-      description: 'Support for D&D 5e game system with Challenge Rating, creature types, and legendary actions',
+      description:
+        'Support for D&D 5e game system with Challenge Rating, creature types, and legendary actions',
       supportedFeatures: {
         creatureIndex: true,
         characterStats: true,
         spellcasting: true,
-        powerLevel: true // Uses Challenge Rating
-      }
+        powerLevel: true, // Uses Challenge Rating
+      },
     };
   }
 
@@ -36,7 +47,10 @@ export class DnD5eAdapter implements SystemAdapter {
    * Extract creature data from Foundry document for indexing
    * This is called by the index builder in Foundry's browser context
    */
-  extractCreatureData(doc: any, pack: any): { creature: SystemCreatureIndex; errors: number } | null {
+  extractCreatureData(
+    doc: any,
+    pack: any
+  ): { creature: SystemCreatureIndex; errors: number } | null {
     // Implementation is in index-builder.ts since it runs in browser
     // This method is here for type compliance but delegates to IndexBuilder
     throw new Error('extractCreatureData should be called from DnD5eIndexBuilder, not the adapter');
@@ -74,7 +88,7 @@ export class DnD5eAdapter implements SystemAdapter {
       // PF2e-specific paths don't exist in D&D 5e
       perception: null,
       saves: null,
-      rarity: null
+      rarity: null,
     };
   }
 
@@ -86,8 +100,8 @@ export class DnD5eAdapter implements SystemAdapter {
       type: creature.type,
       pack: {
         id: creature.packName,
-        label: creature.packLabel
-      }
+        label: creature.packLabel,
+      },
     };
 
     // Add D&D 5e specific stats
@@ -153,7 +167,7 @@ export class DnD5eAdapter implements SystemAdapter {
         hitPoints: dnd5eCreature.systemData.hitPoints,
         armorClass: dnd5eCreature.systemData.armorClass,
         hasSpellcasting: dnd5eCreature.systemData.hasSpellcasting,
-        hasLegendaryActions: dnd5eCreature.systemData.hasLegendaryActions
+        hasLegendaryActions: dnd5eCreature.systemData.hasLegendaryActions,
       };
     }
 
@@ -216,7 +230,7 @@ export class DnD5eAdapter implements SystemAdapter {
       stats.hitPoints = {
         current: hp.value ?? 0,
         max: hp.max ?? 0,
-        temp: hp.temp ?? 0
+        temp: hp.temp ?? 0,
       };
     }
 
@@ -233,7 +247,7 @@ export class DnD5eAdapter implements SystemAdapter {
         const abilityData = ability as any;
         stats.abilities[key] = {
           value: abilityData.value ?? 10,
-          modifier: abilityData.mod ?? 0
+          modifier: abilityData.mod ?? 0,
         };
       }
     }
@@ -246,7 +260,7 @@ export class DnD5eAdapter implements SystemAdapter {
         stats.skills[key] = {
           value: skillData.value ?? 0,
           modifier: skillData.total ?? skillData.mod ?? 0,
-          proficient: skillData.proficient ?? 0
+          proficient: skillData.proficient ?? 0,
         };
       }
     }
@@ -273,19 +287,21 @@ export class DnD5eAdapter implements SystemAdapter {
       if (legact) {
         stats.legendaryActions = {
           available: legact.value ?? 0,
-          max: legact.max ?? 0
+          max: legact.max ?? 0,
         };
       }
     }
 
     // Spellcasting
-    const hasSpells = !!(system.spells ||
-                        system.attributes?.spellcasting ||
-                        (system.details?.spellLevel && system.details.spellLevel > 0));
+    const hasSpells = !!(
+      system.spells ||
+      system.attributes?.spellcasting ||
+      (system.details?.spellLevel && system.details.spellLevel > 0)
+    );
     if (hasSpells) {
       stats.spellcasting = {
         hasSpells: true,
-        spellLevel: system.details?.spellLevel ?? 0
+        spellLevel: system.details?.spellLevel ?? 0,
       };
     }
 

@@ -23,7 +23,8 @@ export class SceneTools {
     return [
       {
         name: 'get-current-scene',
-        description: 'Get information about the currently active scene, including tokens and layout',
+        description:
+          'Get information about the currently active scene, including tokens and layout',
         inputSchema: {
           type: 'object',
           properties: {
@@ -71,10 +72,11 @@ export class SceneTools {
       });
 
       return this.formatSceneResponse(sceneData, includeTokens, includeHidden);
-
     } catch (error) {
       this.logger.error('Failed to get current scene', error);
-      throw new Error(`Failed to get current scene: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to get current scene: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
@@ -90,10 +92,11 @@ export class SceneTools {
       });
 
       return this.formatWorldResponse(worldData);
-
     } catch (error) {
       this.logger.error('Failed to get world information', error);
-      throw new Error(`Failed to get world information: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to get world information: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
@@ -156,7 +159,7 @@ export class SceneTools {
 
   private createTokenSummary(tokens: any[], includeHidden: boolean): any {
     const visibleTokens = includeHidden ? tokens : tokens.filter(t => !t.hidden);
-    
+
     const summary = {
       total: visibleTokens.length,
       byDisposition: {
@@ -206,13 +209,14 @@ export class SceneTools {
         gms: worldData.users?.filter((u: any) => u.isGM).length || 0,
         players: worldData.users?.filter((u: any) => !u.isGM).length || 0,
       },
-      activeUsers: worldData.users
-        ?.filter((u: any) => u.active)
-        .map((u: any) => ({
-          id: u.id,
-          name: u.name,
-          isGM: u.isGM,
-        })) || [],
+      activeUsers:
+        worldData.users
+          ?.filter((u: any) => u.active)
+          .map((u: any) => ({
+            id: u.id,
+            name: u.name,
+            isGM: u.isGM,
+          })) || [],
     };
   }
 

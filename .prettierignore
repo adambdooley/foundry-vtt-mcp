@@ -1,0 +1,10 @@
+node_modules
+dist
+build
+installer/build
+installer/build-mac/build
+packages/*/dist
+shared/dist
+package-lock.json
+*.bundle.cjs
+.husky/_

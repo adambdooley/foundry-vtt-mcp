@@ -13,13 +13,13 @@ export class Logger {
 
   constructor(config: LoggerConfig) {
     const formats = [];
-    
+
     // Add timestamp to all logs
     formats.push(winston.format.timestamp());
-    
+
     // Add error stack traces
     formats.push(winston.format.errors({ stack: true }));
-    
+
     // Choose output format
     if (config.format === 'json') {
       formats.push(winston.format.json());
@@ -89,10 +89,10 @@ export class Logger {
       level: 'info', // This will be overridden by the child logger
       enableConsole: false, // Child doesn't need its own transports
     });
-    
+
     // Replace the logger instance
     (childInstance as any).logger = childLogger;
-    
+
     return childInstance;
   }
 }

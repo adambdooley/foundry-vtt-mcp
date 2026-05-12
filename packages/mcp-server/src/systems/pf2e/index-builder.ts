@@ -38,9 +38,13 @@ export class PF2eIndexBuilder implements IndexBuilder {
       const actorPacks = packs.filter(pack => pack.metadata.type === 'Actor');
       const enhancedCreatures: PF2eCreatureIndex[] = [];
 
-      console.log(`[${this.moduleId}] Starting PF2e creature index build from ${actorPacks.length} packs...`);
+      console.log(
+        `[${this.moduleId}] Starting PF2e creature index build from ${actorPacks.length} packs...`
+      );
       if (typeof ui !== 'undefined' && ui.notifications) {
-        ui.notifications.info(`Starting PF2e creature index build from ${actorPacks.length} packs...`);
+        ui.notifications.info(
+          `Starting PF2e creature index build from ${actorPacks.length} packs...`
+        );
       }
 
       let currentPack = 0;
@@ -65,7 +69,9 @@ export class PF2eIndexBuilder implements IndexBuilder {
         progressNotification.remove();
       }
       if (typeof ui !== 'undefined' && ui.notifications) {
-        ui.notifications.info(`Saving PF2e index to world database... (${enhancedCreatures.length} creatures)`);
+        ui.notifications.info(
+          `Saving PF2e index to world database... (${enhancedCreatures.length} creatures)`
+        );
       }
 
       const buildTimeSeconds = Math.round((Date.now() - startTime) / 1000);
@@ -78,7 +84,6 @@ export class PF2eIndexBuilder implements IndexBuilder {
       }
 
       return enhancedCreatures;
-
     } catch (error) {
       if (progressNotification && typeof ui !== 'undefined') {
         progressNotification.remove();
@@ -97,7 +102,9 @@ export class PF2eIndexBuilder implements IndexBuilder {
   /**
    * Extract creature data from a single compendium pack
    */
-  async extractDataFromPack(pack: any): Promise<{ creatures: PF2eCreatureIndex[]; errors: number }> {
+  async extractDataFromPack(
+    pack: any
+  ): Promise<{ creatures: PF2eCreatureIndex[]; errors: number }> {
     const creatures: PF2eCreatureIndex[] = [];
     let errors = 0;
 
@@ -115,15 +122,19 @@ export class PF2eIndexBuilder implements IndexBuilder {
             creatures.push(result.creature);
             errors += result.errors;
           }
-
         } catch (error) {
-          console.warn(`[${this.moduleId}] Failed to extract PF2e data from ${doc.name} in ${pack.metadata.label}:`, error);
+          console.warn(
+            `[${this.moduleId}] Failed to extract PF2e data from ${doc.name} in ${pack.metadata.label}:`,
+            error
+          );
           errors++;
         }
       }
-
     } catch (error) {
-      console.warn(`[${this.moduleId}] Failed to load documents from ${pack.metadata.label}:`, error);
+      console.warn(
+        `[${this.moduleId}] Failed to load documents from ${pack.metadata.label}:`,
+        error
+      );
       errors++;
     }
 
@@ -146,13 +157,26 @@ export class PF2eIndexBuilder implements IndexBuilder {
       const traits = Array.isArray(traitsValue) ? traitsValue : [];
 
       // Extract primary creature type from traits
-      const creatureTraits = ['aberration', 'animal', 'beast', 'celestial',
-                              'construct', 'dragon', 'elemental', 'fey',
-                              'fiend', 'fungus', 'humanoid', 'monitor',
-                              'ooze', 'plant', 'undead'];
-      const creatureType = traits.find((t: string) =>
-        creatureTraits.includes(t.toLowerCase())
-      )?.toLowerCase() || 'unknown';
+      const creatureTraits = [
+        'aberration',
+        'animal',
+        'beast',
+        'celestial',
+        'construct',
+        'dragon',
+        'elemental',
+        'fey',
+        'fiend',
+        'fungus',
+        'humanoid',
+        'monitor',
+        'ooze',
+        'plant',
+        'undead',
+      ];
+      const creatureType =
+        traits.find((t: string) => creatureTraits.includes(t.toLowerCase()))?.toLowerCase() ||
+        'unknown';
 
       // Rarity extraction (PF2e specific)
       const rarity = system.traits?.rarity || 'common';
@@ -161,12 +185,12 @@ export class PF2eIndexBuilder implements IndexBuilder {
       let size = system.traits?.size?.value || 'med';
       // Normalize PF2e size values (tiny, sm, med, lg, huge, grg)
       const sizeMap: Record<string, string> = {
-        'tiny': 'tiny',
-        'sm': 'small',
-        'med': 'medium',
-        'lg': 'large',
-        'huge': 'huge',
-        'grg': 'gargantuan'
+        tiny: 'tiny',
+        sm: 'small',
+        med: 'medium',
+        lg: 'large',
+        huge: 'huge',
+        grg: 'gargantuan',
       };
       size = sizeMap[size.toLowerCase()] || 'medium';
 
@@ -203,12 +227,11 @@ export class PF2eIndexBuilder implements IndexBuilder {
             rarity,
             hasSpellcasting,
             hitPoints,
-            armorClass
-          }
+            armorClass,
+          },
         },
-        errors: 0
+        errors: 0,
       };
-
     } catch (error) {
       console.warn(`[${this.moduleId}] Failed to extract PF2e data from ${doc.name}:`, error);
 
@@ -230,10 +253,10 @@ export class PF2eIndexBuilder implements IndexBuilder {
             rarity: 'common',
             hasSpellcasting: false,
             hitPoints: 1,
-            armorClass: 10
-          }
+            armorClass: 10,
+          },
         },
-        errors: 1
+        errors: 1,
       };
     }
   }

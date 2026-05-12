@@ -113,13 +113,13 @@ export function getHiddenProcessSpawnOptions(): {
     return {
       detached: false,
       stdio: 'ignore',
-      windowsHide: true
+      windowsHide: true,
     };
   } else {
     // Mac and Linux: detached + ignore stdio to prevent terminal window
     return {
       detached: true,
-      stdio: 'ignore'
+      stdio: 'ignore',
     };
   }
 }

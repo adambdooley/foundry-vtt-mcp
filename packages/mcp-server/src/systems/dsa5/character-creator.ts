@@ -32,17 +32,20 @@ export class DSA5CharacterCreator {
     return [
       {
         name: 'create-dsa5-character-from-archetype',
-        description: 'Create a DSA5 character from an archetype (e.g., Allacaya, Wulfgrimm). Allows customization of name, age, biography, and other details. Use search-compendium first to find available archetypes in DSA5 character packs.',
+        description:
+          'Create a DSA5 character from an archetype (e.g., Allacaya, Wulfgrimm). Allows customization of name, age, biography, and other details. Use search-compendium first to find available archetypes in DSA5 character packs.',
         inputSchema: {
           type: 'object',
           properties: {
             archetypePackId: {
               type: 'string',
-              description: 'ID of the compendium pack containing the archetype (e.g., "dsa5-core.corecharacters")',
+              description:
+                'ID of the compendium pack containing the archetype (e.g., "dsa5-core.corecharacters")',
             },
             archetypeId: {
               type: 'string',
-              description: 'ID of the archetype within the pack (get from search-compendium results)',
+              description:
+                'ID of the archetype within the pack (get from search-compendium results)',
             },
             characterName: {
               type: 'string',
@@ -108,13 +111,15 @@ export class DSA5CharacterCreator {
       },
       {
         name: 'list-dsa5-archetypes',
-        description: 'List available DSA5 character archetypes from compendium packs. Helps users discover available templates for character creation.',
+        description:
+          'List available DSA5 character archetypes from compendium packs. Helps users discover available templates for character creation.',
         inputSchema: {
           type: 'object',
           properties: {
             packId: {
               type: 'string',
-              description: 'Optional: specific pack to search (e.g., "dsa5-core.corecharacters"). If not provided, searches all DSA5 character packs.',
+              description:
+                'Optional: specific pack to search (e.g., "dsa5-core.corecharacters"). If not provided, searches all DSA5 character packs.',
             },
             filterBySpecies: {
               type: 'string',
@@ -138,22 +143,25 @@ export class DSA5CharacterCreator {
       archetypePackId: z.string().min(1, 'Archetype pack ID cannot be empty'),
       archetypeId: z.string().min(1, 'Archetype ID cannot be empty'),
       characterName: z.string().min(1, 'Character name cannot be empty'),
-      customization: z.object({
-        age: z.number().min(12).max(100).optional(),
-        biography: z.string().optional(),
-        gender: z.enum(['male', 'female', 'diverse']).optional(),
-        eyeColor: z.string().optional(),
-        hairColor: z.string().optional(),
-        height: z.number().optional(),
-        weight: z.number().optional(),
-        species: z.string().optional(),
-        culture: z.string().optional(),
-        profession: z.string().optional(),
-      }).optional(),
+      customization: z
+        .object({
+          age: z.number().min(12).max(100).optional(),
+          biography: z.string().optional(),
+          gender: z.enum(['male', 'female', 'diverse']).optional(),
+          eyeColor: z.string().optional(),
+          hairColor: z.string().optional(),
+          height: z.number().optional(),
+          weight: z.number().optional(),
+          species: z.string().optional(),
+          culture: z.string().optional(),
+          profession: z.string().optional(),
+        })
+        .optional(),
       addToWorld: z.boolean().default(true),
     });
 
-    const { archetypePackId, archetypeId, characterName, customization, addToWorld } = schema.parse(args);
+    const { archetypePackId, archetypeId, characterName, customization, addToWorld } =
+      schema.parse(args);
 
     this.logger.info('Creating DSA5 character from archetype', {
       archetypePackId,
@@ -164,10 +172,13 @@ export class DSA5CharacterCreator {
 
     try {
       // First, get the full archetype data
-      const archetypeData = await this.foundryClient.query('foundry-mcp-bridge.getCompendiumDocumentFull', {
-        packId: archetypePackId,
-        documentId: archetypeId,
-      });
+      const archetypeData = await this.foundryClient.query(
+        'foundry-mcp-bridge.getCompendiumDocumentFull',
+        {
+          packId: archetypePackId,
+          documentId: archetypeId,
+        }
+      );
 
       if (!archetypeData) {
         throw new Error(`Archetype ${archetypeId} not found in pack ${archetypePackId}`);
@@ -177,14 +188,17 @@ export class DSA5CharacterCreator {
       const characterData = this.prepareCharacterData(archetypeData, characterName, customization);
 
       // Create the character actor in Foundry
-      const result = await this.foundryClient.query('foundry-mcp-bridge.createActorFromCompendium', {
-        packId: archetypePackId,
-        itemId: archetypeId,
-        customNames: [characterName],
-        quantity: 1,
-        addToScene: false, // Characters aren't added to scenes by default
-        customData: characterData, // Pass customizations
-      });
+      const result = await this.foundryClient.query(
+        'foundry-mcp-bridge.createActorFromCompendium',
+        {
+          packId: archetypePackId,
+          itemId: archetypeId,
+          customNames: [characterName],
+          quantity: 1,
+          addToScene: false, // Characters aren't added to scenes by default
+          customData: characterData, // Pass customizations
+        }
+      );
 
       this.logger.info('DSA5 character created successfully', {
         characterName,
@@ -192,10 +206,18 @@ export class DSA5CharacterCreator {
         success: result.success,
       });
 
-      return this.formatCharacterCreationResponse(result, archetypeData, characterName, customization);
-
+      return this.formatCharacterCreationResponse(
+        result,
+        archetypeData,
+        characterName,
+        customization
+      );
     } catch (error) {
-      this.errorHandler.handleToolError(error, 'create-dsa5-character-from-archetype', 'DSA5 character creation');
+      this.errorHandler.handleToolError(
+        error,
+        'create-dsa5-character-from-archetype',
+        'DSA5 character creation'
+      );
     }
   }
 
@@ -218,10 +240,9 @@ export class DSA5CharacterCreator {
       const packs = await this.foundryClient.query('foundry-mcp-bridge.getAvailablePacks');
 
       // Filter for DSA5 character packs
-      const characterPacks = packs.filter((pack: any) =>
-        pack.type === 'Actor' &&
-        pack.system === 'dsa5' &&
-        (!packId || pack.id === packId)
+      const characterPacks = packs.filter(
+        (pack: any) =>
+          pack.type === 'Actor' && pack.system === 'dsa5' && (!packId || pack.id === packId)
       );
 
       const archetypes: any[] = [];
@@ -240,7 +261,10 @@ export class DSA5CharacterCreator {
               if (filterBySpecies && entry.system?.details?.species?.value !== filterBySpecies) {
                 return false;
               }
-              if (filterByProfession && !entry.system?.details?.career?.value?.includes(filterByProfession)) {
+              if (
+                filterByProfession &&
+                !entry.system?.details?.career?.value?.includes(filterByProfession)
+              ) {
                 return false;
               }
               return true;
@@ -264,7 +288,6 @@ export class DSA5CharacterCreator {
       this.logger.info('Retrieved DSA5 archetypes', { count: archetypes.length });
 
       return this.formatArchetypeListResponse(archetypes, filterBySpecies, filterByProfession);
-
     } catch (error) {
       this.errorHandler.handleToolError(error, 'list-dsa5-archetypes', 'archetype listing');
     }
@@ -273,7 +296,11 @@ export class DSA5CharacterCreator {
   /**
    * Prepare character data with customizations
    */
-  private prepareCharacterData(archetypeData: any, characterName: string, customization?: any): any {
+  private prepareCharacterData(
+    archetypeData: any,
+    characterName: string,
+    customization?: any
+  ): any {
     const data: any = {
       name: characterName,
     };
@@ -361,12 +388,11 @@ export class DSA5CharacterCreator {
       if (customization.species) details.push(`**Species:** ${customization.species}`);
       if (customization.culture) details.push(`**Culture:** ${customization.culture}`);
       if (customization.profession) details.push(`**Profession:** ${customization.profession}`);
-      if (customization.biography) details.push(`**Biography:** ${customization.biography.substring(0, 100)}...`);
+      if (customization.biography)
+        details.push(`**Biography:** ${customization.biography.substring(0, 100)}...`);
     }
 
-    const errorInfo = result.errors?.length > 0
-      ? `\n⚠️ Issues: ${result.errors.join(', ')}`
-      : '';
+    const errorInfo = result.errors?.length > 0 ? `\n⚠️ Issues: ${result.errors.join(', ')}` : '';
 
     return {
       summary,
@@ -395,13 +421,19 @@ export class DSA5CharacterCreator {
     const filterInfo = [
       filterBySpecies ? `Species: ${filterBySpecies}` : null,
       filterByProfession ? `Profession: ${filterByProfession}` : null,
-    ].filter(Boolean).join(', ');
+    ]
+      .filter(Boolean)
+      .join(', ');
 
-    const summary = `Found ${archetypes.length} DSA5 archetypes` + (filterInfo ? ` (${filterInfo})` : '');
+    const summary =
+      `Found ${archetypes.length} DSA5 archetypes` + (filterInfo ? ` (${filterInfo})` : '');
 
-    const archetypeList = archetypes.map(archetype =>
-      `• **${archetype.name}** (${archetype.species}, ${archetype.profession})\n  Pack: ${archetype.packLabel} | ID: ${archetype.id}`
-    ).join('\n\n');
+    const archetypeList = archetypes
+      .map(
+        archetype =>
+          `• **${archetype.name}** (${archetype.species}, ${archetype.profession})\n  Pack: ${archetype.packLabel} | ID: ${archetype.id}`
+      )
+      .join('\n\n');
 
     return {
       summary,

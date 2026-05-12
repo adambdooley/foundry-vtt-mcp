@@ -22,20 +22,21 @@ const ConfigSchema = z.object({
     dataPath: z.string().optional(), // Custom path for generated maps (remote mode)
     rejectUnauthorized: z.boolean().default(true), // TLS certificate validation
     // WebRTC configuration
-    webrtc: z.object({
-      stunServers: z.array(z.string()).default([
-        'stun:stun.l.google.com:19302',
-        'stun:stun1.l.google.com:19302'
-      ]),
-      // Future: TURN servers support
-      // turnServers: z.array(z.object({
-      //   urls: z.string(),
-      //   username: z.string().optional(),
-      //   credential: z.string().optional()
-      // })).optional()
-    }).default({
-      stunServers: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302']
-    })
+    webrtc: z
+      .object({
+        stunServers: z
+          .array(z.string())
+          .default(['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302']),
+        // Future: TURN servers support
+        // turnServers: z.array(z.object({
+        //   urls: z.string(),
+        //   username: z.string().optional(),
+        //   credential: z.string().optional()
+        // })).optional()
+      })
+      .default({
+        stunServers: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'],
+      }),
   }),
   comfyui: z.object({
     // ComfyUI always runs locally on the same machine as the MCP server
@@ -65,7 +66,10 @@ const rawConfig = {
     reconnectAttempts: parseInt(process.env.FOUNDRY_RECONNECT_ATTEMPTS || '5', 10),
     reconnectDelay: parseInt(process.env.FOUNDRY_RECONNECT_DELAY || '1000', 10),
     connectionTimeout: parseInt(process.env.FOUNDRY_CONNECTION_TIMEOUT || '10000', 10),
-    connectionType: (process.env.FOUNDRY_CONNECTION_TYPE || 'auto') as 'websocket' | 'webrtc' | 'auto',
+    connectionType: (process.env.FOUNDRY_CONNECTION_TYPE || 'auto') as
+      | 'websocket'
+      | 'webrtc'
+      | 'auto',
     protocol: (process.env.FOUNDRY_PROTOCOL || 'ws') as 'ws' | 'wss',
     remoteMode: process.env.FOUNDRY_REMOTE_MODE === 'true',
     dataPath: process.env.FOUNDRY_DATA_PATH,
@@ -73,15 +77,15 @@ const rawConfig = {
     webrtc: {
       stunServers: process.env.FOUNDRY_STUN_SERVERS
         ? process.env.FOUNDRY_STUN_SERVERS.split(',')
-        : ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302']
-    }
+        : ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'],
+    },
   },
   comfyui: {
     // ComfyUI always runs locally on the same machine as the MCP server (localhost:31411)
     port: parseInt(process.env.COMFYUI_PORT || '31411', 10),
     installPath: process.env.COMFYUI_INSTALL_PATH || getDefaultComfyUIDir(),
     host: process.env.COMFYUI_HOST || '127.0.0.1',
-    pythonCommand: process.env.COMFYUI_PYTHON_COMMAND || 'python/python.exe'
+    pythonCommand: process.env.COMFYUI_PYTHON_COMMAND || 'python/python.exe',
   },
   toolResponseMaxChars: parseInt(process.env.TOOL_RESPONSE_MAX_CHARS || '20000', 10),
   server: {

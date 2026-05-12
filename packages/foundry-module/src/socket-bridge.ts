@@ -30,8 +30,10 @@ export class SocketBridge {
   }
 
   async connect(): Promise<void> {
-    if (this.connectionState === CONNECTION_STATES.CONNECTED ||
-        this.connectionState === CONNECTION_STATES.CONNECTING) {
+    if (
+      this.connectionState === CONNECTION_STATES.CONNECTED ||
+      this.connectionState === CONNECTION_STATES.CONNECTING
+    ) {
       return;
     }
 
@@ -74,7 +76,7 @@ export class SocketBridge {
       namespace: this.config.namespace,
       stunServers: [], // Empty for localhost - must match server configuration
       connectionTimeout: this.config.connectionTimeout,
-      debugLogging: this.config.debugLogging
+      debugLogging: this.config.debugLogging,
     };
 
     this.webrtc = new WebRTCConnection(webrtcConfig);
@@ -121,20 +123,20 @@ export class SocketBridge {
           resolve();
         };
 
-        this.ws.onerror = (error) => {
+        this.ws.onerror = error => {
           clearTimeout(connectTimeout);
           // Use more informative message for connection failures
           const isFirstAttempt = this.reconnectAttempts === 0;
-          const errorMsg = isFirstAttempt ?
-            'MCP server not available (this is normal if server isn\'t running)' :
-            `Connection error after ${this.reconnectAttempts} attempts: ${error}`;
+          const errorMsg = isFirstAttempt
+            ? "MCP server not available (this is normal if server isn't running)"
+            : `Connection error after ${this.reconnectAttempts} attempts: ${error}`;
           this.log(errorMsg);
           this.connectionState = CONNECTION_STATES.DISCONNECTED;
           this.scheduleReconnect();
           reject(new Error('WebSocket connection failed'));
         };
 
-        this.ws.onclose = (event) => {
+        this.ws.onclose = event => {
           this.log(`Disconnected: ${event.reason || 'Connection closed'}`);
           this.connectionState = CONNECTION_STATES.DISCONNECTED;
 
@@ -145,7 +147,6 @@ export class SocketBridge {
 
           this.scheduleReconnect();
         };
-
       } catch (error) {
         clearTimeout(connectTimeout);
         this.log(`Failed to create WebSocket: ${error}`);
@@ -179,7 +180,7 @@ export class SocketBridge {
   private setupEventHandlers(): void {
     if (!this.ws) return;
 
-    this.ws.onmessage = (event) => {
+    this.ws.onmessage = event => {
       try {
         const message = JSON.parse(event.data);
         this.handleMessage(message);
@@ -192,18 +193,18 @@ export class SocketBridge {
   private async handleMessage(message: any): Promise<void> {
     try {
       if (message.type === 'mcp-query') {
-        await this.handleMCPQuery(message.data, (response) => {
+        await this.handleMCPQuery(message.data, response => {
           this.sendMessage({
             type: 'mcp-response',
             id: message.id,
-            data: response
+            data: response,
           });
         });
       } else if (message.type === 'ping') {
         this.sendMessage({
           type: 'pong',
           id: message.id,
-          data: { timestamp: Date.now(), status: 'ok' }
+          data: { timestamp: Date.now(), status: 'ok' },
         });
       } else if (message.type === 'job-completed') {
         await this.handleJobCompleted(message.data);
@@ -270,15 +271,16 @@ export class SocketBridge {
 
       // Execute the query handler
       const result = await handler(data.data || {});
-      
+
       this.log(`Query completed: ${data.method}`);
       callback({ success: true, data: result });
-
     } catch (error) {
-      this.log(`Query failed: ${data.method} - ${error instanceof Error ? error.message : 'Unknown error'}`);
-      callback({ 
-        success: false, 
-        error: error instanceof Error ? error.message : 'Unknown error' 
+      this.log(
+        `Query failed: ${data.method} - ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+      callback({
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
       });
     }
   }
@@ -325,7 +327,7 @@ export class SocketBridge {
       if (!scene.img && sceneData.img) {
         await scene.update({
           img: sceneData.img,
-          background: { src: sceneData.img }
+          background: { src: sceneData.img },
         });
       }
 
@@ -343,13 +345,15 @@ export class SocketBridge {
       }
 
       this.log(`Scene "${sceneData.name}" created and activated`);
-
     } catch (error) {
-      this.log(`Failed to create scene from generated map: ${error instanceof Error ? error.message : 'Unknown error'}`);
-      ui.notifications?.error(`Failed to create scene: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      this.log(
+        `Failed to create scene from generated map: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+      ui.notifications?.error(
+        `Failed to create scene: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
-
 
   private async createSceneWalls(scene: any, wallsData: any[]): Promise<void> {
     if (!wallsData || !Array.isArray(wallsData) || wallsData.length === 0) {
@@ -379,24 +383,27 @@ export class SocketBridge {
         c: wall.c, // Wall coordinates [x1, y1, x2, y2]
         move: wall.movement || 0,
         sense: wall.sight || 0,
-        doorSound: "",
+        doorSound: '',
         dir: wall.direction || 0,
         door: wall.door || 0,
         ds: wall.doorState || 0,
-        flags: wall.flags || {}
+        flags: wall.flags || {},
       }));
 
       if (wallDocuments.length > 0) {
-        await scene.createEmbeddedDocuments("Wall", wallDocuments);
+        await scene.createEmbeddedDocuments('Wall', wallDocuments);
         ui.notifications?.info(`Created ${wallDocuments.length} walls in scene "${scene.name}"`);
       } else {
         this.log('No valid walls to create');
         ui.notifications?.warn('No valid walls could be created from detection data');
       }
-
     } catch (error) {
-      this.log(`Failed to create walls: ${error instanceof Error ? error.message : 'Unknown error'}`);
-      ui.notifications?.warn(`Some walls could not be created: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      this.log(
+        `Failed to create walls: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+      ui.notifications?.warn(
+        `Some walls could not be created: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
@@ -408,8 +415,8 @@ export class SocketBridge {
       const folderName = 'AI Generated Maps';
 
       // Check if folder already exists
-      const existingFolder = (globalThis as any).game.folders.find((f: any) =>
-        f.type === 'Scene' && f.name === folderName
+      const existingFolder = (globalThis as any).game.folders.find(
+        (f: any) => f.type === 'Scene' && f.name === folderName
       );
 
       if (existingFolder) {
@@ -424,7 +431,7 @@ export class SocketBridge {
         type: 'Scene',
         description: 'Scenes created by AI Map Generation',
         color: '#4a90e2', // Nice blue color
-        sorting: 'a' // Sort alphabetically
+        sorting: 'a', // Sort alphabetically
       });
 
       if (folder) {
@@ -434,9 +441,10 @@ export class SocketBridge {
 
       this.log('Failed to create AI Generated Maps folder');
       return null;
-
     } catch (error) {
-      this.log(`Error managing AI Generated Maps folder: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      this.log(
+        `Error managing AI Generated Maps folder: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
       return null;
     }
   }
@@ -491,7 +499,7 @@ export class SocketBridge {
     this.sendMessage({
       type: event,
       data: data,
-      timestamp: Date.now()
+      timestamp: Date.now(),
     });
   }
 

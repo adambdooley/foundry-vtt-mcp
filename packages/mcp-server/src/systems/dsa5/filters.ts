@@ -12,51 +12,53 @@ import { z } from 'zod';
  * Common species from DSA5 Grundregelwerk
  */
 export const DSA5Species = [
-  'mensch',      // Human
-  'elf',         // Elf
-  'halbelf',     // Half-Elf
-  'zwerg',       // Dwarf
-  'goblin',      // Goblin
-  'ork',         // Orc
-  'halborc',     // Half-Orc
-  'achaz',       // Achaz (lizard folk)
-  'troll',       // Troll
-  'oger',        // Ogre
-  'drache',      // Dragon
-  'dämon',       // Demon
-  'elementar',   // Elemental
-  'untot',       // Undead
-  'tier',        // Animal/Beast
-  'chimäre',     // Chimera/Hybrid creature
+  'mensch', // Human
+  'elf', // Elf
+  'halbelf', // Half-Elf
+  'zwerg', // Dwarf
+  'goblin', // Goblin
+  'ork', // Orc
+  'halborc', // Half-Orc
+  'achaz', // Achaz (lizard folk)
+  'troll', // Troll
+  'oger', // Ogre
+  'drache', // Dragon
+  'dämon', // Demon
+  'elementar', // Elemental
+  'untot', // Undead
+  'tier', // Animal/Beast
+  'chimäre', // Chimera/Hybrid creature
 ] as const;
 
-export type DSA5SpeciesType = typeof DSA5Species[number];
+export type DSA5SpeciesType = (typeof DSA5Species)[number];
 
 /**
  * Common creature sizes (shared with D&D5e)
  */
 export const CreatureSizes = ['tiny', 'small', 'medium', 'large', 'huge', 'gargantuan'] as const;
-export type CreatureSize = typeof CreatureSizes[number];
+export type CreatureSize = (typeof CreatureSizes)[number];
 
 /**
  * Experience levels (Erfahrungsgrade) 1-7
  * Maps to AP ranges defined in DSA5_EXPERIENCE_LEVELS.md
  */
 export const ExperienceLevels = [1, 2, 3, 4, 5, 6, 7] as const;
-export type ExperienceLevel = typeof ExperienceLevels[number];
+export type ExperienceLevel = (typeof ExperienceLevels)[number];
 
 /**
  * DSA5 filter schema
  */
 export const DSA5FiltersSchema = z.object({
   // Level filter (1-7) - replaces D&D5e's Challenge Rating
-  level: z.union([
-    z.number().min(1).max(7),
-    z.object({
-      min: z.number().min(1).max(7).optional(),
-      max: z.number().min(1).max(7).optional()
-    })
-  ]).optional(),
+  level: z
+    .union([
+      z.number().min(1).max(7),
+      z.object({
+        min: z.number().min(1).max(7).optional(),
+        max: z.number().min(1).max(7).optional(),
+      }),
+    ])
+    .optional(),
 
   // Species filter (Spezies/Rasse)
   species: z.enum(DSA5Species).optional(),
@@ -71,13 +73,15 @@ export const DSA5FiltersSchema = z.object({
   hasSpells: z.boolean().optional(),
 
   // Experience points range (AP) - detail filter
-  experiencePoints: z.union([
-    z.number(),
-    z.object({
-      min: z.number().optional(),
-      max: z.number().optional()
-    })
-  ]).optional(),
+  experiencePoints: z
+    .union([
+      z.number(),
+      z.object({
+        min: z.number().optional(),
+        max: z.number().optional(),
+      }),
+    ])
+    .optional(),
 });
 
 export type DSA5Filters = z.infer<typeof DSA5FiltersSchema>;

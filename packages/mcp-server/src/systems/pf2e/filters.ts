@@ -25,40 +25,42 @@ export const PF2eCreatureTypes = [
   'monitor',
   'ooze',
   'plant',
-  'undead'
+  'undead',
 ] as const;
 
-export type PF2eCreatureType = typeof PF2eCreatureTypes[number];
+export type PF2eCreatureType = (typeof PF2eCreatureTypes)[number];
 
 /**
  * Pathfinder 2e rarity levels
  */
 export const PF2eRarities = ['common', 'uncommon', 'rare', 'unique'] as const;
-export type PF2eRarity = typeof PF2eRarities[number];
+export type PF2eRarity = (typeof PF2eRarities)[number];
 
 /**
  * Common creature sizes
  */
 export const CreatureSizes = ['tiny', 'small', 'medium', 'large', 'huge', 'gargantuan'] as const;
-export type CreatureSize = typeof CreatureSizes[number];
+export type CreatureSize = (typeof CreatureSizes)[number];
 
 /**
  * Pathfinder 2e filter schema
  */
 export const PF2eFiltersSchema = z.object({
-  level: z.union([
-    z.number().min(-1).max(30), // PF2e levels range from -1 to 25+ (accounting for higher levels)
-    z.object({
-      min: z.number().min(-1).optional(),
-      max: z.number().max(30).optional()
-    })
-  ]).optional(),
+  level: z
+    .union([
+      z.number().min(-1).max(30), // PF2e levels range from -1 to 25+ (accounting for higher levels)
+      z.object({
+        min: z.number().min(-1).optional(),
+        max: z.number().max(30).optional(),
+      }),
+    ])
+    .optional(),
   creatureType: z.enum(PF2eCreatureTypes).optional(),
   traits: z.array(z.string()).optional(), // Array of trait names
   rarity: z.enum(PF2eRarities).optional(),
   size: z.enum(CreatureSizes).optional(),
   alignment: z.string().optional(),
-  hasSpells: z.boolean().optional() // PF2e uses spellcasting entries
+  hasSpells: z.boolean().optional(), // PF2e uses spellcasting entries
 });
 
 export type PF2eFilters = z.infer<typeof PF2eFiltersSchema>;
@@ -86,8 +88,8 @@ export function matchesPF2eFilters(creature: any, filters: PF2eFilters): boolean
     const traits = creature.systemData?.traits;
     if (!Array.isArray(traits)) return false;
 
-    const hasType = traits.some((trait: string) =>
-      trait.toLowerCase() === filters.creatureType!.toLowerCase()
+    const hasType = traits.some(
+      (trait: string) => trait.toLowerCase() === filters.creatureType!.toLowerCase()
     );
     if (!hasType) return false;
   }

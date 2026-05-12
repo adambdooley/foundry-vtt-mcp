@@ -2,9 +2,7 @@
   "mcpServers": {
     "foundry-mcp": {
       "command": "node",
-      "args": [
-        "D:/Projects/FVTTMCP/packages/mcp-server/dist/index.js"
-      ],
+      "args": ["D:/Projects/FVTTMCP/packages/mcp-server/dist/index.js"],
       "env": {
         "LOG_LEVEL": "info",
         "FOUNDRY_HOST": "localhost",

@@ -70,7 +70,13 @@ console.log('📁 Cleaning build directory...');
 // ============================================================================
 console.log('\n📦 Building Component 1: MCP Server (Required)...');
 
-const coreAppBundle = path.join(CORE_ROOT, 'Applications', 'FoundryMCPServer.app', 'Contents', 'Resources');
+const coreAppBundle = path.join(
+  CORE_ROOT,
+  'Applications',
+  'FoundryMCPServer.app',
+  'Contents',
+  'Resources'
+);
 fs.mkdirSync(coreAppBundle, { recursive: true });
 
 // Copy MCP server bundles
@@ -159,15 +165,18 @@ fs.writeFileSync(path.join(coreScripts, 'postinstall'), corePostinstall);
 fs.chmodSync(path.join(coreScripts, 'postinstall'), 0o755);
 
 // Build core component package
-execSync(`pkgbuild \\
+execSync(
+  `pkgbuild \\
   --root "${CORE_ROOT}" \\
   --scripts "${coreScripts}" \\
   --identifier com.foundry-mcp.core \\
   --version "${VERSION}" \\
   --install-location / \\
-  "${CORE_PKG}"`, {
-  stdio: 'inherit'
-});
+  "${CORE_PKG}"`,
+  {
+    stdio: 'inherit',
+  }
+);
 
 console.log('✅ Core component package built');
 
@@ -176,7 +185,13 @@ console.log('✅ Core component package built');
 // ============================================================================
 console.log('\n📦 Building Component 2: Foundry Module (Optional)...');
 
-const foundryAppBundle = path.join(FOUNDRY_ROOT, 'Applications', 'FoundryMCPServer.app', 'Contents', 'Resources');
+const foundryAppBundle = path.join(
+  FOUNDRY_ROOT,
+  'Applications',
+  'FoundryMCPServer.app',
+  'Contents',
+  'Resources'
+);
 fs.mkdirSync(foundryAppBundle, { recursive: true });
 
 // Copy Foundry module
@@ -195,10 +210,7 @@ copyRecursive(path.join(moduleSourceRoot, 'dist'), path.join(moduleDest, 'dist')
     copyRecursive(srcPath, path.join(moduleDest, folder));
   }
 });
-fs.copyFileSync(
-  path.join(moduleSourceRoot, 'module.json'),
-  path.join(moduleDest, 'module.json')
-);
+fs.copyFileSync(path.join(moduleSourceRoot, 'module.json'), path.join(moduleDest, 'module.json'));
 
 console.log('✅ Foundry module files copied');
 
@@ -251,15 +263,18 @@ fs.writeFileSync(path.join(foundryScripts, 'postinstall'), foundryPostinstall);
 fs.chmodSync(path.join(foundryScripts, 'postinstall'), 0o755);
 
 // Build Foundry component package
-execSync(`pkgbuild \\
+execSync(
+  `pkgbuild \\
   --root "${FOUNDRY_ROOT}" \\
   --scripts "${foundryScripts}" \\
   --identifier com.foundry-mcp.foundry-module \\
   --version "${VERSION}" \\
   --install-location / \\
-  "${FOUNDRY_PKG}"`, {
-  stdio: 'inherit'
-});
+  "${FOUNDRY_PKG}"`,
+  {
+    stdio: 'inherit',
+  }
+);
 
 console.log('✅ Foundry module component package built');
 
@@ -268,7 +283,13 @@ console.log('✅ Foundry module component package built');
 // ============================================================================
 console.log('\n📦 Building Component 3: ComfyUI AI Maps (Optional)...');
 
-const comfyuiAppBundle = path.join(COMFYUI_ROOT, 'Applications', 'FoundryMCPServer.app', 'Contents', 'Resources');
+const comfyuiAppBundle = path.join(
+  COMFYUI_ROOT,
+  'Applications',
+  'FoundryMCPServer.app',
+  'Contents',
+  'Resources'
+);
 fs.mkdirSync(comfyuiAppBundle, { recursive: true });
 
 // Copy ComfyUI setup script
@@ -352,15 +373,18 @@ fs.writeFileSync(path.join(comfyuiScripts, 'postinstall'), comfyuiPostinstall);
 fs.chmodSync(path.join(comfyuiScripts, 'postinstall'), 0o755);
 
 // Build ComfyUI component package
-execSync(`pkgbuild \\
+execSync(
+  `pkgbuild \\
   --root "${COMFYUI_ROOT}" \\
   --scripts "${comfyuiScripts}" \\
   --identifier com.foundry-mcp.comfyui \\
   --version "${VERSION}" \\
   --install-location / \\
-  "${COMFYUI_PKG}"`, {
-  stdio: 'inherit'
-});
+  "${COMFYUI_PKG}"`,
+  {
+    stdio: 'inherit',
+  }
+);
 
 console.log('✅ ComfyUI component package built');
 
@@ -479,26 +503,35 @@ console.log('✅ Distribution XML created');
 // ============================================================================
 console.log('\n🔨 Building final installer package...');
 
-execSync(`productbuild \\
+execSync(
+  `productbuild \\
   --distribution "${distXMLPath}" \\
   --resources "${BUILD_DIR}" \\
   --package-path "${BUILD_DIR}" \\
-  "${FINAL_PKG}"`, {
-  stdio: 'inherit'
-});
+  "${FINAL_PKG}"`,
+  {
+    stdio: 'inherit',
+  }
+);
 
 console.log('✅ Final package built');
 
 // Clean up
 console.log('\n🧹 Cleaning up build artifacts...');
 const cleanupItems = [
-  CORE_ROOT, FOUNDRY_ROOT, COMFYUI_ROOT,
-  coreScripts, foundryScripts, comfyuiScripts,
-  CORE_PKG, FOUNDRY_PKG, COMFYUI_PKG,
+  CORE_ROOT,
+  FOUNDRY_ROOT,
+  COMFYUI_ROOT,
+  coreScripts,
+  foundryScripts,
+  comfyuiScripts,
+  CORE_PKG,
+  FOUNDRY_PKG,
+  COMFYUI_PKG,
   distXMLPath,
   path.join(BUILD_DIR, 'welcome.html'),
   path.join(BUILD_DIR, 'conclusion.html'),
-  path.join(BUILD_DIR, 'license.txt')
+  path.join(BUILD_DIR, 'license.txt'),
 ];
 cleanupItems.forEach(item => {
   if (fs.existsSync(item)) {

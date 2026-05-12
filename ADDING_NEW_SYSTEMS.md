@@ -38,24 +38,22 @@ Define what users can filter by when searching creatures:
 import { z } from 'zod';
 
 // Define creature types for your system
-export const MySystemCreatureTypes = [
-  'type1',
-  'type2',
-  'type3'
-] as const;
+export const MySystemCreatureTypes = ['type1', 'type2', 'type3'] as const;
 
-export type MySystemCreatureType = typeof MySystemCreatureTypes[number];
+export type MySystemCreatureType = (typeof MySystemCreatureTypes)[number];
 
 // Define filter schema
 export const MySystemFiltersSchema = z.object({
   // Your system's power metric (e.g., CR, Level, Challenge Points)
-  powerLevel: z.union([
-    z.number(),
-    z.object({
-      min: z.number().optional(),
-      max: z.number().optional()
-    })
-  ]).optional(),
+  powerLevel: z
+    .union([
+      z.number(),
+      z.object({
+        min: z.number().optional(),
+        max: z.number().optional(),
+      }),
+    ])
+    .optional(),
 
   creatureType: z.enum(MySystemCreatureTypes).optional(),
   size: z.string().optional(),
@@ -116,7 +114,7 @@ import type { IndexBuilder, SystemCreatureIndex } from '../types.js';
 export interface MySystemCreatureIndex extends SystemCreatureIndex {
   system: 'mysystem';
   systemData: {
-    powerLevel?: number;      // Your system's power metric
+    powerLevel?: number; // Your system's power metric
     creatureType?: string;
     size?: string;
     // Add system-specific fields here
@@ -140,7 +138,9 @@ export class MySystemIndexBuilder implements IndexBuilder {
     const creatures: MySystemCreatureIndex[] = [];
     let totalErrors = 0;
 
-    console.log(`[${this.moduleId}] Building MySystem creature index from ${actorPacks.length} packs...`);
+    console.log(
+      `[${this.moduleId}] Building MySystem creature index from ${actorPacks.length} packs...`
+    );
 
     for (const pack of actorPacks) {
       const result = await this.extractDataFromPack(pack);
@@ -149,12 +149,16 @@ export class MySystemIndexBuilder implements IndexBuilder {
     }
 
     const buildTimeSeconds = Math.round((Date.now() - startTime) / 1000);
-    console.log(`[${this.moduleId}] MySystem index complete! ${creatures.length} creatures in ${buildTimeSeconds}s`);
+    console.log(
+      `[${this.moduleId}] MySystem index complete! ${creatures.length} creatures in ${buildTimeSeconds}s`
+    );
 
     return creatures;
   }
 
-  async extractDataFromPack(pack: any): Promise<{ creatures: MySystemCreatureIndex[]; errors: number }> {
+  async extractDataFromPack(
+    pack: any
+  ): Promise<{ creatures: MySystemCreatureIndex[]; errors: number }> {
     const creatures: MySystemCreatureIndex[] = [];
     let errors = 0;
 
@@ -171,14 +175,20 @@ export class MySystemIndexBuilder implements IndexBuilder {
         }
       }
     } catch (error) {
-      console.warn(`[${this.moduleId}] Failed to load documents from ${pack.metadata.label}:`, error);
+      console.warn(
+        `[${this.moduleId}] Failed to load documents from ${pack.metadata.label}:`,
+        error
+      );
       errors++;
     }
 
     return { creatures, errors };
   }
 
-  extractCreatureData(doc: any, pack: any): { creature: MySystemCreatureIndex; errors: number } | null {
+  extractCreatureData(
+    doc: any,
+    pack: any
+  ): { creature: MySystemCreatureIndex; errors: number } | null {
     try {
       const system = doc.system || {};
 
@@ -199,10 +209,10 @@ export class MySystemIndexBuilder implements IndexBuilder {
           systemData: {
             powerLevel: Number(powerLevel),
             creatureType,
-            size
-          }
+            size,
+          },
         },
-        errors: 0
+        errors: 0,
       };
     } catch (error) {
       console.warn(`[${this.moduleId}] Failed to extract data from ${doc.name}:`, error);
@@ -218,10 +228,10 @@ export class MySystemIndexBuilder implements IndexBuilder {
           systemData: {
             powerLevel: 0,
             creatureType: 'unknown',
-            size: 'medium'
-          }
+            size: 'medium',
+          },
         },
-        errors: 1
+        errors: 1,
       };
     }
   }
@@ -236,7 +246,12 @@ Implements the SystemAdapter interface:
 
 ```typescript
 import type { SystemAdapter, SystemMetadata, SystemCreatureIndex } from '../types.js';
-import { MySystemFiltersSchema, matchesMySystemFilters, describeMySystemFilters, type MySystemFilters } from './filters.js';
+import {
+  MySystemFiltersSchema,
+  matchesMySystemFilters,
+  describeMySystemFilters,
+  type MySystemFilters,
+} from './filters.js';
 
 export class MySystemAdapter implements SystemAdapter {
   getMetadata(): SystemMetadata {
@@ -250,8 +265,8 @@ export class MySystemAdapter implements SystemAdapter {
         creatureIndex: true,
         characterStats: true,
         spellcasting: true,
-        powerLevel: true
-      }
+        powerLevel: true,
+      },
     };
   }
 
@@ -259,7 +274,10 @@ export class MySystemAdapter implements SystemAdapter {
     return systemId.toLowerCase() === 'mysystem';
   }
 
-  extractCreatureData(doc: any, pack: any): { creature: SystemCreatureIndex; errors: number } | null {
+  extractCreatureData(
+    doc: any,
+    pack: any
+  ): { creature: SystemCreatureIndex; errors: number } | null {
     throw new Error('extractCreatureData should be called from MySystemIndexBuilder');
   }
 
@@ -283,7 +301,7 @@ export class MySystemAdapter implements SystemAdapter {
       armorClass: 'system.attributes.ac.value',
       // Set to null for paths that don't exist in your system
       challengeRating: null,
-      level: null
+      level: null,
     };
   }
 
@@ -294,15 +312,15 @@ export class MySystemAdapter implements SystemAdapter {
       type: creature.type,
       pack: {
         id: creature.packName,
-        label: creature.packLabel
-      }
+        label: creature.packLabel,
+      },
     };
 
     if (creature.systemData) {
       formatted.stats = {
         powerLevel: creature.systemData.powerLevel,
         creatureType: creature.systemData.creatureType,
-        size: creature.systemData.size
+        size: creature.systemData.size,
       };
     }
 
@@ -345,7 +363,7 @@ export class MySystemAdapter implements SystemAdapter {
     if (hp) {
       stats.hitPoints = {
         current: hp.value ?? 0,
-        max: hp.max ?? 0
+        max: hp.max ?? 0,
       };
     }
 
@@ -375,6 +393,7 @@ That's it! Your system is now supported.
 ## Testing Your System
 
 1. **Build the project:**
+
    ```bash
    npm run build
    npm run bundle:server
@@ -398,16 +417,19 @@ That's it! Your system is now supported.
 ## Real-World Examples
 
 ### D&D 5e Adapter
+
 - **Power metric:** Challenge Rating (CR) 0-30
 - **Key fields:** creatureType, size, alignment, hasLegendaryActions
 - **Files:** `packages/mcp-server/src/systems/dnd5e/`
 
 ### Pathfinder 2e Adapter
+
 - **Power metric:** Level -1 to 25+
 - **Key fields:** traits (array), rarity, size, alignment
 - **Files:** `packages/mcp-server/src/systems/pf2e/`
 
 ### DSA5 Example (Requested by Community)
+
 - **Power metric:** Challenge Points or Level
 - **Key fields:** 8 characteristics (mu/kl/in/ch/ff/ge/ko/kk), wounds, AsP, KaP
 - **Expected files:** `packages/mcp-server/src/systems/dsa5/`
@@ -448,14 +470,17 @@ If you've created an adapter for a popular game system, consider contributing it
 ## Troubleshooting
 
 ### "System adapter not found"
+
 - Check that your adapter is registered in backend.ts
 - Verify `canHandle()` returns true for your system ID
 
 ### "Enhanced creature index not supported"
+
 - Ensure your IndexBuilder is registered (if using index-based tools)
 - Check that `getSystemId()` matches your system ID exactly
 
 ### Filters not working
+
 - Verify filter schema matches your system's data structure
 - Check `matchesFilters()` logic matches your data paths
 - Test filter validation with `MySystemFiltersSchema.safeParse()`

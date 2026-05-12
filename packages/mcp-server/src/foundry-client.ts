@@ -21,17 +21,17 @@ export class FoundryClient {
   constructor(config: Config['foundry'], logger: Logger) {
     this.config = config;
     this.logger = logger.child({ component: 'FoundryClient' });
-    
+
     // Initialize the socket connector
     this.connector = new FoundryConnector({
       config: this.config,
-      logger: this.logger
+      logger: this.logger,
     });
   }
 
   async connect(): Promise<void> {
     this.logger.info('Starting Foundry connector socket.io server');
-    
+
     try {
       // Start the socket.io server that Foundry will connect to
       await this.connector.start();
@@ -56,7 +56,9 @@ export class FoundryClient {
 
   async query(method: string, data?: any): Promise<any> {
     if (!this.connector.isConnected()) {
-      throw new Error('Foundry VTT module not connected. Please ensure Foundry is running and the MCP Bridge module is enabled.');
+      throw new Error(
+        'Foundry VTT module not connected. Please ensure Foundry is running and the MCP Bridge module is enabled.'
+      );
     }
 
     this.logger.debug('Sending query to Foundry module', { method, data });
@@ -89,7 +91,10 @@ export class FoundryClient {
   }
 
   sendMessage(message: any): void {
-    this.logger.debug('Sending message to Foundry', { type: message.type, requestId: message.requestId });
+    this.logger.debug('Sending message to Foundry', {
+      type: message.type,
+      requestId: message.requestId,
+    });
     this.connector.sendToFoundry(message);
   }
 

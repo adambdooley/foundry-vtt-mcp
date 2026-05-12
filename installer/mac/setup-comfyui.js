@@ -83,32 +83,32 @@ const MODELS = [
     name: 'YAML Config',
     url: 'https://huggingface.co/AdamDooley/dnd-battlemaps-sdxl-1.0-mirror/resolve/main/dDBattlemapsSDXL10_upscaleV10.yaml',
     path: 'configs/dDBattlemapsSDXL10_upscaleV10.yaml',
-    size: '1KB'
+    size: '1KB',
   },
   {
     name: 'SDXL Base Model',
     url: 'https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/resolve/main/sd_xl_base_1.0.safetensors',
     path: 'checkpoints/sd_xl_base_1.0.safetensors',
-    size: '6.5GB'
+    size: '6.5GB',
   },
   {
     name: 'SDXL VAE',
     url: 'https://huggingface.co/stabilityai/sdxl-vae/resolve/main/sdxl_vae.safetensors',
     path: 'vae/sdxl_vae.safetensors',
-    size: '335MB'
+    size: '335MB',
   },
   {
     name: 'D&D Battlemaps Checkpoint',
     url: 'https://huggingface.co/AdamDooley/dnd-battlemaps-sdxl-1.0-mirror/resolve/main/dDBattlemapsSDXL10_upscaleV10.safetensors',
     path: 'checkpoints/dDBattlemapsSDXL10_upscaleV10.safetensors',
-    size: '6.5GB'
+    size: '6.5GB',
   },
   {
     name: 'License File',
     url: 'https://huggingface.co/AdamDooley/dnd-battlemaps-sdxl-1.0-mirror/raw/main/license.txt',
     path: 'checkpoints/dDBattlemapsSDXL10_LICENSE.txt',
-    size: '1KB'
-  }
+    size: '1KB',
+  },
 ];
 
 // Helper: Download file with progress using curl (much more reliable than Node.js https)
@@ -182,7 +182,9 @@ async function installComfyUI() {
 
     // Mount DMG
     log('   Mounting DMG image...');
-    const mountOutput = execSync(`hdiutil attach "${dmgPath}" -nobrowse -noverify`, { encoding: 'utf8' });
+    const mountOutput = execSync(`hdiutil attach "${dmgPath}" -nobrowse -noverify`, {
+      encoding: 'utf8',
+    });
     const volumeMatch = mountOutput.match(/\/Volumes\/([^\n]+)/);
 
     if (!volumeMatch) {
@@ -316,7 +318,7 @@ function installFoundryModule() {
   const possiblePaths = [
     `${home}/Library/Application Support/FoundryVTT/Data/modules`,
     `${home}/FoundryVTT/Data/modules`,
-    '/Applications/FoundryVTT/Data/modules'
+    '/Applications/FoundryVTT/Data/modules',
   ];
 
   let foundryPath = null;
@@ -409,7 +411,7 @@ async function main() {
   logStream.end();
 }
 
-main().catch((error) => {
+main().catch(error => {
   logError('\n❌ Unexpected error:', error.message);
   logStream.end();
   process.exit(1);

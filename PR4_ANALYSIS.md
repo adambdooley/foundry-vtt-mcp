@@ -17,6 +17,7 @@
 ## PR #4 Overview
 
 ### Basic Information
+
 - **Title:** "Claude/fix dsa token tools 01 xjfWKx8w6XuZ6onXv4dJ4f"
 - **Status:** Open (28 Commits, 37 Files Changed, +7,807 −333 lines)
 - **Base Branch:** `master`
@@ -24,6 +25,7 @@
 - **Version:** 0.7.0-dsa.1
 
 ### Major Features
+
 1. **Registry Pattern Architecture**
    - SystemRegistry + SystemAdapter interface
    - Dedicated adapters for DND5e, PF2e, DSA5
@@ -45,6 +47,7 @@
 ## Current Branch Status (claude/fix-local-repo-mcp-0143j5fe8Q6Kg3QbHQfDeFKB)
 
 ### Version & Architecture
+
 - **Version:** 0.6.0
 - **Architecture:** ❌ NO Registry Pattern
 - **Systems Directory:** ❌ Does NOT exist
@@ -52,11 +55,13 @@
 - **Adapter Files:** ❌ None
 
 ### DSA5 Implementation
+
 - **Method:** Direct `if (game.system.id === 'dsa5')` checks in `data-access.ts`
 - **Location:** Line 4519 in `packages/foundry-module/src/data-access.ts`
 - **Violations:** ⚠️ Violates ARCHITECTURE.md rules from PR #4
 
 **Current DSA5 Code:**
+
 ```typescript
 // data-access.ts:4519 - CURRENT BRANCH
 if ((game.system as any)?.id === 'dsa5') {
@@ -70,6 +75,7 @@ if ((game.system as any)?.id === 'dsa5') {
 ```
 
 **ARCHITECTURE.md Rule (from PR #4):**
+
 ```
 ❌ FORBIDDEN:
 if (game.system.id === 'dsa5') {
@@ -89,31 +95,35 @@ if (adapter) {
 
 ### Bug Analysis
 
-| Bug ID | Description | Fixed in PR #4? | Fixed in Current Branch? |
-|--------|-------------|-----------------|-------------------------|
-| **BUG #1** | `list-creatures-by-criteria` - DSA5 incompatibility (CR-based filtering) | ❌ NO | ❌ NO |
-| **BUG #2** | `create-actor-from-compendium` - DSA5 creation failure | ❓ UNKNOWN | ❌ NO |
+| Bug ID     | Description                                                              | Fixed in PR #4? | Fixed in Current Branch? |
+| ---------- | ------------------------------------------------------------------------ | --------------- | ------------------------ |
+| **BUG #1** | `list-creatures-by-criteria` - DSA5 incompatibility (CR-based filtering) | ❌ NO           | ❌ NO                    |
+| **BUG #2** | `create-actor-from-compendium` - DSA5 creation failure                   | ❓ UNKNOWN      | ❌ NO                    |
 
 #### BUG #1: list-creatures-by-criteria
+
 **Status in PR #4:** ❌ **NOT FIXED**
 
 Evidence:
+
 ```typescript
 // PR #4 code still uses CR-based filtering:
 challengeRating: {
   oneOf: [
     { type: 'number', description: 'Exact CR value (e.g., 12)' },
     // ... CR logic
-  ]
+  ];
 }
 ```
 
 **Conclusion:** PR #4 does NOT address BUG #1. Tool still expects D&D5e/PF2e CR system.
 
 #### BUG #2: create-actor-from-compendium
+
 **Status in PR #4:** ❓ **REQUIRES TESTING**
 
 PR #4 includes:
+
 - DSA5Adapter with `createActorFromCompendiumEntry()` method
 - System-specific actor creation logic
 - But unclear if it solves the reported error
@@ -125,6 +135,7 @@ PR #4 includes:
 ## Architectural Comparison
 
 ### Current Branch (0.6.0)
+
 ```
 packages/mcp-server/src/
 ├── tools/
@@ -139,6 +150,7 @@ packages/foundry-module/src/
 ```
 
 ### PR #4 Branch (0.7.0)
+
 ```
 packages/mcp-server/src/
 ├── tools/                   ✅ System-agnostic
@@ -187,6 +199,7 @@ packages/foundry-module/src/
    - **Reason:** Runs in Foundry browser, no access to MCP Server adapters
    - **Requirement:** Extract DSA5 logic into helper functions
    - **Example:**
+
      ```typescript
      // ✅ ACCEPTABLE in data-access.ts:
      if (systemId === 'dsa5') {
@@ -200,6 +213,7 @@ packages/foundry-module/src/
      ```
 
 4. **Enforcement Rules**
+
    ```bash
    # Must return 0 results:
    grep -r "game\.system\.id === 'dsa5'" packages/mcp-server/src/tools/
@@ -212,18 +226,18 @@ packages/foundry-module/src/
 
 ## Comparison Matrix
 
-| Aspect | Current Branch | PR #4 | Winner |
-|--------|---------------|-------|--------|
-| **Version** | 0.6.0 | 0.7.0-dsa.1 | PR #4 |
-| **Architecture** | Monolithic | Registry Pattern | PR #4 ✅ |
-| **DSA5 Support** | Minimal (token fixes) | Comprehensive | PR #4 ✅ |
-| **Code Quality** | If-checks in core | Clean adapters | PR #4 ✅ |
-| **Documentation** | Minimal | Extensive (ARCHITECTURE.md) | PR #4 ✅ |
-| **Extensibility** | Low (hard to add systems) | High (add adapter) | PR #4 ✅ |
-| **Merge Conflicts** | N/A | HIGH (37 files) | Current ⚠️ |
-| **Test Status** | Tested (94.3% success) | UNTESTED | Current ✅ |
-| **BUG #1 Fix** | ❌ NO | ❌ NO | Neither |
-| **BUG #2 Fix** | ❌ NO | ❓ UNKNOWN | Unknown |
+| Aspect              | Current Branch            | PR #4                       | Winner     |
+| ------------------- | ------------------------- | --------------------------- | ---------- |
+| **Version**         | 0.6.0                     | 0.7.0-dsa.1                 | PR #4      |
+| **Architecture**    | Monolithic                | Registry Pattern            | PR #4 ✅   |
+| **DSA5 Support**    | Minimal (token fixes)     | Comprehensive               | PR #4 ✅   |
+| **Code Quality**    | If-checks in core         | Clean adapters              | PR #4 ✅   |
+| **Documentation**   | Minimal                   | Extensive (ARCHITECTURE.md) | PR #4 ✅   |
+| **Extensibility**   | Low (hard to add systems) | High (add adapter)          | PR #4 ✅   |
+| **Merge Conflicts** | N/A                       | HIGH (37 files)             | Current ⚠️ |
+| **Test Status**     | Tested (94.3% success)    | UNTESTED                    | Current ✅ |
+| **BUG #1 Fix**      | ❌ NO                     | ❌ NO                       | Neither    |
+| **BUG #2 Fix**      | ❌ NO                     | ❓ UNKNOWN                  | Unknown    |
 
 ---
 
@@ -232,12 +246,14 @@ packages/foundry-module/src/
 ### Merge Conflicts Expected
 
 **High Conflict Risk:**
+
 - 37 files changed (+7,807 −333 lines)
 - Current branch diverged significantly
 - Different versions (0.6.0 vs 0.7.0)
 - Architectural paradigm shift
 
 **Key Conflict Areas:**
+
 1. `packages/mcp-server/src/backend.ts` - Adapter registration vs current code
 2. `packages/foundry-module/src/data-access.ts` - Both have DSA5 changes
 3. `package.json` files - Version numbers (0.6.0 vs 0.7.0)
@@ -246,12 +262,14 @@ packages/foundry-module/src/
 ### Merge Effort Estimate
 
 **Scenario A: Direct Merge**
+
 - ❌ **NOT RECOMMENDED**
 - Merge conflicts: 20-30 files
 - Resolution time: 8-12 hours
 - Risk: HIGH (breaking changes)
 
 **Scenario B: Cherry-Pick Architecture**
+
 - ✅ **RECOMMENDED**
 - Extract concepts from PR #4
 - Rebuild on current branch
@@ -259,6 +277,7 @@ packages/foundry-module/src/
 - Risk: MEDIUM (controlled integration)
 
 **Scenario C: Test & Merge PR #4**
+
 - ⚠️ **HIGH RISK**
 - Test PR #4 branch first (32 tools)
 - Resolve conflicts
@@ -326,24 +345,28 @@ packages/foundry-module/src/
 ### Short-Term (Next 1-2 Weeks)
 
 **✅ DO:**
+
 1. **Close PR #4** - It's outdated and incompatible
 2. **Fix BUG #2 First** - High priority, blocks actor creation
 3. **Fix BUG #1 Second** - Medium priority, has workaround
 4. **Keep Current Architecture** - It works, tests pass
 
 **❌ DON'T:**
+
 1. **Don't Merge PR #4** - Too risky, too outdated
 2. **Don't Refactor Yet** - Focus on bug fixes first
 
 ### Medium-Term (1-2 Months)
 
 **✅ DO:**
+
 1. **Extract Adapter Concepts** - Learn from PR #4 ARCHITECTURE.md
 2. **Gradual Migration** - Refactor one system at a time
 3. **Create Helper Functions** - Extract DSA5 logic from data-access.ts
 4. **Document Rules** - Create simplified ARCHITECTURE.md
 
 **Implementation Plan:**
+
 ```
 Phase 1: Extract DSA5 helpers in data-access.ts (4 hours)
 Phase 2: Create SystemAdapter interface (2 hours)
@@ -356,6 +379,7 @@ Total: ~20 hours over 1-2 months
 ### Long-Term (3-6 Months)
 
 **✅ DO:**
+
 1. **Full Registry Pattern** - Once DSA5 bugs are fixed
 2. **Multi-System Support** - Prepare for Savage Worlds, GURPS
 3. **Upstream Contribution** - Share DSA5 adapter with Adam
@@ -367,6 +391,7 @@ Total: ~20 hours over 1-2 months
 ### Immediate Actions
 
 **Priority 1: Fix BUG #2 (create-actor-from-compendium)**
+
 ```
 Effort: 4-6 hours
 Impact: HIGH (core feature broken)
@@ -378,6 +403,7 @@ Approach:
 ```
 
 **Priority 2: Fix BUG #1 (list-creatures-by-criteria)**
+
 ```
 Effort: 3-4 hours
 Impact: MEDIUM (has workaround: search-compendium)
@@ -391,6 +417,7 @@ Approach:
 ### Architecture Improvements (Future)
 
 **Priority 3: Extract DSA5 Helpers**
+
 ```
 Effort: 4-6 hours
 Impact: LOW (code quality)
@@ -408,6 +435,7 @@ Approach:
 ### Final Verdict: **CLOSE PR #4**
 
 **Reasons:**
+
 1. ✅ **Outdated** - 28 commits behind, diverged architecture
 2. ✅ **Incompatible** - 37 file conflicts, version mismatch
 3. ✅ **Untested** - No validation of 32 tools
@@ -417,12 +445,14 @@ Approach:
 ### What to Keep from PR #4
 
 **Extract & Adapt:**
+
 1. **ARCHITECTURE.md Concepts** - Rules for system-agnostic code
 2. **Helper Function Pattern** - Extract DSA5 logic cleanly
 3. **Documentation Approach** - Comprehensive system documentation
 4. **SystemAdapter Interface** - Future refactoring guide
 
 **Ignore:**
+
 1. Full Registry Pattern implementation (too complex for now)
 2. Version bump to 0.7.0 (stay on 0.6.x)
 3. All 28 commits (cherry-pick concepts only)

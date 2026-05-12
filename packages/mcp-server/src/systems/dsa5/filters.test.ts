@@ -4,7 +4,12 @@
  * Simple tests to validate filter logic
  */
 
-import { matchesDSA5Filters, describeDSA5Filters, isValidDSA5Species, isValidExperienceLevel } from './filters.js';
+import {
+  matchesDSA5Filters,
+  describeDSA5Filters,
+  isValidDSA5Species,
+  isValidExperienceLevel,
+} from './filters.js';
 import type { DSA5Filters } from './filters.js';
 
 // Test creature data
@@ -19,7 +24,7 @@ const testCreature = {
     size: 'small',
     hasSpells: false,
     experiencePoints: 1200,
-  }
+  },
 };
 
 const testSpellcaster = {
@@ -33,7 +38,7 @@ const testSpellcaster = {
     size: 'medium',
     hasSpells: true,
     experiencePoints: 4000,
-  }
+  },
 };
 
 console.log('=== DSA5 Filter Tests ===\n');
@@ -75,7 +80,7 @@ console.log('Test 5: Combined filters');
 const filter5: DSA5Filters = {
   level: { min: 1, max: 3 },
   size: 'small',
-  hasSpells: false
+  hasSpells: false,
 };
 console.log(`Filter: ${describeDSA5Filters(filter5)}`);
 console.log(`Matches Goblin: ${matchesDSA5Filters(testCreature, filter5)}`); // true
