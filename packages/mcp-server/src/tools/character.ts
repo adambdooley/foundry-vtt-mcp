@@ -599,6 +599,8 @@ export class CharacterTools {
       type: z.string().min(1, 'Item type cannot be empty'),
       img: z.string().optional(),
       system: z.record(z.any()).optional(),
+      effects: z.array(z.record(z.any())).optional(),
+      flags: z.record(z.any()).optional(),
     });
 
     const schema = z.object({

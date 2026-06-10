@@ -4703,6 +4703,8 @@ export class FoundryDataAccess {
       const doc: Record<string, any> = { name: it.name, type: it.type };
       if (it.img) doc.img = it.img;
       if (it.system && typeof it.system === 'object') doc.system = it.system;
+      if (Array.isArray((it as any).effects)) doc.effects = (it as any).effects;
+      if ((it as any).flags && typeof (it as any).flags === 'object') doc.flags = (it as any).flags;
       return doc;
     });
 
