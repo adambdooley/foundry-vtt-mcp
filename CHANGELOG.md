@@ -1,3 +1,23 @@
+## Unreleased
+
+### New Features
+
+- **Combat tools** — damage/healing, turn & initiative control, active effects, and combatant status
+  - `apply-damage` / `apply-healing` — adjust one or more targets' HP; damage respects the game system's resistances/immunities when available, healing clamps to max; returns HP before/after per target
+  - `advance-turn` — step the active combat forward a turn/round or back a turn
+  - `set-initiative` — set an explicit initiative value or roll it for a combatant
+  - `apply-active-effect` / `remove-active-effect` — apply/remove a status condition or a custom active effect (attribute changes + durations) on an actor
+  - `get-combatant-status` — read HP/AC/movement/conditions/effects/spell-slots/consumables for one actor or all combatants (read-only)
+
+- **World tools** — game-clock control and canvas pings
+  - `advance-game-time` / `get-game-time` — advance and read the world clock, with a human-readable formatted breakdown
+  - `ping-location` — ping a coordinate or token on the canvas, optionally pulling every player's camera
+
+- **Audio tools**
+  - `play-sound` — play an audio file for the table (or GM-only) via Foundry's AudioHelper
+
+---
+
 ## v0.8.3 (2026-06-11)
 
 ### New Features

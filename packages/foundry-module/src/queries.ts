@@ -69,6 +69,25 @@ export class QueryHandlers {
     CONFIG.queries[`${modulePrefix}.request-player-rolls`] =
       this.handleRequestPlayerRolls.bind(this);
 
+    // Core combat tools
+    CONFIG.queries[`${modulePrefix}.apply-damage`] = this.handleApplyDamage.bind(this);
+    CONFIG.queries[`${modulePrefix}.apply-healing`] = this.handleApplyHealing.bind(this);
+    CONFIG.queries[`${modulePrefix}.advance-turn`] = this.handleAdvanceTurn.bind(this);
+    CONFIG.queries[`${modulePrefix}.set-initiative`] = this.handleSetInitiative.bind(this);
+    CONFIG.queries[`${modulePrefix}.apply-active-effect`] = this.handleApplyActiveEffect.bind(this);
+    CONFIG.queries[`${modulePrefix}.remove-active-effect`] =
+      this.handleRemoveActiveEffect.bind(this);
+    CONFIG.queries[`${modulePrefix}.get-combatant-status`] =
+      this.handleGetCombatantStatus.bind(this);
+
+    // Core world tools
+    CONFIG.queries[`${modulePrefix}.advance-game-time`] = this.handleAdvanceGameTime.bind(this);
+    CONFIG.queries[`${modulePrefix}.get-game-time`] = this.handleGetGameTime.bind(this);
+    CONFIG.queries[`${modulePrefix}.ping-location`] = this.handlePingLocation.bind(this);
+
+    // Core audio tools
+    CONFIG.queries[`${modulePrefix}.play-sound`] = this.handlePlaySound.bind(this);
+
     // Enhanced creature index for campaign analysis
     CONFIG.queries[`${modulePrefix}.getEnhancedCreatureIndex`] =
       this.handleGetEnhancedCreatureIndex.bind(this);
@@ -2064,5 +2083,209 @@ export class QueryHandlers {
     if (!gmCheck.allowed) return { error: 'Access denied', success: false };
     this.dataAccess.validateFoundryState();
     return this.dataAccess.deleteActorItems(data.actorIdentifier, data.itemIds);
+  }
+
+  // ===== CORE COMBAT HANDLERS =====
+
+  private async handleApplyDamage(data: {
+    targets: string[];
+    amount: number;
+    damageType?: string;
+    half?: boolean;
+  }): Promise<any> {
+    try {
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) return { error: 'Access denied', success: false };
+      this.dataAccess.validateFoundryState();
+      if (!Array.isArray(data.targets) || data.targets.length === 0) {
+        throw new Error('targets is required');
+      }
+      if (typeof data.amount !== 'number' || data.amount <= 0) {
+        throw new Error('amount must be a positive number');
+      }
+      const amount = data.half ? Math.floor(data.amount / 2) : data.amount;
+      return await this.dataAccess.applyDamageOrHealing(
+        data.targets,
+        amount,
+        data.damageType ?? 'bludgeoning'
+      );
+    } catch (error) {
+      throw new Error(
+        `Failed to apply damage: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  private async handleApplyHealing(data: { targets: string[]; amount: number }): Promise<any> {
+    try {
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) return { error: 'Access denied', success: false };
+      this.dataAccess.validateFoundryState();
+      if (!Array.isArray(data.targets) || data.targets.length === 0) {
+        throw new Error('targets is required');
+      }
+      if (typeof data.amount !== 'number' || data.amount <= 0) {
+        throw new Error('amount must be a positive number');
+      }
+      return await this.dataAccess.applyDamageOrHealing(data.targets, data.amount, 'healing');
+    } catch (error) {
+      throw new Error(
+        `Failed to apply healing: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  private async handleAdvanceTurn(data: {
+    direction?: 'next-turn' | 'next-round' | 'previous-turn';
+  }): Promise<any> {
+    try {
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) return { error: 'Access denied', success: false };
+      this.dataAccess.validateFoundryState();
+      return await this.dataAccess.advanceTurn(data.direction ?? 'next-turn');
+    } catch (error) {
+      throw new Error(
+        `Failed to advance turn: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  private async handleSetInitiative(data: { combatant: string; value?: number }): Promise<any> {
+    try {
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) return { error: 'Access denied', success: false };
+      this.dataAccess.validateFoundryState();
+      if (!data.combatant) {
+        throw new Error('combatant is required');
+      }
+      return await this.dataAccess.setInitiative(data.combatant, data.value);
+    } catch (error) {
+      throw new Error(
+        `Failed to set initiative: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  private async handleApplyActiveEffect(data: {
+    actor: string;
+    condition?: string;
+    effect?: {
+      label: string;
+      icon?: string;
+      changes?: Array<{ key: string; mode?: number; value: string | number }>;
+      duration?: { rounds?: number; turns?: number; seconds?: number };
+    };
+  }): Promise<any> {
+    try {
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) return { error: 'Access denied', success: false };
+      this.dataAccess.validateFoundryState();
+      if (!data.actor) {
+        throw new Error('actor is required');
+      }
+      return await this.dataAccess.applyActiveEffect(data);
+    } catch (error) {
+      throw new Error(
+        `Failed to apply active effect: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  private async handleRemoveActiveEffect(data: { actor: string; effect: string }): Promise<any> {
+    try {
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) return { error: 'Access denied', success: false };
+      this.dataAccess.validateFoundryState();
+      if (!data.actor || !data.effect) {
+        throw new Error('actor and effect are required');
+      }
+      return await this.dataAccess.removeActiveEffect(data.actor, data.effect);
+    } catch (error) {
+      throw new Error(
+        `Failed to remove active effect: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  // Read-only: skip the GM gate (per contract, get-*/read tools are ungated).
+  private async handleGetCombatantStatus(data: { actor?: string; all?: boolean }): Promise<any> {
+    try {
+      this.dataAccess.validateFoundryState();
+      return await this.dataAccess.getCombatantStatus(data);
+    } catch (error) {
+      throw new Error(
+        `Failed to get combatant status: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  // ===== CORE WORLD HANDLERS =====
+
+  private async handleAdvanceGameTime(data: {
+    amount: number;
+    unit: 'seconds' | 'rounds' | 'minutes' | 'hours' | 'days';
+  }): Promise<any> {
+    try {
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) return { error: 'Access denied', success: false };
+      this.dataAccess.validateFoundryState();
+      return await this.dataAccess.advanceGameTime(data.amount, data.unit);
+    } catch (error) {
+      throw new Error(
+        `Failed to advance game time: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  // Read-only: skip the GM gate (per contract, get-*/read tools are ungated).
+  private async handleGetGameTime(_data: unknown): Promise<any> {
+    try {
+      this.dataAccess.validateFoundryState();
+      return this.dataAccess.getGameTime();
+    } catch (error) {
+      throw new Error(
+        `Failed to get game time: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  private async handlePingLocation(data: {
+    x?: number;
+    y?: number;
+    token?: string;
+    pull?: boolean;
+  }): Promise<any> {
+    try {
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) return { error: 'Access denied', success: false };
+      this.dataAccess.validateFoundryState();
+      return this.dataAccess.pingLocation(data);
+    } catch (error) {
+      throw new Error(
+        `Failed to ping location: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  // ===== CORE AUDIO HANDLERS =====
+
+  private async handlePlaySound(data: {
+    file: string;
+    volume?: number;
+    forEveryone?: boolean;
+  }): Promise<any> {
+    try {
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) return { error: 'Access denied', success: false };
+      this.dataAccess.validateFoundryState();
+      if (!data?.file || typeof data.file !== 'string') {
+        throw new Error('file parameter is required and must be a string');
+      }
+      return await this.dataAccess.playSound(data);
+    } catch (error) {
+      throw new Error(
+        `Failed to play sound: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
   }
 }
