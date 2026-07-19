@@ -9928,6 +9928,466 @@ export class FoundryDataAccess {
     return { deleted: existing, total: existing.length };
   }
 
+  // ─── Combat / world / audio ────────────────────────────────────────────────
+
+  /**
+   * Resolve a reference (id or name) to a token on the current canvas and/or an
+   * actor. Prefers a matching canvas token; falls back to a world actor.
+   */
+  private resolveTokenOrActor(ref: string): { token: any; actor: any } {
+    const placeables: any[] = (canvas as any)?.tokens?.placeables ?? [];
+    const token =
+      placeables.find(t => t.id === ref) ||
+      placeables.find(t => t.name?.toLowerCase() === String(ref).toLowerCase());
+    if (token) return { token, actor: token.actor };
+
+    const actor =
+      (game.actors as any)?.get(ref) ||
+      (game.actors as any)?.find((a: any) => a.name?.toLowerCase() === String(ref).toLowerCase());
+    if (!actor) throw new Error(`No token or actor found matching "${ref}"`);
+    return { token: null, actor };
+  }
+
+  /**
+   * Resolve an actor's hit-point-equivalent resource across game systems.
+   * Foundry has no universal HP field, so this branches on game.system.id and
+   * reads the path each system uses (mirroring the per-system MCP-server
+   * adapters). Returns { value, max, temp? } with numbers where known; unknown
+   * systems yield an empty result rather than throwing, so callers degrade
+   * gracefully instead of reading a wrong/absent path.
+   */
+  private resolveHpData(actor: any): { value?: number; max?: number; temp?: number } {
+    const system = actor?.system;
+    if (!system) return {};
+    const systemId = (game.system as any)?.id;
+
+    switch (systemId) {
+      case 'dnd5e':
+      case 'pf2e': {
+        const hp = system.attributes?.hp;
+        if (!hp) return {};
+        return { value: hp.value, max: hp.max, temp: hp.temp };
+      }
+      case 'wfrp4e': {
+        const wounds = system.status?.wounds;
+        if (!wounds) return {};
+        return { value: wounds.value, max: wounds.max };
+      }
+      case 'dsa5': {
+        const wounds = system.status?.wounds;
+        if (!wounds) return {};
+        // dsa5 stores the live LeP in wounds.current (falls back to .value).
+        return { value: wounds.current ?? wounds.value, max: wounds.max };
+      }
+      case 'mgt2e': {
+        const hits = system.hits;
+        if (hits == null) return {};
+        // Usually an object, but some data stores hits as a bare number —
+        // fall back to the scalar (matches the system adapter).
+        return { value: hits.value ?? hits, max: hits.max ?? hits };
+      }
+      case 'cosmere-rpg': {
+        const hea = system.resources?.hea;
+        if (!hea) return {};
+        // hea.max is a DerivedValueField: honor an explicit override only when
+        // it is actually numeric, else the derived value.
+        const rawMax = hea.max;
+        let max: any;
+        if (typeof rawMax === 'number') max = rawMax;
+        else if (rawMax && typeof rawMax === 'object') {
+          max =
+            rawMax.useOverride === true && typeof rawMax.override === 'number'
+              ? rawMax.override
+              : rawMax.value;
+        }
+        return { value: hea.value, max };
+      }
+      default:
+        return {};
+    }
+  }
+
+  private getActorHP(actor: any): { value?: number; max?: number; temp?: number } {
+    return this.resolveHpData(actor);
+  }
+
+  /**
+   * Applies HP damage or healing. Uses the system's actor.applyDamage when
+   * available (so systems like dnd5e can apply resistances/immunities by type);
+   * otherwise clamps HP directly. Healing always clamps to max.
+   */
+  async applyDamageOrHealing(refs: string[], amount: number, damageType: string): Promise<any> {
+    const results: any[] = [];
+    const errors: string[] = [];
+    const systemId = (game.system as any)?.id;
+    for (const ref of refs) {
+      // Per-item resilience: a bad ref (resolveTokenOrActor throws) or a
+      // failed write must not abort the whole batch or discard prior results.
+      try {
+        const { token, actor } = this.resolveTokenOrActor(ref);
+        if (!actor) {
+          errors.push(`${token?.name ?? ref}: no actor linked to token`);
+          continue;
+        }
+        const hp = this.getActorHP(actor);
+        const hpBefore = hp.value;
+        const isHealing = damageType === 'healing';
+        const target = token?.name ?? actor.name;
+
+        if (!isHealing && typeof actor.applyDamage === 'function') {
+          // Damages-array form lets dnd5e apply resistances/immunities by type
+          try {
+            await actor.applyDamage([{ value: amount, type: damageType }]);
+          } catch (_e) {
+            await actor.applyDamage(amount);
+          }
+        } else if (systemId === 'dnd5e' || systemId === 'pf2e') {
+          // Direct HP write only for systems with a confidently-known,
+          // HP-down-semantics writable path. Covers healing (no applyDamage
+          // branch above) and the rare damage case where applyDamage is absent.
+          const max = hp.max ?? 0;
+          const delta = isHealing ? amount : -amount;
+          const newValue = Math.max(0, Math.min(max, (hp.value ?? 0) + delta));
+          await actor.update({ 'system.attributes.hp.value': newValue });
+        } else {
+          // Unknown/other system with no applyDamage: refuse rather than blind-write
+          // an assumed HP path, since damage semantics differ per system.
+          errors.push(
+            `${target}: direct HP write not supported for system '${systemId}' (no applyDamage)`
+          );
+          continue;
+        }
+
+        const hpAfter = this.getActorHP(actor).value;
+        results.push({
+          target,
+          applied: isHealing ? (hpAfter ?? 0) - (hpBefore ?? 0) : (hpBefore ?? 0) - (hpAfter ?? 0),
+          hpBefore,
+          hpAfter,
+        });
+      } catch (err) {
+        errors.push(`${ref}: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      }
+    }
+    return { results, errors, totalRequested: refs.length, totalApplied: results.length };
+  }
+
+  async advanceTurn(direction: 'next-turn' | 'next-round' | 'previous-turn'): Promise<any> {
+    const combat = (game as any).combat;
+    if (!combat) throw new Error('No active combat');
+    if (direction === 'next-round') await combat.nextRound();
+    else if (direction === 'previous-turn') await combat.previousTurn();
+    else await combat.nextTurn();
+
+    const active = combat.combatant;
+    return {
+      round: combat.round,
+      turn: combat.turn,
+      activeCombatant: active
+        ? {
+            name: active.name,
+            actorId: active.actorId,
+            tokenId: active.tokenId,
+            initiative: active.initiative,
+          }
+        : null,
+    };
+  }
+
+  async setInitiative(combatantRef: string, value?: number): Promise<any> {
+    const combat = (game as any).combat;
+    if (!combat) throw new Error('No active combat');
+    const ref = String(combatantRef).toLowerCase();
+    let combatant =
+      combat.combatants.get(combatantRef) ||
+      combat.combatants.find((ct: any) => ct.name?.toLowerCase() === ref) ||
+      combat.combatants.find((ct: any) => ct.actor?.name?.toLowerCase() === ref);
+    if (!combatant) throw new Error(`No combatant found matching "${combatantRef}"`);
+
+    if (value !== undefined && value !== null) {
+      await combat.setInitiative(combatant.id, value);
+    } else {
+      await combat.rollInitiative([combatant.id]);
+    }
+    combatant = combat.combatants.get(combatant.id) ?? combatant;
+    return { combatant: combatant.name, initiative: combatant.initiative };
+  }
+
+  async applyActiveEffect(data: {
+    actor: string;
+    condition?: string;
+    effect?: {
+      label: string;
+      icon?: string;
+      changes?: Array<{ key: string; mode?: number; value: string | number }>;
+      duration?: { rounds?: number; turns?: number; seconds?: number };
+    };
+  }): Promise<any> {
+    const { actor } = this.resolveTokenOrActor(data.actor);
+
+    if (data.condition) {
+      const validIds = ((CONFIG as any).statusEffects ?? []).map((s: any) => s.id);
+      if (!validIds.includes(data.condition)) {
+        throw new Error(
+          `Unknown condition "${data.condition}". Valid conditions: ${validIds.join(', ')}`
+        );
+      }
+      await actor.toggleStatusEffect(data.condition, { active: true });
+      return { actor: actor.name, applied: data.condition, type: 'condition' };
+    }
+
+    if (data.effect?.label) {
+      const addMode = (CONST as any).ACTIVE_EFFECT_MODES?.ADD ?? 2;
+      await actor.createEmbeddedDocuments('ActiveEffect', [
+        {
+          name: data.effect.label,
+          img: data.effect.icon ?? 'icons/svg/aura.svg',
+          changes: (data.effect.changes ?? []).map(c => ({
+            key: c.key,
+            mode: c.mode ?? addMode,
+            value: String(c.value),
+          })),
+          duration: data.effect.duration ?? {},
+        },
+      ]);
+      return { actor: actor.name, applied: data.effect.label, type: 'custom' };
+    }
+
+    throw new Error('Either condition or effect (with label) is required');
+  }
+
+  async removeActiveEffect(actorRef: string, effect: string): Promise<any> {
+    const { actor } = this.resolveTokenOrActor(actorRef);
+    const ref = String(effect).toLowerCase();
+
+    // Status conditions must go through toggleStatusEffect — dnd5e status
+    // effects use fixed synthetic ids and reject direct document deletion.
+    const validIds = ((CONFIG as any).statusEffects ?? []).map((s: any) => s.id);
+    const statusId = validIds.includes(effect) ? effect : validIds.includes(ref) ? ref : null;
+    if (statusId && actor.statuses?.has(statusId)) {
+      await actor.toggleStatusEffect(statusId, { active: false });
+      return { actor: actor.name, removed: statusId };
+    }
+
+    const effectDoc =
+      actor.effects.find((e: any) => e.name?.toLowerCase() === ref) ||
+      actor.effects.find((e: any) => e.statuses?.has(effect));
+    if (effectDoc) {
+      // Custom effect: delete the document; if it's status-backed, fall back to toggle
+      try {
+        await effectDoc.delete();
+      } catch (_e) {
+        const backing = Array.from(effectDoc.statuses ?? [])[0] as string | undefined;
+        if (!backing) throw _e;
+        await actor.toggleStatusEffect(backing, { active: false });
+      }
+      return { actor: actor.name, removed: effectDoc.name };
+    }
+
+    // Not present: report cleanly rather than throwing. Removing an absent
+    // effect is effectively a no-op, so callers get a clear result instead of
+    // an error they must special-case.
+    const current = actor.effects.map((e: any) => e.name).join(', ') || 'none';
+    return {
+      actor: actor.name,
+      removed: null,
+      found: false,
+      errorType: 'EFFECT_NOT_FOUND',
+      errorMessage: `No effect "${effect}" found on "${actor.name}". Current effects: ${current}`,
+    };
+  }
+
+  private buildCombatantStatus(actor: any, token: any, combatant: any): any {
+    const systemId = (game.system as any)?.id;
+    const hp = this.resolveHpData(actor);
+    // System-agnostic fields only. HP via the resolver; conditions/effects/
+    // initiative come from Foundry core and apply to every system.
+    const hpBlock: any = { value: hp.value, max: hp.max };
+    if (hp.temp !== undefined) hpBlock.temp = hp.temp;
+    const status: any = {
+      name: token?.name ?? actor.name,
+      actorId: actor.id,
+      hp: hpBlock,
+      conditions: Array.from(actor.statuses ?? []),
+      effects: actor.effects.map((e: any) => ({
+        name: e.name,
+        duration: e.duration?.remaining ?? e.duration?.rounds ?? undefined,
+      })),
+    };
+    if (token) status.tokenId = token.id;
+
+    // AC — dnd5e always uses system.attributes.ac.value; pf2e normally does
+    // too, but some pf2e data stores ac as a bare number. Mirror the pf2e
+    // adapter's `ac?.value ?? ac` fallback and only emit a numeric result so
+    // neither system yields undefined or an object.
+    if (systemId === 'dnd5e' || systemId === 'pf2e') {
+      const acRaw = actor?.system?.attributes?.ac;
+      const ac = acRaw?.value ?? acRaw;
+      if (typeof ac === 'number') status.ac = ac;
+    }
+
+    // Movement, spell slots, and consumables use dnd5e-specific data shapes;
+    // omit these keys cleanly for other systems rather than emitting empty or
+    // misleading blocks.
+    if (systemId === 'dnd5e') {
+      const attrs = actor?.system?.attributes ?? {};
+      const movement = attrs.movement ?? {};
+      const move: Record<string, any> = {};
+      for (const key of ['walk', 'fly', 'swim']) {
+        if (movement[key]) move[key] = movement[key];
+      }
+      if (Object.keys(move).length > 0) status.movement = move;
+
+      const spells: Record<string, any> = actor?.system?.spells ?? {};
+      const spellSlots: Record<string, any> = {};
+      for (const [level, slot] of Object.entries(spells)) {
+        if (slot && typeof slot === 'object' && (slot.max ?? 0) > 0) {
+          spellSlots[level] = { value: slot.value, max: slot.max };
+        }
+      }
+      if (Object.keys(spellSlots).length > 0) status.spellSlots = spellSlots;
+
+      const consumables: any[] = [];
+      for (const item of actor.items) {
+        const usesMax = item.system?.uses?.max;
+        if (item.type === 'consumable' || usesMax) {
+          const entry: any = { name: item.name };
+          if (item.system?.quantity !== undefined) entry.quantity = item.system.quantity;
+          if (usesMax) entry.uses = { value: item.system.uses.value, max: usesMax };
+          consumables.push(entry);
+        }
+      }
+      if (consumables.length > 0) status.consumables = consumables;
+    }
+
+    if (combatant) {
+      status.initiative = combatant.initiative;
+      status.isCurrentTurn = (game as any).combat?.combatant?.id === combatant.id;
+    }
+    return status;
+  }
+
+  async getCombatantStatus(data: { actor?: string; all?: boolean }): Promise<any> {
+    if (data.all) {
+      const combat = (game as any).combat;
+      if (!combat) throw new Error('No active combat');
+      const combatants: any[] = [];
+      const errors: string[] = [];
+      // Per-item resilience: one malformed combatant must not kill the read.
+      for (const ct of combat.combatants.filter((c: any) => c.actor)) {
+        try {
+          combatants.push(this.buildCombatantStatus(ct.actor, ct.token?.object ?? null, ct));
+        } catch (err) {
+          const name = ct.token?.name ?? ct.actor?.name ?? ct.name;
+          errors.push(`${name}: ${err instanceof Error ? err.message : 'Unknown error'}`);
+        }
+      }
+      return { round: combat.round, turn: combat.turn, combatants, errors };
+    }
+    if (!data.actor) throw new Error('Either actor or all: true is required');
+    const { token, actor } = this.resolveTokenOrActor(data.actor);
+    const combatant =
+      (game as any).combat?.combatants?.find(
+        (ct: any) => ct.actorId === actor.id || (token && ct.tokenId === token.id)
+      ) ?? null;
+    return this.buildCombatantStatus(actor, token, combatant);
+  }
+
+  private formatWorldTime(totalSeconds: number): string {
+    const seconds = Math.floor(Math.abs(totalSeconds));
+    const sign = totalSeconds < 0 ? '-' : '';
+    const d = Math.floor(seconds / 86400);
+    const h = Math.floor((seconds % 86400) / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = seconds % 60;
+    const parts: string[] = [];
+    if (d) parts.push(`${d}d`);
+    if (h) parts.push(`${h}h`);
+    if (m) parts.push(`${m}m`);
+    if (s || parts.length === 0) parts.push(`${s}s`);
+    return sign + parts.join(' ');
+  }
+
+  async advanceGameTime(
+    amount: number,
+    unit: 'seconds' | 'rounds' | 'minutes' | 'hours' | 'days'
+  ): Promise<any> {
+    if (typeof amount !== 'number' || !Number.isFinite(amount) || amount <= 0) {
+      throw new Error('amount must be a positive number');
+    }
+    const unitSeconds: Record<string, number> = {
+      seconds: 1,
+      rounds: 6,
+      minutes: 60,
+      hours: 3600,
+      days: 86400,
+    };
+    if (!unitSeconds[unit]) {
+      throw new Error(`unit must be one of: ${Object.keys(unitSeconds).join(', ')}`);
+    }
+    const seconds = Math.round(amount * unitSeconds[unit]);
+    await (game as any).time.advance(seconds);
+    const worldTime = (game as any).time.worldTime;
+    return { advanced: seconds, worldTime, formatted: this.formatWorldTime(worldTime) };
+  }
+
+  getGameTime(): any {
+    const worldTime = (game as any).time.worldTime;
+    return { worldTime, formatted: this.formatWorldTime(worldTime) };
+  }
+
+  pingLocation(data: { x?: number; y?: number; token?: string; pull?: boolean }): any {
+    let x: number;
+    let y: number;
+    if (data?.token) {
+      const { token } = this.resolveTokenOrActor(data.token);
+      if (!token) {
+        throw new Error(`"${data.token}" matched an actor but no token on the current scene`);
+      }
+      x = token.center.x;
+      y = token.center.y;
+    } else if (typeof data?.x === 'number' && typeof data?.y === 'number') {
+      x = data.x;
+      y = data.y;
+    } else {
+      throw new Error('Provide either both x and y coordinates or a token reference');
+    }
+    const pull = data?.pull === true;
+    const c: any = canvas as any;
+    // Fire-and-forget: the ping promise resolves only when the ANIMATION
+    // completes, and animations pause in a backgrounded tab — awaiting hangs
+    // the query. The ping is broadcast immediately either way.
+    if (typeof c?.ping === 'function') {
+      Promise.resolve(c.ping({ x, y }, { pull })).catch(() => {});
+    } else if (typeof c?.controls?.ping === 'function') {
+      Promise.resolve(c.controls.ping({ x, y }, { pull })).catch(() => {});
+    } else {
+      throw new Error('Canvas ping is not available in this Foundry version');
+    }
+    return { pinged: { x, y } };
+  }
+
+  async playSound(data: { file: string; volume?: number; forEveryone?: boolean }): Promise<any> {
+    let volume = typeof data.volume === 'number' ? data.volume : 0.8;
+    volume = Math.min(Math.max(volume, 0), 1);
+    const forEveryone = data.forEveryone !== false;
+    // Foundry v13 namespaced AudioHelper with fallback for older versions
+    const AudioHelperClass =
+      (foundry as any)?.audio?.AudioHelper ?? (globalThis as any).AudioHelper;
+    if (!AudioHelperClass?.play) {
+      throw new Error('AudioHelper is not available in this Foundry version');
+    }
+    // Fire-and-forget: do not await playback. The browser can keep the audio
+    // context suspended until a user gesture, which would otherwise hang the
+    // request indefinitely. Mirrors ping-location's non-blocking approach.
+    void Promise.resolve(
+      AudioHelperClass.play({ src: data.file, volume, autoplay: true, loop: false }, forEveryone)
+    ).catch((err: unknown) => {
+      console.warn(`foundry-mcp-bridge play-sound failed: ${String(err)}`);
+    });
+    return { played: data.file };
+  }
+
   // ─── mgt2e ──────────────────────────────────────────────────────────────────
 }
 
