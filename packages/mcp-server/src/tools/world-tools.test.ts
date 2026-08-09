@@ -1,5 +1,5 @@
 /**
- * Core world tools — schema advertisement + bridge query-forwarding tests.
+ * manage-time — schema advertisement + bridge query-forwarding tests.
  */
 
 import { describe, it, expect, vi } from 'vitest';
@@ -14,18 +14,24 @@ function makeTools(queryImpl?: (method: string, data: any) => unknown) {
 }
 
 describe('WorldTools.getToolDefinitions', () => {
-  it('advertises the three core world tools', () => {
+  it('advertises a single manage-time tool', () => {
     const names = makeTools()
       .tools.getToolDefinitions()
       .map(d => d.name);
-    expect(names).toEqual(['advance-game-time', 'get-game-time', 'ping-location']);
+    expect(names).toEqual(['manage-time']);
+  });
+
+  it('requires an action and offers get and advance', () => {
+    const [def] = makeTools().tools.getToolDefinitions();
+    expect(def.inputSchema.required).toEqual(['action']);
+    expect(def.inputSchema.properties.action.enum).toEqual(['get', 'advance']);
   });
 });
 
-describe('WorldTools forwarding', () => {
-  it('forwards advance-game-time params to the bridge', async () => {
+describe('manage-time forwarding', () => {
+  it('forwards advance params to the bridge', async () => {
     const { tools, query } = makeTools();
-    await tools.handleAdvanceGameTime({ amount: 10, unit: 'minutes' });
+    await tools.handleManageTime({ action: 'advance', amount: 10, unit: 'minutes' });
     expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.advance-game-time', {
       amount: 10,
       unit: 'minutes',
@@ -34,34 +40,27 @@ describe('WorldTools forwarding', () => {
 
   it('rejects a non-positive amount before querying', async () => {
     const { tools, query } = makeTools();
-    await expect(tools.handleAdvanceGameTime({ amount: 0, unit: 'hours' })).rejects.toThrow();
+    await expect(
+      tools.handleManageTime({ action: 'advance', amount: 0, unit: 'hours' })
+    ).rejects.toThrow();
     expect(query).not.toHaveBeenCalled();
   });
 
-  it('forwards get-game-time with an empty payload', async () => {
+  it('rejects advance without a unit before querying', async () => {
     const { tools, query } = makeTools();
-    await tools.handleGetGameTime({});
+    await expect(tools.handleManageTime({ action: 'advance', amount: 10 })).rejects.toThrow();
+    expect(query).not.toHaveBeenCalled();
+  });
+
+  it('forwards get with an empty payload', async () => {
+    const { tools, query } = makeTools();
+    await tools.handleManageTime({ action: 'get' });
     expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.get-game-time', {});
   });
 
-  it('forwards ping-location by token', async () => {
+  it('rejects an unknown action before querying', async () => {
     const { tools, query } = makeTools();
-    await tools.handlePingLocation({ token: 'Hero', pull: true });
-    expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.ping-location', {
-      token: 'Hero',
-      pull: true,
-    });
-  });
-
-  it('forwards ping-location by coordinates', async () => {
-    const { tools, query } = makeTools();
-    await tools.handlePingLocation({ x: 100, y: 200 });
-    expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.ping-location', { x: 100, y: 200 });
-  });
-
-  it('rejects a partial coordinate + token mix', async () => {
-    const { tools, query } = makeTools();
-    await expect(tools.handlePingLocation({ x: 100, token: 'Hero' })).rejects.toThrow();
+    await expect(tools.handleManageTime({ action: 'set' })).rejects.toThrow();
     expect(query).not.toHaveBeenCalled();
   });
 });

@@ -36,7 +36,7 @@ import { WFRP4eUpdateActorTools } from './tools/wfrp4e/update-actor.js';
 import { WFRP4eAddItemsTools } from './tools/wfrp4e/add-items.js';
 import { CombatTools } from './tools/combat-tools.js';
 import { WorldTools } from './tools/world-tools.js';
-import { AudioTools } from './tools/audio-tools.js';
+import { GmUtilsTools } from './tools/gm-utils.js';
 
 import { MapGenerationTools } from './tools/map-generation.js';
 
@@ -1221,7 +1221,7 @@ async function startBackend(): Promise<void> {
 
   const combatTools = new CombatTools({ foundryClient, logger });
   const worldTools = new WorldTools({ foundryClient, logger });
-  const audioTools = new AudioTools({ foundryClient, logger });
+  const gmUtilsTools = new GmUtilsTools({ foundryClient, logger });
 
   // Initialize mapgen-style backend components for map generation
   let mapGenerationJobQueue: any = null;
@@ -1455,7 +1455,7 @@ async function startBackend(): Promise<void> {
 
     ...worldTools.getToolDefinitions(),
 
-    ...audioTools.getToolDefinitions(),
+    ...gmUtilsTools.getToolDefinitions(),
   ];
 
   // Start Foundry connector (owns app port 31415)
@@ -1682,62 +1682,22 @@ async function startBackend(): Promise<void> {
 
                 // Core combat tools
 
-                case 'apply-damage':
-                  result = await combatTools.handleApplyDamage(args);
-
-                  break;
-
-                case 'apply-healing':
-                  result = await combatTools.handleApplyHealing(args);
-
-                  break;
-
-                case 'advance-turn':
-                  result = await combatTools.handleAdvanceTurn(args);
-
-                  break;
-
-                case 'set-initiative':
-                  result = await combatTools.handleSetInitiative(args);
-
-                  break;
-
-                case 'apply-active-effect':
-                  result = await combatTools.handleApplyActiveEffect(args);
-
-                  break;
-
-                case 'remove-active-effect':
-                  result = await combatTools.handleRemoveActiveEffect(args);
-
-                  break;
-
-                case 'get-combatant-status':
-                  result = await combatTools.handleGetCombatantStatus(args);
+                case 'manage-combat':
+                  result = await combatTools.handleManageCombat(args);
 
                   break;
 
                 // Core world tools
 
-                case 'advance-game-time':
-                  result = await worldTools.handleAdvanceGameTime(args);
+                case 'manage-time':
+                  result = await worldTools.handleManageTime(args);
 
                   break;
 
-                case 'get-game-time':
-                  result = await worldTools.handleGetGameTime(args);
+                // GM utilities (canvas ping, audio)
 
-                  break;
-
-                case 'ping-location':
-                  result = await worldTools.handlePingLocation(args);
-
-                  break;
-
-                // Core audio tools
-
-                case 'play-sound':
-                  result = await audioTools.handlePlaySound(args);
+                case 'gm-utils':
+                  result = await gmUtilsTools.handleGmUtils(args);
 
                   break;
 

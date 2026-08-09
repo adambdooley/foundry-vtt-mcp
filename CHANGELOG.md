@@ -2,19 +2,30 @@
 
 ### New Features
 
-- **Combat tools** — damage/healing, turn & initiative control, active effects, and combatant status
-  - `apply-damage` / `apply-healing` — adjust one or more targets' HP; damage respects the game system's resistances/immunities when available, healing clamps to max; returns HP before/after per target
-  - `advance-turn` — step the active combat forward a turn/round or back a turn
-  - `set-initiative` — set an explicit initiative value or roll it for a combatant
-  - `apply-active-effect` / `remove-active-effect` — apply/remove a status condition or a custom active effect (attribute changes + durations) on an actor
-  - `get-combatant-status` — read HP, conditions, effects, and initiative for one actor or all combatants, plus AC/movement/spell-slots/consumables where the game system exposes them (read-only)
+- **`manage-combat`** — combat flow control
+  - `action: 'advance-turn'` — step the active combat forward a turn/round or back a turn
+  - `action: 'set-initiative'` — set an explicit initiative value or roll it for a combatant
 
-- **World tools** — game-clock control and canvas pings
-  - `advance-game-time` / `get-game-time` — advance and read the world clock, with a human-readable formatted breakdown
-  - `ping-location` — ping a coordinate or token on the canvas, optionally pulling every player's camera
+- **`manage-time`** — game-clock control
+  - `action: 'get'` — read the world clock with a human-readable formatted breakdown
+  - `action: 'advance'` — move the clock forward by seconds/rounds/minutes/hours/days
 
-- **Audio tools**
-  - `play-sound` — play an audio file for the table (or GM-only) via Foundry's AudioHelper
+- **`gm-utils`** — cosmetic table-facing effects that change no game state
+  - `action: 'ping'` — ping a coordinate or token on the canvas, optionally pulling every player's camera
+  - `action: 'play-sound'` — play an audio file for the table (or GM-only) via Foundry's AudioHelper
+
+### Enhancements
+
+- **`manage-actors`** gains system-aware HP actions, distinct from `update`'s generic data merge
+  - `action: 'damage'` / `action: 'heal'` — adjust one or more targets' HP through the system's own damage application; damage respects resistances/immunities when available, healing clamps to max; returns HP before/after per target
+
+- **`toggle-token-condition`** gains custom active effects alongside status conditions
+  - `action: 'apply-effect'` / `action: 'remove-effect'` — apply/remove a custom active effect (attribute changes + round/turn/second durations). The default `toggle` action is unchanged
+
+- **`get-token-details`** gains tactical combat status alongside token document detail
+  - `actor` — HP, conditions, effects, and initiative for one actor, plus AC/movement/spell-slots/consumables where the game system exposes them
+  - `all: true` — the same for every combatant in the active combat, plus round/turn
+  - `tokenId` still returns token document detail and is now one of three mutually exclusive modes
 
 ---
 

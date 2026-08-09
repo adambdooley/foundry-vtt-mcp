@@ -1,5 +1,5 @@
 /**
- * Core combat tools — schema advertisement + bridge query-forwarding tests.
+ * manage-combat — schema advertisement + bridge query-forwarding tests.
  */
 
 import { describe, it, expect, vi } from 'vitest';
@@ -14,111 +14,62 @@ function makeTools(queryImpl?: (method: string, data: any) => unknown) {
 }
 
 describe('CombatTools.getToolDefinitions', () => {
-  it('advertises the seven core combat tools', () => {
+  it('advertises a single manage-combat tool', () => {
     const names = makeTools()
       .tools.getToolDefinitions()
       .map(d => d.name);
-    expect(names).toEqual([
-      'apply-damage',
-      'apply-healing',
-      'advance-turn',
-      'set-initiative',
-      'apply-active-effect',
-      'remove-active-effect',
-      'get-combatant-status',
-    ]);
+    expect(names).toEqual(['manage-combat']);
   });
 
-  it('requires targets and amount for apply-damage', () => {
+  it('requires an action and offers advance-turn and set-initiative', () => {
     const [def] = makeTools().tools.getToolDefinitions();
-    expect(def.inputSchema.required).toEqual(['targets', 'amount']);
+    expect(def.inputSchema.required).toEqual(['action']);
+    expect(def.inputSchema.properties.action.enum).toEqual(['advance-turn', 'set-initiative']);
   });
 });
 
-describe('CombatTools forwarding', () => {
-  it('forwards apply-damage params to the bridge', async () => {
-    const { tools, query } = makeTools();
-    await tools.handleApplyDamage({
-      targets: ['Goblin'],
-      amount: 7,
-      damageType: 'fire',
-      half: true,
-    });
-    expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.apply-damage', {
-      targets: ['Goblin'],
-      amount: 7,
-      damageType: 'fire',
-      half: true,
-    });
-  });
-
-  it('rejects non-positive damage amounts before querying', async () => {
-    const { tools, query } = makeTools();
-    await expect(tools.handleApplyDamage({ targets: ['Goblin'], amount: -1 })).rejects.toThrow();
-    expect(query).not.toHaveBeenCalled();
-  });
-
-  it('forwards apply-healing params to the bridge', async () => {
-    const { tools, query } = makeTools();
-    await tools.handleApplyHealing({ targets: ['Hero'], amount: 5 });
-    expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.apply-healing', {
-      targets: ['Hero'],
-      amount: 5,
-    });
-  });
-
+describe('manage-combat forwarding', () => {
   it('defaults advance-turn direction to undefined (bridge applies next-turn)', async () => {
     const { tools, query } = makeTools();
-    await tools.handleAdvanceTurn({});
+    await tools.handleManageCombat({ action: 'advance-turn' });
     expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.advance-turn', { direction: undefined });
+  });
+
+  it('forwards an explicit advance-turn direction', async () => {
+    const { tools, query } = makeTools();
+    await tools.handleManageCombat({ action: 'advance-turn', direction: 'previous-turn' });
+    expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.advance-turn', {
+      direction: 'previous-turn',
+    });
   });
 
   it('forwards set-initiative with an explicit value', async () => {
     const { tools, query } = makeTools();
-    await tools.handleSetInitiative({ combatant: 'Goblin', value: 15 });
+    await tools.handleManageCombat({ action: 'set-initiative', combatant: 'Goblin', value: 15 });
     expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.set-initiative', {
       combatant: 'Goblin',
       value: 15,
     });
   });
 
-  it('forwards a condition on apply-active-effect', async () => {
+  it('omits the value so the bridge rolls initiative', async () => {
     const { tools, query } = makeTools();
-    await tools.handleApplyActiveEffect({ actor: 'Hero', condition: 'prone' });
-    expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.apply-active-effect', {
-      actor: 'Hero',
-      condition: 'prone',
+    await tools.handleManageCombat({ action: 'set-initiative', combatant: 'Goblin' });
+    expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.set-initiative', {
+      combatant: 'Goblin',
+      value: undefined,
     });
   });
 
-  it('rejects apply-active-effect with both condition and effect', async () => {
+  it('rejects set-initiative without a combatant before querying', async () => {
     const { tools, query } = makeTools();
-    await expect(
-      tools.handleApplyActiveEffect({ actor: 'Hero', condition: 'prone', effect: { label: 'X' } })
-    ).rejects.toThrow();
+    await expect(tools.handleManageCombat({ action: 'set-initiative' })).rejects.toThrow();
     expect(query).not.toHaveBeenCalled();
   });
 
-  it('forwards remove-active-effect', async () => {
+  it('rejects an unknown action before querying', async () => {
     const { tools, query } = makeTools();
-    await tools.handleRemoveActiveEffect({ actor: 'Hero', effect: 'prone' });
-    expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.remove-active-effect', {
-      actor: 'Hero',
-      effect: 'prone',
-    });
-  });
-
-  it('forwards get-combatant-status for a single actor', async () => {
-    const { tools, query } = makeTools();
-    await tools.handleGetCombatantStatus({ actor: 'Hero' });
-    expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.get-combatant-status', {
-      actor: 'Hero',
-    });
-  });
-
-  it('rejects get-combatant-status with neither actor nor all', async () => {
-    const { tools, query } = makeTools();
-    await expect(tools.handleGetCombatantStatus({})).rejects.toThrow();
+    await expect(tools.handleManageCombat({ action: 'apply-damage' })).rejects.toThrow();
     expect(query).not.toHaveBeenCalled();
   });
 });
