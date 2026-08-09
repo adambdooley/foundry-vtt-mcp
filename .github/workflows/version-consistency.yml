@@ -1,0 +1,36 @@
+name: Version Consistency
+
+# Guards against the class of bug behind #69: a version bump that lands in one
+# manifest but not the others, or that drifts ahead of a release. Runs on every
+# PR to master — no build needed, it only reads JSON.
+on:
+  pull_request:
+    branches:
+      - master
+
+jobs:
+  version-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '20.12.2'
+
+      - name: Check version consistency across manifests
+        run: node scripts/check-version-consistency.mjs
+
+      - name: Flag version changes for review
+        run: |
+          BASE="${{ github.event.pull_request.base.sha }}"
+          FILES="package.json packages/mcp-server/package.json packages/foundry-module/package.json shared/package.json packages/foundry-module/module.json"
+          if git diff "$BASE" HEAD -- $FILES | grep -qE '^[+-][[:space:]]*"version":'; then
+            echo "::notice title=Version bump detected::This PR changes a package version. Make sure it is an intentional release bump (chore(release): prepare vX.Y.Z) and that a matching tag/release will follow — an unreleased bump on master triggers the update loop from #69."
+          else
+            echo "No version fields changed in this PR."
+          fi

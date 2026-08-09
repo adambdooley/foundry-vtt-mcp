@@ -17,6 +17,7 @@
     "build:release": "npm run build:shared && npm run build:server && npm run bundle:server && npm run build:foundry",
     "installer:stage": "node installer/build-nsis.js --skip-download --skip-nsis",
     "test": "npm run test --workspaces --if-present",
+    "version:check": "node scripts/check-version-consistency.mjs",
     "lint": "eslint . --ext .ts,.js",
     "lint:fix": "eslint . --ext .ts,.js --fix",
     "format": "prettier --write \"**/*.{ts,js,json,md}\"",
