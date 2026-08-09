@@ -473,7 +473,7 @@ jobs:
 
           **Foundry VTT Users:**
           - Install directly from Foundry's module browser
-          - Or use manifest: `https://raw.githubusercontent.com/adambdooley/foundry-vtt-mcp/master/packages/foundry-module/module.json`
+          - Or use manifest: `https://github.com/adambdooley/foundry-vtt-mcp/releases/latest/download/module.json`
 
           ### Quick Start
           1. Choose your installation method above
