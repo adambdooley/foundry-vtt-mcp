@@ -14,6 +14,17 @@
   - `action: 'ping'` — ping a coordinate or token on the canvas, optionally pulling every player's camera
   - `action: 'play-sound'` — play an audio file for the table (or GM-only) via Foundry's AudioHelper
 
+- **`manage-chat`** — GM narration and dice output
+  - `action: 'post'` — post a message, optionally speaking as a token/actor, in/out of character, or whispered
+  - `action: 'roll'` — evaluate a dice formula and post the styled roll card with a per-die breakdown
+  - `action: 'draw-table'` — draw from a RollTable and post the results
+
+- **`manage-macros`** — Foundry Macro document management
+  - `action: 'create' | 'list' | 'delete'` — store, find, and remove clickable hotbar macros. The MCP never executes macro code; a script macro's JavaScript runs solely on a human click
+
+- **`manage-playlists`** — audio playlist control over core `game.playlists`
+  - `action: 'list' | 'play' | 'stop' | 'play-sound' | 'stop-all' | 'set-mode' | 'create'`
+
 ### Enhancements
 
 - **`manage-actors`** gains system-aware HP actions, distinct from `update`'s generic data merge

@@ -10388,6 +10388,202 @@ export class FoundryDataAccess {
     return { played: data.file };
   }
 
+  // ─── playlists ──────────────────────────────────────────────────────────────
+
+  /** Resolve a playlist by id first, then case-insensitive name. */
+  private resolvePlaylist(ref: string): any {
+    const collection = (game as any).playlists;
+    if (!collection) throw new Error('No playlists collection available');
+    const byId = collection.get?.(ref);
+    if (byId) return byId;
+    const wanted = String(ref).trim().toLowerCase();
+    const all: any[] = Array.from(collection.values?.() ?? collection ?? []);
+    const byName = all.find(p => p?.name?.toLowerCase() === wanted);
+    if (byName) return byName;
+    const available = all
+      .map(p => p?.name)
+      .filter(Boolean)
+      .join(', ');
+    throw new Error(`No playlist named "${ref}". Available: ${available || '(none)'}`);
+  }
+
+  /** Resolve a sound within a playlist by id first, then case-insensitive name. */
+  private resolvePlaylistSound(playlist: any, ref: string): any {
+    const byId = playlist.sounds?.get?.(ref);
+    if (byId) return byId;
+    const wanted = String(ref).trim().toLowerCase();
+    const all: any[] = Array.from(playlist.sounds?.values?.() ?? playlist.sounds ?? []);
+    const byName = all.find(s => s?.name?.toLowerCase() === wanted);
+    if (byName) return byName;
+    const available = all
+      .map(s => s?.name)
+      .filter(Boolean)
+      .join(', ');
+    throw new Error(
+      `No sound named "${ref}" in playlist "${playlist.name}". Available: ${available || '(none)'}`
+    );
+  }
+
+  /**
+   * Resolve a playlist-mode string to its Foundry mode number via
+   * CONST.PLAYLIST_MODES (resolved at runtime — never hardcoded ints).
+   */
+  private resolvePlaylistMode(mode: string): number {
+    const keys: Record<string, string> = {
+      sequential: 'SEQUENTIAL',
+      shuffle: 'SHUFFLE',
+      simultaneous: 'SIMULTANEOUS',
+    };
+    const key = keys[mode];
+    const modes = (CONST as any)?.PLAYLIST_MODES as Record<string, number> | undefined;
+    const value = key && modes ? modes[key] : undefined;
+    if (typeof value !== 'number') {
+      throw new Error(
+        `Invalid playlist mode "${mode}". Valid modes: ${Object.keys(keys).join(', ')}`
+      );
+    }
+    return value;
+  }
+
+  /** Reverse-map a numeric playlist mode to its lowercase label. */
+  private playlistModeLabel(mode: number): string {
+    const modes = (CONST as any)?.PLAYLIST_MODES as Record<string, number> | undefined;
+    if (modes) {
+      for (const [key, value] of Object.entries(modes)) {
+        if (value === mode) return key.toLowerCase();
+      }
+    }
+    return String(mode);
+  }
+
+  /** List playlists (read-only). Optionally only those currently playing. */
+  async listPlaylists(data: { playingOnly?: boolean }): Promise<{
+    playlists: Array<{
+      id: string;
+      name: string;
+      mode: string;
+      playing: boolean;
+      sounds: Array<{ id: string; name: string; playing: boolean }>;
+    }>;
+  }> {
+    this.validateFoundryState();
+    const collection = (game as any).playlists;
+    const all: any[] = Array.from(collection?.values?.() ?? collection ?? []);
+    const playingOnly = data?.playingOnly === true;
+    const playlists = all
+      .filter(p => (playingOnly ? p?.playing === true : true))
+      .map(p => ({
+        id: p.id,
+        name: p.name,
+        mode: this.playlistModeLabel(p.mode),
+        playing: p.playing === true,
+        sounds: Array.from(p.sounds?.values?.() ?? p.sounds ?? []).map((s: any) => ({
+          id: s.id,
+          name: s.name,
+          playing: s.playing === true,
+        })),
+      }));
+    return { playlists };
+  }
+
+  /** Play all sounds in a playlist (resolve id/name → playAll). */
+  async playPlaylist(data: { playlist: string }): Promise<{ playlist: string; playing: boolean }> {
+    this.validateFoundryState();
+    const playlist = this.resolvePlaylist(data.playlist);
+    await playlist.playAll();
+    this.auditLog('playPlaylist', data, 'success');
+    return { playlist: playlist.name, playing: true };
+  }
+
+  /** Stop all sounds in a playlist (resolve id/name → stopAll). */
+  async stopPlaylist(data: { playlist: string }): Promise<{ playlist: string; playing: boolean }> {
+    this.validateFoundryState();
+    const playlist = this.resolvePlaylist(data.playlist);
+    await playlist.stopAll();
+    this.auditLog('stopPlaylist', data, 'success');
+    return { playlist: playlist.name, playing: false };
+  }
+
+  /** Play a single sound within a playlist (resolve playlist + sound). */
+  async playPlaylistSound(data: {
+    playlist: string;
+    sound: string;
+  }): Promise<{ playlist: string; sound: string; playing: boolean }> {
+    this.validateFoundryState();
+    const playlist = this.resolvePlaylist(data.playlist);
+    const sound = this.resolvePlaylistSound(playlist, data.sound);
+    await playlist.playSound(sound);
+    this.auditLog('playPlaylistSound', data, 'success');
+    return { playlist: playlist.name, sound: sound.name, playing: true };
+  }
+
+  /**
+   * Stop every currently-playing playlist. Batch operation — one failure does
+   * not abort the rest; failures are collected into `errors`.
+   */
+  async stopAllPlaylists(): Promise<{
+    stopped: string[];
+    errors: Array<{ playlist: string; error: string }>;
+  }> {
+    this.validateFoundryState();
+    const collection = (game as any).playlists;
+    const all: any[] = Array.from(collection?.values?.() ?? collection ?? []);
+    const stopped: string[] = [];
+    const errors: Array<{ playlist: string; error: string }> = [];
+    for (const p of all) {
+      if (p?.playing !== true) continue;
+      try {
+        await p.stopAll();
+        stopped.push(p.name);
+      } catch (error) {
+        errors.push({
+          playlist: p?.name ?? 'unknown',
+          error: error instanceof Error ? error.message : 'Unknown error',
+        });
+      }
+    }
+    this.auditLog('stopAllPlaylists', { stopped, errors }, 'success');
+    return { stopped, errors };
+  }
+
+  /** Set a playlist's playback mode (sequential/shuffle/simultaneous). */
+  async setPlaylistMode(data: {
+    playlist: string;
+    mode: string;
+  }): Promise<{ playlist: string; mode: string }> {
+    this.validateFoundryState();
+    const playlist = this.resolvePlaylist(data.playlist);
+    const modeValue = this.resolvePlaylistMode(data.mode);
+    await playlist.update({ mode: modeValue });
+    this.auditLog('setPlaylistMode', data, 'success');
+    return { playlist: playlist.name, mode: this.playlistModeLabel(modeValue) };
+  }
+
+  /** Create a playlist, optionally pre-filled with sounds (path + name). */
+  async createPlaylist(data: {
+    name: string;
+    mode?: string;
+    sounds?: Array<{ name: string; path: string; repeat?: boolean; volume?: number }>;
+  }): Promise<{ playlist: string; id: string; sounds: string[] }> {
+    this.validateFoundryState();
+    const PlaylistClass = (globalThis as any).Playlist ?? (CONFIG as any)?.Playlist?.documentClass;
+    if (!PlaylistClass?.create) throw new Error('Playlist document class unavailable');
+    const mode = this.resolvePlaylistMode(data.mode ?? 'sequential');
+    const sounds = (data.sounds ?? []).map(sd => ({
+      name: sd.name,
+      path: sd.path,
+      repeat: sd.repeat ?? false,
+      volume: typeof sd.volume === 'number' ? Math.min(Math.max(sd.volume, 0), 1) : 0.8,
+    }));
+    const created = await PlaylistClass.create({ name: data.name, mode, sounds });
+    this.auditLog('createPlaylist', { name: data.name, count: sounds.length }, 'success');
+    return {
+      playlist: created.name,
+      id: created.id,
+      sounds: Array.from(created.sounds?.values?.() ?? []).map((s: any) => s.name),
+    };
+  }
+
   // ─── mgt2e ──────────────────────────────────────────────────────────────────
 }
 

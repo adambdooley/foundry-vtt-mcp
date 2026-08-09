@@ -37,6 +37,9 @@ import { WFRP4eAddItemsTools } from './tools/wfrp4e/add-items.js';
 import { CombatTools } from './tools/combat-tools.js';
 import { WorldTools } from './tools/world-tools.js';
 import { GmUtilsTools } from './tools/gm-utils.js';
+import { ChatTools } from './tools/chat-tools.js';
+import { MacroTools } from './tools/macro-tools.js';
+import { PlaylistTools } from './tools/playlist-tools.js';
 
 import { MapGenerationTools } from './tools/map-generation.js';
 
@@ -1223,6 +1226,12 @@ async function startBackend(): Promise<void> {
   const worldTools = new WorldTools({ foundryClient, logger });
   const gmUtilsTools = new GmUtilsTools({ foundryClient, logger });
 
+  const chatTools = new ChatTools({ foundryClient, logger });
+
+  const macroTools = new MacroTools({ foundryClient, logger });
+
+  const playlistTools = new PlaylistTools({ foundryClient, logger });
+
   // Initialize mapgen-style backend components for map generation
   let mapGenerationJobQueue: any = null;
   let mapGenerationComfyUIClient: any = null;
@@ -1456,6 +1465,12 @@ async function startBackend(): Promise<void> {
     ...worldTools.getToolDefinitions(),
 
     ...gmUtilsTools.getToolDefinitions(),
+
+    ...chatTools.getToolDefinitions(),
+
+    ...macroTools.getToolDefinitions(),
+
+    ...playlistTools.getToolDefinitions(),
   ];
 
   // Start Foundry connector (owns app port 31415)
@@ -1698,6 +1713,23 @@ async function startBackend(): Promise<void> {
 
                 case 'gm-utils':
                   result = await gmUtilsTools.handleGmUtils(args);
+
+                  break;
+
+                // Core chat, macro, and playlist tools
+
+                case 'manage-chat':
+                  result = await chatTools.handleManageChat(args);
+
+                  break;
+
+                case 'manage-macros':
+                  result = await macroTools.handleManageMacros(args);
+
+                  break;
+
+                case 'manage-playlists':
+                  result = await playlistTools.handleManagePlaylists(args);
 
                   break;
 

@@ -113,7 +113,7 @@ Once connected, ask Claude Desktop:
 
 ## Features
 
-- **43 MCP Tools** that allow Claude to interact with Foundry
+- **47 MCP Tools** that allow Claude to interact with Foundry
 - **D&D 5e NPC Creation Suite**: Build complete NPCs from prompts — stat block, attacks, saves, auras, and spellcasting
 - **Mongoose Traveller 2e (mgt2e) Support**: Full actor lifecycle — create/update/delete travellers, NPCs, creatures, and spacecraft with skill shorthand normalisation; creature compendium index with characteristic DMs; weapon-trait enum reference
 - **WFRP4e Support**: Character reading plus editing — update characteristics, wounds, skills and careers, and add or remove items on existing actors
@@ -142,9 +142,9 @@ Once connected, ask Claude Desktop:
 - **7** get-character  
 - **8** search-character-items  
 - **9** get-character-entity
-- **10** get-token-details
-- **11** toggle-token-condition (add)  
-- **12** toggle-token-condition (remove)
+- **10** get-token-details (token document detail, or tactical status for one actor / all combatants)
+- **11** toggle-token-condition (add condition, or apply a custom active effect)  
+- **12** toggle-token-condition (remove condition or custom active effect)
 - **13** update-token
 - **14** search-compendium
 - **15** get-compendium-item
@@ -173,7 +173,13 @@ Once connected, ask Claude Desktop:
 - **38** dnd5e-create-npc (D&D 5e Only)
 - **39** dnd5e-add-feature (D&D 5e Only)
 - **40** dnd5e-add-features-from-compendium (D&D 5e Only)
-- **41** manage-actors (create / update / delete actors; update / delete embedded items — any system)
+- **41** manage-actors (create / update / delete actors; update / delete embedded items; system-aware damage / heal — any system)
+- **42** manage-combat (advance-turn / set-initiative)
+- **43** manage-time (get / advance the world clock)
+- **44** gm-utils (ping a canvas location / play a sound for the table)
+- **45** manage-chat (post a message / roll dice / draw from a RollTable)
+- **46** manage-macros (create / list / delete Macro documents)
+- **47** manage-playlists (list / play / stop / play-sound / stop-all / set-mode / create)
 
 ## Settings
 
