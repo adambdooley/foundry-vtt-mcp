@@ -1,6 +1,7 @@
 import { MODULE_ID } from './constants.js';
 import { FoundryDataAccess } from './data-access.js';
 import { ComfyUIManager } from './comfyui-manager.js';
+import { permissionManager } from './permissions.js';
 
 export class QueryHandlers {
   public dataAccess: FoundryDataAccess;
@@ -68,6 +69,13 @@ export class QueryHandlers {
     // Phase 4: Dice roll queries
     CONFIG.queries[`${modulePrefix}.request-player-rolls`] =
       this.handleRequestPlayerRolls.bind(this);
+    CONFIG.queries[`${modulePrefix}.roll-dice`] = this.handleRollDice.bind(this);
+    CONFIG.queries[`${modulePrefix}.get-recent-rolls`] = this.handleGetRecentRolls.bind(this);
+    CONFIG.queries[`${modulePrefix}.get-roll-result`] = this.handleGetRollResult.bind(this);
+
+    // Combat tracker queries
+    CONFIG.queries[`${modulePrefix}.get-combat-state`] = this.handleGetCombatState.bind(this);
+    CONFIG.queries[`${modulePrefix}.manage-combat`] = this.handleManageCombat.bind(this);
 
     // Enhanced creature index for campaign analysis
     CONFIG.queries[`${modulePrefix}.getEnhancedCreatureIndex`] =
@@ -731,6 +739,95 @@ export class QueryHandlers {
     } catch (error) {
       throw new Error(
         `Failed to request player rolls: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  private async handleRollDice(data: {
+    formula: string;
+    flavor?: string;
+    actorIdentifier?: string;
+    visibility: 'public' | 'gm' | 'blind' | 'self';
+    userConfirmedVisibility: true;
+  }): Promise<any> {
+    try {
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) return { error: 'Access denied', success: false };
+      this.dataAccess.validateFoundryState();
+
+      const writeCheck = permissionManager.checkWritePermission('rollDice');
+      if (!writeCheck.allowed) return { error: writeCheck.reason, success: false };
+      if (!data?.formula || data.userConfirmedVisibility !== true) {
+        throw new Error('formula and confirmed visibility are required');
+      }
+      return await this.dataAccess.rollDice(data);
+    } catch (error) {
+      throw new Error(
+        `Failed to execute dice roll: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  private async handleGetRecentRolls(data: {
+    limit?: number;
+    actorIdentifier?: string;
+  }): Promise<any> {
+    try {
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) return { error: 'Access denied', success: false };
+      this.dataAccess.validateFoundryState();
+      return await this.dataAccess.getRecentRolls(data ?? {});
+    } catch (error) {
+      throw new Error(
+        `Failed to read recent rolls: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  private async handleGetRollResult(data: { chatMessageId: string }): Promise<any> {
+    try {
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) return { error: 'Access denied', success: false };
+      this.dataAccess.validateFoundryState();
+      if (!data?.chatMessageId) throw new Error('chatMessageId is required');
+      return await this.dataAccess.getRollResult(data.chatMessageId);
+    } catch (error) {
+      throw new Error(
+        `Failed to read roll result: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  private async handleGetCombatState(data: { combatId?: string }): Promise<any> {
+    try {
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) return { error: 'Access denied', success: false };
+      this.dataAccess.validateFoundryState();
+      return await this.dataAccess.getCombatState(data?.combatId);
+    } catch (error) {
+      throw new Error(
+        `Failed to read combat state: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  private async handleManageCombat(data: Record<string, any>): Promise<any> {
+    try {
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) return { error: 'Access denied', success: false };
+      this.dataAccess.validateFoundryState();
+
+      const operation = data?.action === 'delete' ? 'deleteData' : 'manageCombat';
+      const writeCheck = permissionManager.checkWritePermission(operation);
+      if (!writeCheck.allowed) return { error: writeCheck.reason, success: false };
+      if (!data?.action) throw new Error('action is required');
+      if (data.action === 'delete' && data.confirmDelete !== true) {
+        throw new Error('confirmDelete=true is required for permanent combat deletion');
+      }
+      return await this.dataAccess.manageCombat(data);
+    } catch (error) {
+      throw new Error(
+        `Failed to manage combat: ${error instanceof Error ? error.message : 'Unknown error'}`
       );
     }
   }

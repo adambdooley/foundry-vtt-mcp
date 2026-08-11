@@ -19,6 +19,7 @@ export class WebRTCConnection {
   private dataChannel: RTCDataChannel | null = null;
   private connectionState: string = CONNECTION_STATES.DISCONNECTED;
   private messageHandler: ((message: any) => Promise<void>) | null = null;
+  private sendQueue: Promise<void> = Promise.resolve();
 
   constructor(private config: WebRTCConfig) {}
 
@@ -43,7 +44,6 @@ export class WebRTCConnection {
       // Step 2: Create data channel
       this.dataChannel = this.peerConnection.createDataChannel('foundry-mcp', {
         ordered: true,
-        maxRetransmits: 10,
       });
 
       this.setupDataChannelHandlers();
@@ -193,9 +193,50 @@ export class WebRTCConnection {
   }
 
   sendMessage(message: any): void {
-    if (!this.dataChannel || this.dataChannel.readyState !== 'open') {
-      this.log('Cannot send message - data channel not open');
-      return;
+    // Serialize all outbound messages. This prevents a ping or a second query
+    // response from interleaving with the chunks of a large response.
+    this.sendQueue = this.sendQueue
+      .then(() => this.sendMessageNow(message))
+      .catch(error => {
+        this.log(`Failed to send WebRTC message: ${error}`);
+      });
+  }
+
+  private async waitForSendBuffer(dataChannel: RTCDataChannel): Promise<void> {
+    const HIGH_WATER_MARK = 64 * 1024;
+    const LOW_WATER_MARK = 32 * 1024;
+    const BUFFER_TIMEOUT_MS = 10000;
+
+    if (dataChannel.bufferedAmount <= HIGH_WATER_MARK) return;
+
+    dataChannel.bufferedAmountLowThreshold = LOW_WATER_MARK;
+
+    await new Promise<void>((resolve, reject) => {
+      const cleanup = () => {
+        clearTimeout(timeout);
+        dataChannel.removeEventListener('bufferedamountlow', onBufferedAmountLow);
+      };
+      const onBufferedAmountLow = () => {
+        cleanup();
+        resolve();
+      };
+      const timeout = setTimeout(() => {
+        cleanup();
+        reject(new Error(`WebRTC send buffer did not drain below ${LOW_WATER_MARK} bytes`));
+      }, BUFFER_TIMEOUT_MS);
+
+      dataChannel.addEventListener('bufferedamountlow', onBufferedAmountLow);
+
+      // Avoid missing the event if the buffer drained between the initial
+      // check and installing the listener.
+      if (dataChannel.bufferedAmount <= LOW_WATER_MARK) onBufferedAmountLow();
+    });
+  }
+
+  private async sendMessageNow(message: any): Promise<void> {
+    const dataChannel = this.dataChannel;
+    if (!dataChannel || dataChannel.readyState !== 'open') {
+      throw new Error('Cannot send message - data channel not open');
     }
 
     try {
@@ -204,7 +245,9 @@ export class WebRTCConnection {
 
       // WebRTC SCTP constants (keep in sync with server config.ts WEBRTC_CONSTANTS)
       const MAX_MESSAGE_SIZE = 65536; // 64KB - SCTP hard limit
-      const CHUNK_SIZE = 50 * 1024; // 50KB - safe threshold for chunking
+      // Smaller application chunks plus send-buffer backpressure avoid
+      // overwhelming Chromium's SCTP queue with large actor responses.
+      const CHUNK_SIZE = 16 * 1024;
 
       if (size > CHUNK_SIZE) {
         // Split large message into chunks
@@ -241,14 +284,19 @@ export class WebRTCConnection {
             );
           }
 
-          this.dataChannel.send(chunkJson);
+          await this.waitForSendBuffer(dataChannel);
+          if (dataChannel.readyState !== 'open') {
+            throw new Error('WebRTC data channel closed during chunked send');
+          }
+          dataChannel.send(chunkJson);
           this.log(`Sent chunk ${i + 1}/${totalChunks} (${chunkJson.length} bytes)`);
         }
 
         this.log(`Successfully sent all ${totalChunks} chunks for ${message.type}`);
       } else {
         // Send as single message
-        this.dataChannel.send(json);
+        await this.waitForSendBuffer(dataChannel);
+        dataChannel.send(json);
         this.log(`Sent WebRTC message: ${message.type} (${size} bytes)`);
       }
     } catch (error) {

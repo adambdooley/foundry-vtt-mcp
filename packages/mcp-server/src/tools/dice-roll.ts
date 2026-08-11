@@ -19,6 +19,80 @@ export class DiceRollTools {
   getToolDefinitions() {
     return [
       {
+        name: 'roll-dice',
+        description:
+          'Execute a dice formula directly in Foundry VTT, persist the result as a Foundry chat roll, and return the exact total and chat message ID. Use for GM-controlled rolls or when the player has already declared the action. Visibility must be explicitly determined before calling.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            formula: {
+              type: 'string',
+              description: 'Foundry roll formula, for example "1d20 + 5" or "2d6 + 3".',
+              minLength: 1,
+              maxLength: 200,
+            },
+            flavor: {
+              type: 'string',
+              description: 'Optional player-facing description stored with the roll.',
+              default: '',
+              maxLength: 500,
+            },
+            actorIdentifier: {
+              type: 'string',
+              description: 'Optional actor name or ID to use as the roll speaker.',
+            },
+            visibility: {
+              type: 'string',
+              enum: ['public', 'gm', 'blind', 'self'],
+              description:
+                'Roll visibility: public to everyone, gm to active GMs, blind to GMs without exposing the result to players, or self to the executing GM only.',
+            },
+            userConfirmedVisibility: {
+              type: 'boolean',
+              const: true,
+              description: 'Confirms that roll visibility was explicitly supplied or established.',
+            },
+          },
+          required: ['formula', 'visibility', 'userConfirmedVisibility'],
+        },
+      },
+      {
+        name: 'get-recent-rolls',
+        description:
+          'Read recent persisted Foundry chat rolls visible to the connected GM. Returns chat message IDs, speakers, formulas, totals, dice, flavor, visibility, and timestamps.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            limit: {
+              type: 'integer',
+              minimum: 1,
+              maximum: 100,
+              default: 20,
+              description: 'Maximum number of recent rolls to return.',
+            },
+            actorIdentifier: {
+              type: 'string',
+              description: 'Optional actor name or ID filter.',
+            },
+          },
+        },
+      },
+      {
+        name: 'get-roll-result',
+        description:
+          'Read one persisted Foundry roll by its chat message ID and return its exact formula, total, dice, speaker, flavor, visibility, and timestamp.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            chatMessageId: {
+              type: 'string',
+              description: 'Foundry ChatMessage ID returned by roll-dice or get-recent-rolls.',
+            },
+          },
+          required: ['chatMessageId'],
+        },
+      },
+      {
         name: 'request-player-rolls',
         description:
           'Request dice rolls from players with interactive buttons. Creates roll buttons in Foundry chat that players can click. VISIBILITY WORKFLOW: Before calling this function, ensure the user has specified whether they want a public or private roll. If they have already specified "public" or "private" in their request (e.g., "public performance check", "private stealth roll"), you can proceed directly. If the visibility is ambiguous or unspecified, ask: "Do you want this to be a PUBLIC roll (visible to all players) or PRIVATE roll (visible to player and GM only)?" and wait for their answer. Supports character-to-player resolution and GM fallback.',
@@ -72,6 +146,78 @@ export class DiceRollTools {
         },
       },
     ];
+  }
+
+  async handleRollDice(args: any) {
+    const schema = z.object({
+      formula: z.string().trim().min(1).max(200),
+      flavor: z.string().max(500).default(''),
+      actorIdentifier: z.string().trim().min(1).optional(),
+      visibility: z.enum(['public', 'gm', 'blind', 'self']),
+      userConfirmedVisibility: z.literal(true),
+    });
+
+    try {
+      const params = schema.parse(args);
+      const response = await this.foundryClient.query('foundry-mcp-bridge.roll-dice', params);
+      if (!response?.success) throw new Error(response?.error || 'Failed to execute roll');
+      return response;
+    } catch (error) {
+      this.logger.error('Error executing Foundry roll', error);
+      if (error instanceof z.ZodError) {
+        return {
+          success: false,
+          error: `Parameter error: ${error.errors.map(e => e.message).join(', ')}`,
+        };
+      }
+      throw error;
+    }
+  }
+
+  async handleGetRecentRolls(args: any) {
+    const schema = z.object({
+      limit: z.number().int().min(1).max(100).default(20),
+      actorIdentifier: z.string().trim().min(1).optional(),
+    });
+
+    try {
+      const params = schema.parse(args ?? {});
+      const response = await this.foundryClient.query(
+        'foundry-mcp-bridge.get-recent-rolls',
+        params
+      );
+      if (!response?.success) throw new Error(response?.error || 'Failed to read recent rolls');
+      return response;
+    } catch (error) {
+      this.logger.error('Error reading recent Foundry rolls', error);
+      if (error instanceof z.ZodError) {
+        return {
+          success: false,
+          error: `Parameter error: ${error.errors.map(e => e.message).join(', ')}`,
+        };
+      }
+      throw error;
+    }
+  }
+
+  async handleGetRollResult(args: any) {
+    const schema = z.object({ chatMessageId: z.string().trim().min(1) });
+
+    try {
+      const params = schema.parse(args);
+      const response = await this.foundryClient.query('foundry-mcp-bridge.get-roll-result', params);
+      if (!response?.success) throw new Error(response?.error || 'Failed to read roll result');
+      return response;
+    } catch (error) {
+      this.logger.error('Error reading Foundry roll result', error);
+      if (error instanceof z.ZodError) {
+        return {
+          success: false,
+          error: `Parameter error: ${error.errors.map(e => e.message).join(', ')}`,
+        };
+      }
+      throw error;
+    }
   }
 
   async handleRequestPlayerRolls(args: any) {
