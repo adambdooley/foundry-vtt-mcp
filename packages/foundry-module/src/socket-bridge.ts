@@ -328,12 +328,22 @@ export class SocketBridge {
       const scene = await (globalThis as any).Scene.create(sceneData);
       console.log(`[foundry-mcp-bridge] Scene created successfully:`, scene);
 
-      // CRITICAL: Foundry v13 bug workaround (like working mapgen system)
-      if (!scene.img && sceneData.img) {
-        await scene.update({
-          img: sceneData.img,
-          background: { src: sceneData.img },
-        });
+      // Verify the background image actually persisted. This module only supports
+      // Foundry v13+, which has no `img` field/getter on Scene (it was fully replaced
+      // by `background.src`), so checking `scene.img` here always reads as undefined
+      // and the old workaround based on it never reliably detected a missing image.
+      // Some Scene.create() calls silently fail to persist a nested `background`
+      // payload, so re-check `background.src` directly and repair it if needed.
+      const expectedBackgroundSrc = sceneData.background?.src;
+      if (expectedBackgroundSrc && scene.background?.src !== expectedBackgroundSrc) {
+        console.warn(
+          `[foundry-mcp-bridge] Scene background did not persist on create (got "${scene.background?.src}"), repairing via update()...`
+        );
+        await scene.update({ background: { src: expectedBackgroundSrc } });
+        console.log(
+          `[foundry-mcp-bridge] Scene background after repair:`,
+          scene.background?.src
+        );
       }
 
       if (sceneData.walls && sceneData.walls.length > 0) {
