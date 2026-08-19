@@ -323,27 +323,57 @@ export class SocketBridge {
         console.log(`[foundry-mcp-bridge] Added folder ID to scene data`);
       }
 
+      // Capture the intended background path BEFORE calling Scene.create() - Foundry's
+      // Document constructor explicitly owns and may mutate the data object passed to it
+      // (its own JSDoc says so), and since `background` isn't a valid top-level Scene field
+      // on v14 it gets stripped from `sceneData` in place during schema cleaning. Reading
+      // this after create() would always see it as already-gone.
+      const expectedBackgroundSrc = sceneData.background?.src;
+
       // Create the scene using the complete payload from backend
       console.log(`[foundry-mcp-bridge] Attempting to create scene...`);
       const scene = await (globalThis as any).Scene.create(sceneData);
       console.log(`[foundry-mcp-bridge] Scene created successfully:`, scene);
 
-      // Verify the background image actually persisted. This module only supports
-      // Foundry v13+, which has no `img` field/getter on Scene (it was fully replaced
-      // by `background.src`), so checking `scene.img` here always reads as undefined
-      // and the old workaround based on it never reliably detected a missing image.
-      // Some Scene.create() calls silently fail to persist a nested `background`
-      // payload, so re-check `background.src` directly and repair it if needed.
-      const expectedBackgroundSrc = sceneData.background?.src;
-      if (expectedBackgroundSrc && scene.background?.src !== expectedBackgroundSrc) {
-        console.warn(
-          `[foundry-mcp-bridge] Scene background did not persist on create (got "${scene.background?.src}"), repairing via update()...`
-        );
-        await scene.update({ background: { src: expectedBackgroundSrc } });
-        console.log(
-          `[foundry-mcp-bridge] Scene background after repair:`,
-          scene.background?.src
-        );
+      // Set/verify the background image. Foundry v14 removed Scene#background entirely -
+      // the background image now lives on a Level document in the Scene's `levels`
+      // embedded collection instead (see foundry.documents.Level / LevelData#background).
+      // Foundry v13 and earlier still use the flat `background.src` field on the Scene
+      // itself, and some Scene.create() calls there silently fail to persist a nested
+      // `background` payload, so that path is verified and repaired if needed.
+      if (expectedBackgroundSrc) {
+        const foundryGeneration = (globalThis as any).game?.release?.generation ?? 0;
+        if (foundryGeneration >= 14) {
+          try {
+            const existingLevel = (scene as any).levels?.contents?.[0];
+            if (existingLevel) {
+              if (existingLevel.background?.src !== expectedBackgroundSrc) {
+                await existingLevel.update({ background: { src: expectedBackgroundSrc } });
+              }
+            } else {
+              await scene.createEmbeddedDocuments('Level', [
+                { name: 'Base', background: { src: expectedBackgroundSrc } },
+              ]);
+            }
+            console.log(
+              `[foundry-mcp-bridge] Scene background set via Level document (Foundry v${foundryGeneration}).`
+            );
+          } catch (levelError) {
+            console.error(
+              `[foundry-mcp-bridge] Failed to set background via Level document:`,
+              levelError
+            );
+          }
+        } else if (scene.background?.src !== expectedBackgroundSrc) {
+          console.warn(
+            `[foundry-mcp-bridge] Scene background did not persist on create (got "${scene.background?.src}"), repairing via update()...`
+          );
+          await scene.update({ background: { src: expectedBackgroundSrc } });
+          console.log(
+            `[foundry-mcp-bridge] Scene background after repair:`,
+            scene.background?.src
+          );
+        }
       }
 
       if (sceneData.walls && sceneData.walls.length > 0) {
