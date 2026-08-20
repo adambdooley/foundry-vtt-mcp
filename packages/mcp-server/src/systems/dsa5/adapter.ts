@@ -390,6 +390,37 @@ export class DSA5Adapter implements SystemAdapter {
     return stats;
   }
 
+  describeActorSchema(): string {
+    return [
+      '=== DSA5 Actor Schema Reference ===',
+      '',
+      'ACTOR TYPES: character, npc, creature',
+      '',
+      'EIGENSCHAFTEN (characteristics) — system.characteristics:',
+      '  Shorthand: { MU:13, KL:12, IN:14, CH:11, FF:10, GE:11, KO:12, KK:13 }',
+      '    (uppercase or lowercase; naked number → {value, initial}, or {value, initial, advances?})',
+      '  Full:      { mu:{initial:13,value:13}, kl:{initial:12,value:12}, ... }',
+      '  Keys: mu, kl, in, ch, ff, ge, ko, kk  (value is derived; writing `initial` suffices)',
+      '',
+      'LEBENSKRAFT / ENERGIE (status) — system.status:',
+      '  LeP:  { lifePoints:{current, max} } or {status:{lifePoints:{...}}} → status.wounds.{current,max}',
+      '  AsP:  { astralenergy:{current,max} } or {status:{astralenergy:{...}}} → status.astralenergy',
+      '  KaP:  { karmaenergy:{current,max} } or {status:{karmaenergy:{...}}} → status.karmaenergy',
+      '  Note: status.wounds.max is derived at runtime (initial + KO×2 + advances); a hard max may be overwritten.',
+      '',
+      'DETAILS (identity / details) — system.details:',
+      '  species/culture/career accept a string or {value}: { species:"Mensch", culture:"Mittelreich", profession:"Krieger" }',
+      '  `profession` → details.career.value; `identity.*` → details.*; experience.{total,spent,available}',
+      '',
+      'KAMPF / STATUS (optional shorthands) —',
+      '  initiative, speed, dodge, size, armour|armor → status.<key>.value  (size:string → {value}, armour→armour)',
+      '  tradition → system.tradition (object passed through)',
+      '',
+      'ACTOR TYPES: character (Held), npc (NSC), creature (Tier/Kreatur).',
+      'ITEMS: advantage, disadvantage, combatskill, talent, spell, liturgy, equipment, weapon, armor, etc.',
+    ].join('\n');
+  }
+
   // ─────────────────────────────────────────────────────────────────────────
   // normalizePayload – map caller-friendly DSA5 shorthands onto the real
   // Foundry DSA5 system paths before the payload is sent to the server.
