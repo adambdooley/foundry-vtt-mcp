@@ -3732,7 +3732,12 @@ export class FoundryDataAccess {
       id: scene.id,
       name: scene.name,
       img: scene.img || undefined,
-      background: scene._source?.background?.src || undefined,
+      // Foundry v14 removed Scene#background; the image now lives on the Scene's first
+      // Level document instead (see foundry.documents.Level / LevelData#background).
+      background:
+        scene._source?.background?.src ||
+        (scene as any).levels?.contents?.[0]?.background?.src ||
+        undefined,
       width: scene.width,
       height: scene.height,
       padding: scene.padding,
@@ -7186,7 +7191,13 @@ export class FoundryDataAccess {
           height: scene.dimensions?.height || scene.height || 0,
         },
         gridSize: scene.grid?.size || 100,
-        background: scene._source?.background?.src || scene.img || '',
+        // Foundry v14 removed Scene#background; the image now lives on the Scene's first
+        // Level document instead (see foundry.documents.Level / LevelData#background).
+        background:
+          scene._source?.background?.src ||
+          scene.levels?.contents?.[0]?.background?.src ||
+          scene.img ||
+          '',
         walls: scene.walls?.size || 0,
         tokens: scene.tokens?.size || 0,
         lighting: scene.lights?.size || 0,

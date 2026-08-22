@@ -1061,8 +1061,9 @@ async function processMapGenerationInBackend(
     logger.info('Using scene name', { scene_name: sceneName });
     const sceneData = {
       name: sceneName,
-      img: webPath,
-      background: { src: webPath }, // Foundry v13 compatibility
+      // Foundry v13+ Scene documents have no top-level `img` field - the background
+      // image is set exclusively via `background.src`.
+      background: { src: webPath },
       width: sceneSize,
       height: sceneSize,
       padding: 0.25,
