@@ -28,6 +28,7 @@ import { ActorManagementTools } from './tools/actor-management.js';
 import { QuestCreationTools } from './tools/quest-creation.js';
 
 import { DiceRollTools } from './tools/dice-roll.js';
+import { CombatTools } from './tools/combat.js';
 
 import { CampaignManagementTools } from './tools/campaign-management.js';
 
@@ -1207,6 +1208,7 @@ async function startBackend(): Promise<void> {
   const questCreationTools = new QuestCreationTools({ foundryClient, logger });
 
   const diceRollTools = new DiceRollTools({ foundryClient, logger });
+  const combatTools = new CombatTools({ foundryClient, logger });
 
   const campaignManagementTools = new CampaignManagementTools(foundryClient, logger);
 
@@ -1432,6 +1434,7 @@ async function startBackend(): Promise<void> {
     ...questCreationTools.getToolDefinitions(),
 
     ...diceRollTools.getToolDefinitions(),
+    ...combatTools.getToolDefinitions(),
 
     ...campaignManagementTools.getToolDefinitions(),
 
@@ -1670,6 +1673,33 @@ async function startBackend(): Promise<void> {
 
                 case 'request-player-rolls':
                   result = await diceRollTools.handleRequestPlayerRolls(args);
+
+                  break;
+
+                case 'roll-dice':
+                  result = await diceRollTools.handleRollDice(args);
+
+                  break;
+
+                case 'get-recent-rolls':
+                  result = await diceRollTools.handleGetRecentRolls(args);
+
+                  break;
+
+                case 'get-roll-result':
+                  result = await diceRollTools.handleGetRollResult(args);
+
+                  break;
+
+                // Combat tracker tools
+
+                case 'get-combat-state':
+                  result = await combatTools.handleGetCombatState(args);
+
+                  break;
+
+                case 'manage-combat':
+                  result = await combatTools.handleManageCombat(args);
 
                   break;
 

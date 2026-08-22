@@ -9939,6 +9939,331 @@ export class FoundryDataAccess {
     return { deleted: existing, total: existing.length };
   }
 
+  // ─── Dice rolls and chat roll history ──────────────────────────────────────
+
+  private rollModeForVisibility(visibility: 'public' | 'gm' | 'blind' | 'self'): string {
+    return {
+      public: 'publicroll',
+      gm: 'gmroll',
+      blind: 'blindroll',
+      self: 'selfroll',
+    }[visibility];
+  }
+
+  private serializeRollMessage(message: any): any | null {
+    const rolls = Array.from(message?.rolls ?? (message?.roll ? [message.roll] : [])) as any[];
+    if (rolls.length === 0) return null;
+
+    const whisper = Array.from(message.whisper ?? []) as string[];
+    let visibility: 'public' | 'gm' | 'blind' | 'self' | 'private' = 'public';
+    if (message.blind) visibility = 'blind';
+    else if (whisper.length > 0) {
+      const activeGmIds = Array.from((game as any).users?.contents ?? [])
+        .filter((u: any) => u.isGM && u.active)
+        .map((u: any) => u.id);
+      visibility = whisper.every(id => activeGmIds.includes(id)) ? 'gm' : 'private';
+    }
+
+    const serializedRolls = rolls.map(roll => ({
+      formula: roll.formula ?? roll._formula ?? '',
+      total: roll.total ?? roll._total ?? null,
+      evaluated: Boolean(roll._evaluated ?? roll.evaluated ?? true),
+      dice: Array.from(roll.dice ?? []).map((die: any) => ({
+        faces: die.faces ?? null,
+        number: die.number ?? null,
+        results: Array.from(die.results ?? []).map((result: any) => ({
+          result: result.result,
+          active: result.active !== false,
+          discarded: Boolean(result.discarded),
+        })),
+      })),
+    }));
+    const primaryRoll = serializedRolls[0];
+
+    return {
+      chatMessageId: message.id,
+      timestamp: message.timestamp ?? message._source?.timestamp ?? null,
+      speaker: {
+        alias: message.speaker?.alias ?? message.alias ?? null,
+        actorId: message.speaker?.actor ?? null,
+        tokenId: message.speaker?.token ?? null,
+        sceneId: message.speaker?.scene ?? null,
+      },
+      flavor: message.flavor ?? '',
+      visibility,
+      blind: Boolean(message.blind),
+      whisperUserIds: whisper,
+      formula: primaryRoll?.formula ?? '',
+      total: primaryRoll?.total ?? null,
+      dice: primaryRoll?.dice ?? [],
+      rolls: serializedRolls,
+    };
+  }
+
+  async rollDice(data: {
+    formula: string;
+    flavor?: string;
+    actorIdentifier?: string;
+    visibility: 'public' | 'gm' | 'blind' | 'self';
+  }): Promise<any> {
+    const formula = data.formula.trim();
+    if (!formula || formula.length > 200) throw new Error('Invalid roll formula length');
+
+    const RollClass = (globalThis as any).Roll;
+    if (!RollClass) throw new Error('Foundry Roll API is unavailable');
+    if (typeof RollClass.validate === 'function' && !RollClass.validate(formula)) {
+      throw new Error(`Invalid Foundry roll formula: ${formula}`);
+    }
+
+    const actor = data.actorIdentifier
+      ? this.findActorByIdentifier(data.actorIdentifier)
+      : undefined;
+    if (data.actorIdentifier && !actor) {
+      throw new Error(`Actor not found: ${data.actorIdentifier}`);
+    }
+
+    const roll = new RollClass(formula);
+    await roll.evaluate();
+
+    const message = await roll.toMessage(
+      {
+        speaker: (globalThis as any).ChatMessage.getSpeaker(actor ? { actor } : {}),
+        flavor: data.flavor ?? '',
+      },
+      { create: true, rollMode: this.rollModeForVisibility(data.visibility) }
+    );
+    if (!message?.id) throw new Error('Foundry did not persist the roll chat message');
+
+    const serialized = this.serializeRollMessage(message);
+    this.auditLog(
+      'rollDice',
+      { chatMessageId: message.id, formula, actorId: actor?.id, visibility: data.visibility },
+      'success'
+    );
+    return { success: true, roll: serialized };
+  }
+
+  async getRecentRolls(data: { limit?: number; actorIdentifier?: string }): Promise<any> {
+    const limit = Math.max(1, Math.min(100, data.limit ?? 20));
+    const actor = data.actorIdentifier
+      ? this.findActorByIdentifier(data.actorIdentifier)
+      : undefined;
+    if (data.actorIdentifier && !actor) throw new Error(`Actor not found: ${data.actorIdentifier}`);
+
+    const messages = Array.from((game as any).messages?.contents ?? []) as any[];
+    const rolls = messages
+      .slice()
+      .sort(
+        (a, b) =>
+          (b.timestamp ?? b._source?.timestamp ?? 0) - (a.timestamp ?? a._source?.timestamp ?? 0)
+      )
+      .filter(message => !actor || message.speaker?.actor === actor.id)
+      .map(message => this.serializeRollMessage(message))
+      .filter(Boolean)
+      .slice(0, limit);
+
+    return { success: true, count: rolls.length, rolls };
+  }
+
+  async getRollResult(chatMessageId: string): Promise<any> {
+    const message = (game as any).messages?.get(chatMessageId);
+    if (!message) throw new Error(`Chat message not found: ${chatMessageId}`);
+    const roll = this.serializeRollMessage(message);
+    if (!roll) throw new Error(`Chat message ${chatMessageId} does not contain a roll`);
+    return { success: true, roll };
+  }
+
+  // ─── Combat tracker ────────────────────────────────────────────────────────
+
+  private resolveCombat(combatId?: string): any {
+    const combats: any = (game as any).combats;
+    if (combatId) return combats?.get?.(combatId) ?? null;
+    return (game as any).combat ?? combats?.active ?? combats?.find?.((c: any) => c.active) ?? null;
+  }
+
+  private serializeCombat(combat: any): any {
+    const turns = Array.from(combat?.turns ?? []) as any[];
+    const current = combat?.combatant ?? turns[combat?.turn] ?? null;
+    const sceneId = combat?.scene?.id ?? combat?.scene ?? null;
+    const scene = sceneId ? (game as any).scenes?.get(sceneId) : null;
+
+    return {
+      id: combat.id,
+      active: Boolean(combat.active),
+      started: Boolean(combat.started ?? (combat.round ?? 0) > 0),
+      scene: { id: sceneId, name: scene?.name ?? null },
+      round: combat.round ?? 0,
+      turn: combat.turn ?? null,
+      currentCombatantId: current?.id ?? null,
+      combatants: turns.map((combatant: any, index: number) => ({
+        id: combatant.id,
+        order: index,
+        name: combatant.name ?? combatant.token?.name ?? combatant.actor?.name ?? null,
+        actorId: combatant.actorId ?? combatant.actor?.id ?? null,
+        tokenId: combatant.tokenId ?? combatant.token?.id ?? null,
+        initiative: combatant.initiative ?? null,
+        hidden: Boolean(combatant.hidden),
+        defeated: Boolean(combatant.defeated ?? combatant.isDefeated),
+        isCurrent: combatant.id === current?.id,
+      })),
+    };
+  }
+
+  async getCombatState(combatId?: string): Promise<any> {
+    const combat = this.resolveCombat(combatId);
+    if (!combat) {
+      return { success: true, activeCombat: null, message: 'No active combat tracker.' };
+    }
+    return { success: true, activeCombat: this.serializeCombat(combat) };
+  }
+
+  async manageCombat(data: Record<string, any>): Promise<any> {
+    const action = data.action as string;
+    let combat = this.resolveCombat(data.combatId);
+
+    if (action === 'create') {
+      const scene = data.sceneId
+        ? (game as any).scenes?.get(data.sceneId)
+        : (game as any).scenes?.active;
+      if (!scene) throw new Error('Scene not found or no active scene is available');
+      const CombatClass = (globalThis as any).Combat;
+      if (!CombatClass?.create) throw new Error('Foundry Combat API is unavailable');
+      combat = await CombatClass.create({ scene: scene.id, active: data.activate !== false });
+      if (!combat) throw new Error('Foundry did not create the combat tracker');
+    } else {
+      if (!combat)
+        throw new Error(
+          data.combatId ? `Combat not found: ${data.combatId}` : 'No active combat tracker'
+        );
+
+      switch (action) {
+        case 'activate':
+          if (typeof combat.activate === 'function') await combat.activate();
+          else await combat.update({ active: true });
+          break;
+
+        case 'add-combatants': {
+          const sceneId = combat.scene?.id ?? combat.scene;
+          const scene = (game as any).scenes?.get(sceneId);
+          if (!scene) throw new Error('Combat scene not found');
+          const tokens = Array.from(scene.tokens?.contents ?? scene.tokens ?? []) as any[];
+          const existingTokenIds = new Set(
+            Array.from(combat.combatants?.contents ?? []).map((c: any) => c.tokenId)
+          );
+          const selected: any[] = [];
+          const missing: string[] = [];
+
+          for (const identifier of data.tokenIdentifiers ?? []) {
+            const needle = String(identifier).toLowerCase();
+            const token = tokens.find(
+              candidate =>
+                candidate.id === identifier ||
+                candidate.name?.toLowerCase() === needle ||
+                candidate.actor?.name?.toLowerCase() === needle
+            );
+            if (!token) missing.push(identifier);
+            else if (!existingTokenIds.has(token.id) && !selected.some(t => t.id === token.id)) {
+              selected.push(token);
+            }
+          }
+          if (missing.length > 0) throw new Error(`Tokens not found: ${missing.join(', ')}`);
+          if (selected.length === 0) throw new Error('No new combatants were selected');
+
+          await combat.createEmbeddedDocuments(
+            'Combatant',
+            selected.map(token => ({
+              tokenId: token.id,
+              actorId: token.actor?.id ?? token.actorId,
+              sceneId,
+              hidden: Boolean(token.hidden),
+            }))
+          );
+          break;
+        }
+
+        case 'remove-combatants': {
+          const existing = (data.combatantIds ?? []).filter((id: string) =>
+            combat.combatants?.get(id)
+          );
+          if (existing.length !== data.combatantIds.length) {
+            throw new Error('One or more combatant IDs were not found');
+          }
+          await combat.deleteEmbeddedDocuments('Combatant', existing);
+          break;
+        }
+
+        case 'roll-initiative': {
+          const ids = data.combatantIds?.length
+            ? data.combatantIds
+            : Array.from(combat.combatants?.contents ?? []).map((c: any) => c.id);
+          if (ids.length === 0) throw new Error('Combat has no combatants');
+          if (ids.some((id: string) => !combat.combatants?.get(id))) {
+            throw new Error('One or more combatant IDs were not found');
+          }
+          await combat.rollInitiative(ids, {
+            updateTurn: true,
+            messageOptions: { rollMode: this.rollModeForVisibility(data.visibility ?? 'public') },
+          });
+          break;
+        }
+
+        case 'set-initiative':
+          if (!combat.combatants?.get(data.combatantId)) throw new Error('Combatant not found');
+          await combat.setInitiative(data.combatantId, data.initiative);
+          break;
+
+        case 'update-combatant': {
+          const combatant = combat.combatants?.get(data.combatantId);
+          if (!combatant) throw new Error('Combatant not found');
+          const patch: Record<string, any> = {};
+          if (data.hidden !== undefined) patch.hidden = data.hidden;
+          if (data.defeated !== undefined) patch.defeated = data.defeated;
+          if (Object.keys(patch).length === 0) throw new Error('hidden or defeated is required');
+          await combatant.update(patch);
+          break;
+        }
+
+        case 'start':
+          await combat.startCombat();
+          break;
+        case 'next-turn':
+          await combat.nextTurn();
+          break;
+        case 'previous-turn':
+          await combat.previousTurn();
+          break;
+        case 'next-round':
+          await combat.nextRound();
+          break;
+        case 'set-turn': {
+          const turnCount = Array.from(combat.turns ?? []).length;
+          if (turnCount > 0 && data.turn >= turnCount) {
+            throw new Error(
+              `Turn ${data.turn} is outside the combatant order (0-${turnCount - 1})`
+            );
+          }
+          await combat.update({ round: data.round, turn: data.turn });
+          break;
+        }
+        case 'end':
+          await combat.endCombat();
+          break;
+        case 'delete': {
+          if (data.confirmDelete !== true) throw new Error('confirmDelete=true is required');
+          const deletedId = combat.id;
+          await combat.delete();
+          this.auditLog('manageCombat', { action, combatId: deletedId }, 'success');
+          return { success: true, action, deletedCombatId: deletedId, activeCombat: null };
+        }
+        default:
+          throw new Error(`Unsupported combat action: ${action}`);
+      }
+    }
+
+    this.auditLog('manageCombat', { action, combatId: combat.id }, 'success');
+    return { success: true, action, activeCombat: this.serializeCombat(combat) };
+  }
+
   // ─── mgt2e ──────────────────────────────────────────────────────────────────
 }
 
