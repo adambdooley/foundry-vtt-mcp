@@ -5,8 +5,10 @@ export type JobStatus = 'queued' | 'generating' | 'processing' | 'complete' | 'f
 
 export interface GenerateMapInput {
   prompt: string;
+  scene_name?: string;
   size: 'small' | 'medium' | 'large';
   grid_size: number;
+  quality?: string;
 }
 
 export interface CreateJobParams {
@@ -332,10 +334,17 @@ export class JobQueue {
   }
 
   private generatePromptHash(params: GenerateMapInput): string {
+    // The hash must represent the full request. Omitting scene_name caused
+    // #80: a second call with the same prompt but a different scene_name matched
+    // a prior job and was handed that job back — creating the scene under the
+    // earlier call's name. Include every param that distinguishes one request
+    // from another so dedup only ever collapses genuinely identical requests.
     const hashInput = JSON.stringify({
       prompt: params.prompt.trim().toLowerCase(),
+      scene_name: params.scene_name?.trim().toLowerCase() ?? '',
       size: params.size,
       grid_size: params.grid_size,
+      quality: params.quality ?? '',
     });
 
     return createHash('sha256').update(hashInput).digest('hex').substring(0, 16);
