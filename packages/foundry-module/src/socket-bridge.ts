@@ -97,12 +97,20 @@ export class SocketBridge {
   private async connectWebSocket(): Promise<void> {
     this.activeConnectionType = 'websocket';
 
-    // Auto-detect protocol: wss for HTTPS pages, ws for HTTP.
+    // Protocol selection follows the browser's mixed-content rules:
+    //   - ws:// to a loopback host (localhost / 127.0.0.1 / ::1) is allowed even
+    //     from an HTTPS page — loopback is a "potentially trustworthy" secure
+    //     context — and the local MCP server speaks plain ws, so a loopback host
+    //     must always use ws:// (#74: forcing wss on "WebSocket (Local Only)"
+    //     broke local setups behind an HTTPS Foundry page).
+    //   - ws:// to a remote host from an HTTPS page IS blocked as mixed content,
+    //     so a remote host on an HTTPS page must use wss:// (#49: TLS reverse-proxy).
     // The port always comes from the configured serverPort setting, the same as
-    // the WebRTC path and everywhere else in the module. Reverse-proxy users set
-    // serverPort to whatever port their proxy exposes (e.g. 443).
-    const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+    // the WebRTC path and everywhere else in the module.
     const host = this.config.serverHost;
+    const isLoopback = ['localhost', '127.0.0.1', '::1', '[::1]'].includes(host);
+    const useSecure = window.location.protocol === 'https:' && !isLoopback;
+    const protocol = useSecure ? 'wss' : 'ws';
     this.log(
       `Using WebSocket (${protocol}://${host}:${this.config.serverPort}${this.config.namespace})`
     );
