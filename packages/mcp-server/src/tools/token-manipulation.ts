@@ -132,41 +132,116 @@ export class TokenManipulationTools {
       {
         name: 'get-token-details',
         description:
-          'Get detailed information about a specific token including all properties and linked actor data',
+          'Inspect a token, an actor, or the whole combat. Provide exactly one of "tokenId", "actor", or "all".\n' +
+          '- "tokenId": Token document detail — position, size, appearance, disposition, and linked actor data.\n' +
+          '- "actor": Tactical state of one actor (combat not required) — HP, active conditions and effects\n' +
+          '  with remaining durations, initiative, and whose turn it is; plus AC, movement, spell slots,\n' +
+          '  and consumables where the game system exposes them.\n' +
+          '- "all": The same tactical state for every combatant in the active combat, plus round and turn.\n' +
+          '  Requires an active combat. Use this as the sensor read before deciding an action.',
         inputSchema: {
           type: 'object',
           properties: {
             tokenId: {
               type: 'string',
-              description: 'The ID of the token to get details for',
+              description:
+                'The ID of the token to get document details for. Mutually exclusive with "actor" and "all".',
+            },
+            actor: {
+              type: 'string',
+              description:
+                'Single actor to inspect for tactical state: token ID, token name, actor ID, or actor name. Mutually exclusive with "tokenId" and "all".',
+            },
+            all: {
+              type: 'boolean',
+              description:
+                'If true, return tactical state for every combatant in the active combat plus round/turn info. Mutually exclusive with "tokenId" and "actor".',
             },
           },
-          required: ['tokenId'],
         },
       },
       {
         name: 'toggle-token-condition',
         description:
-          'Toggle a status effect/condition on or off for a token. Use this to apply or remove conditions like Prone, Poisoned, Blinded, etc.',
+          'Apply or remove conditions and active effects on a token or actor.\n' +
+          '- "toggle" (default): Turn a system status effect on or off — Prone, Poisoned, Blinded, etc.\n' +
+          '  Omit "active" to flip the current state.\n' +
+          '- "apply-effect": Apply a custom active effect with attribute changes (via active-effect change\n' +
+          '  keys) and round/turn/second durations that expire with combat tracking.\n' +
+          '- "remove-effect": Remove a condition or effect by effect label (case-insensitive) or status\n' +
+          '  effect ID. Returns what was removed.',
         inputSchema: {
           type: 'object',
           properties: {
+            action: {
+              type: 'string',
+              enum: ['toggle', 'apply-effect', 'remove-effect'],
+              description:
+                'Operation to perform (default: "toggle"). Use "apply-effect" / "remove-effect" for custom active effects.',
+            },
             tokenId: {
               type: 'string',
-              description: 'The ID of the token to modify',
+              description:
+                'The token or actor to modify: token ID, token name, actor ID, or actor name. (Plain token IDs are required for "toggle".)',
             },
             conditionId: {
               type: 'string',
               description:
-                'The ID of the condition/status effect to toggle (e.g., "prone", "poisoned", "blinded")',
+                'Required for "toggle". The ID of the condition/status effect to toggle (e.g., "prone", "poisoned", "blinded")',
             },
             active: {
               type: 'boolean',
               description:
-                'Optional: true to add the condition, false to remove it. If not specified, will toggle the current state.',
+                'For "toggle": true to add the condition, false to remove it. If not specified, will toggle the current state.',
+            },
+            effect: {
+              type: 'object',
+              description:
+                'Required for "apply-effect". Custom active effect definition. For "remove-effect", pass "effectName" instead.',
+              properties: {
+                label: { type: 'string', description: 'Display name of the effect' },
+                icon: {
+                  type: 'string',
+                  description: 'Icon image path (default: "icons/svg/aura.svg")',
+                },
+                changes: {
+                  type: 'array',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      key: {
+                        type: 'string',
+                        description: 'Attribute key to modify, e.g. "system.attributes.ac.bonus"',
+                      },
+                      mode: {
+                        type: 'number',
+                        description: 'Active effect mode (default: 2 = ADD)',
+                      },
+                      value: { description: 'Change value (string or number)' },
+                    },
+                    required: ['key', 'value'],
+                  },
+                  description: 'Attribute changes applied while the effect is active',
+                },
+                duration: {
+                  type: 'object',
+                  properties: {
+                    rounds: { type: 'number', description: 'Duration in combat rounds' },
+                    turns: { type: 'number', description: 'Duration in combat turns' },
+                    seconds: { type: 'number', description: 'Duration in world-time seconds' },
+                  },
+                  description: 'Effect duration; omit for indefinite',
+                },
+              },
+              required: ['label'],
+            },
+            effectName: {
+              type: 'string',
+              description:
+                'Required for "remove-effect". Effect label (case-insensitive) or status effect ID to remove.',
             },
           },
-          required: ['tokenId', 'conditionId'],
+          required: ['tokenId'],
         },
       },
       {
@@ -294,11 +369,27 @@ export class TokenManipulationTools {
   }
 
   async handleGetTokenDetails(args: any): Promise<any> {
-    const schema = z.object({
-      tokenId: z.string(),
-    });
+    const schema = z
+      .object({
+        tokenId: z.string().min(1).optional(),
+        actor: z.string().min(1).optional(),
+        all: z.boolean().optional(),
+      })
+      .refine(
+        data =>
+          [data.tokenId !== undefined, data.actor !== undefined, data.all === true].filter(Boolean)
+            .length === 1,
+        { message: 'Provide exactly one of "tokenId", "actor", or "all: true"' }
+      );
 
-    const { tokenId } = schema.parse(args);
+    const parsed = schema.parse(args ?? {});
+
+    // "actor" / "all" read tactical combat state; "tokenId" reads the token document.
+    if (parsed.tokenId === undefined) {
+      return this.handleGetCombatantStatus(parsed);
+    }
+
+    const tokenId = parsed.tokenId;
 
     this.logger.info('Getting token details', { tokenId });
 
@@ -370,7 +461,33 @@ export class TokenManipulationTools {
     }
   }
 
+  private async handleGetCombatantStatus(args: {
+    actor?: string | undefined;
+    all?: boolean | undefined;
+  }): Promise<any> {
+    this.logger.info('Getting combatant status', { actor: args.actor, all: args.all });
+
+    try {
+      return await this.foundryClient.query('foundry-mcp-bridge.get-combatant-status', {
+        actor: args.actor,
+        all: args.all,
+      });
+    } catch (error) {
+      this.logger.error('Failed to get combatant status', error);
+      throw new Error(
+        `Failed to get combatant status: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
   async handleToggleTokenCondition(args: any): Promise<any> {
+    const { action } = z
+      .object({ action: z.enum(['toggle', 'apply-effect', 'remove-effect']).default('toggle') })
+      .parse(args ?? {});
+
+    if (action === 'apply-effect') return this.handleApplyActiveEffect(args);
+    if (action === 'remove-effect') return this.handleRemoveActiveEffect(args);
+
     const schema = z.object({
       tokenId: z.string(),
       conditionId: z.string(),
@@ -401,6 +518,80 @@ export class TokenManipulationTools {
       this.logger.error('Failed to toggle token condition', error);
       throw new Error(
         `Failed to toggle token condition: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  // Custom active effects. Status effects go through the "toggle" action above,
+  // which already applies and clears them by condition ID.
+
+  private async handleApplyActiveEffect(args: any): Promise<any> {
+    const schema = z.object({
+      tokenId: z.string().min(1),
+      effect: z.object({
+        label: z.string().min(1),
+        icon: z.string().optional(),
+        changes: z
+          .array(
+            z.object({
+              key: z.string().min(1),
+              mode: z.number().optional(),
+              value: z.union([z.string(), z.number()]),
+            })
+          )
+          .optional(),
+        duration: z
+          .object({
+            rounds: z.number().optional(),
+            turns: z.number().optional(),
+            seconds: z.number().optional(),
+          })
+          .optional(),
+      }),
+    });
+
+    const parsed = schema.parse(args);
+
+    this.logger.info('Applying active effect', {
+      actor: parsed.tokenId,
+      effectLabel: parsed.effect.label,
+    });
+
+    try {
+      return await this.foundryClient.query('foundry-mcp-bridge.apply-active-effect', {
+        actor: parsed.tokenId,
+        effect: parsed.effect,
+      });
+    } catch (error) {
+      this.logger.error('Failed to apply active effect', error);
+      throw new Error(
+        `Failed to apply active effect to "${parsed.tokenId}": ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  private async handleRemoveActiveEffect(args: any): Promise<any> {
+    const schema = z.object({
+      tokenId: z.string().min(1),
+      effectName: z.string().min(1),
+    });
+
+    const parsed = schema.parse(args);
+
+    this.logger.info('Removing active effect', {
+      actor: parsed.tokenId,
+      effect: parsed.effectName,
+    });
+
+    try {
+      return await this.foundryClient.query('foundry-mcp-bridge.remove-active-effect', {
+        actor: parsed.tokenId,
+        effect: parsed.effectName,
+      });
+    } catch (error) {
+      this.logger.error('Failed to remove active effect', error);
+      throw new Error(
+        `Failed to remove effect "${parsed.effectName}" from "${parsed.tokenId}": ${error instanceof Error ? error.message : 'Unknown error'}`
       );
     }
   }

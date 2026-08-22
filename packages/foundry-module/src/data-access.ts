@@ -9939,6 +9939,662 @@ export class FoundryDataAccess {
     return { deleted: existing, total: existing.length };
   }
 
+  // ─── Combat / world / audio ────────────────────────────────────────────────
+
+  /**
+   * Resolve a reference (id or name) to a token on the current canvas and/or an
+   * actor. Prefers a matching canvas token; falls back to a world actor.
+   */
+  private resolveTokenOrActor(ref: string): { token: any; actor: any } {
+    const placeables: any[] = (canvas as any)?.tokens?.placeables ?? [];
+    const token =
+      placeables.find(t => t.id === ref) ||
+      placeables.find(t => t.name?.toLowerCase() === String(ref).toLowerCase());
+    if (token) return { token, actor: token.actor };
+
+    const actor =
+      (game.actors as any)?.get(ref) ||
+      (game.actors as any)?.find((a: any) => a.name?.toLowerCase() === String(ref).toLowerCase());
+    if (!actor) throw new Error(`No token or actor found matching "${ref}"`);
+    return { token: null, actor };
+  }
+
+  /**
+   * Resolve an actor's hit-point-equivalent resource across game systems.
+   * Foundry has no universal HP field, so this branches on game.system.id and
+   * reads the path each system uses (mirroring the per-system MCP-server
+   * adapters). Returns { value, max, temp? } with numbers where known; unknown
+   * systems yield an empty result rather than throwing, so callers degrade
+   * gracefully instead of reading a wrong/absent path.
+   */
+  private resolveHpData(actor: any): { value?: number; max?: number; temp?: number } {
+    const system = actor?.system;
+    if (!system) return {};
+    const systemId = (game.system as any)?.id;
+
+    switch (systemId) {
+      case 'dnd5e':
+      case 'pf2e': {
+        const hp = system.attributes?.hp;
+        if (!hp) return {};
+        return { value: hp.value, max: hp.max, temp: hp.temp };
+      }
+      case 'wfrp4e': {
+        const wounds = system.status?.wounds;
+        if (!wounds) return {};
+        return { value: wounds.value, max: wounds.max };
+      }
+      case 'dsa5': {
+        const wounds = system.status?.wounds;
+        if (!wounds) return {};
+        // dsa5 stores the live LeP in wounds.current (falls back to .value).
+        return { value: wounds.current ?? wounds.value, max: wounds.max };
+      }
+      case 'mgt2e': {
+        const hits = system.hits;
+        if (hits == null) return {};
+        // Usually an object, but some data stores hits as a bare number —
+        // fall back to the scalar (matches the system adapter).
+        return { value: hits.value ?? hits, max: hits.max ?? hits };
+      }
+      case 'cosmere-rpg': {
+        const hea = system.resources?.hea;
+        if (!hea) return {};
+        // hea.max is a DerivedValueField: honor an explicit override only when
+        // it is actually numeric, else the derived value.
+        const rawMax = hea.max;
+        let max: any;
+        if (typeof rawMax === 'number') max = rawMax;
+        else if (rawMax && typeof rawMax === 'object') {
+          max =
+            rawMax.useOverride === true && typeof rawMax.override === 'number'
+              ? rawMax.override
+              : rawMax.value;
+        }
+        return { value: hea.value, max };
+      }
+      default:
+        return {};
+    }
+  }
+
+  private getActorHP(actor: any): { value?: number; max?: number; temp?: number } {
+    return this.resolveHpData(actor);
+  }
+
+  /**
+   * Applies HP damage or healing. Uses the system's actor.applyDamage when
+   * available (so systems like dnd5e can apply resistances/immunities by type);
+   * otherwise clamps HP directly. Healing always clamps to max.
+   */
+  async applyDamageOrHealing(refs: string[], amount: number, damageType: string): Promise<any> {
+    const results: any[] = [];
+    const errors: string[] = [];
+    const systemId = (game.system as any)?.id;
+    for (const ref of refs) {
+      // Per-item resilience: a bad ref (resolveTokenOrActor throws) or a
+      // failed write must not abort the whole batch or discard prior results.
+      try {
+        const { token, actor } = this.resolveTokenOrActor(ref);
+        if (!actor) {
+          errors.push(`${token?.name ?? ref}: no actor linked to token`);
+          continue;
+        }
+        const hp = this.getActorHP(actor);
+        const hpBefore = hp.value;
+        const isHealing = damageType === 'healing';
+        const target = token?.name ?? actor.name;
+
+        if (!isHealing && typeof actor.applyDamage === 'function') {
+          // Damages-array form lets dnd5e apply resistances/immunities by type
+          try {
+            await actor.applyDamage([{ value: amount, type: damageType }]);
+          } catch (_e) {
+            await actor.applyDamage(amount);
+          }
+        } else if (systemId === 'dnd5e' || systemId === 'pf2e') {
+          // Direct HP write only for systems with a confidently-known,
+          // HP-down-semantics writable path. Covers healing (no applyDamage
+          // branch above) and the rare damage case where applyDamage is absent.
+          const max = hp.max ?? 0;
+          const delta = isHealing ? amount : -amount;
+          const newValue = Math.max(0, Math.min(max, (hp.value ?? 0) + delta));
+          await actor.update({ 'system.attributes.hp.value': newValue });
+        } else {
+          // Unknown/other system with no applyDamage: refuse rather than blind-write
+          // an assumed HP path, since damage semantics differ per system.
+          errors.push(
+            `${target}: direct HP write not supported for system '${systemId}' (no applyDamage)`
+          );
+          continue;
+        }
+
+        const hpAfter = this.getActorHP(actor).value;
+        results.push({
+          target,
+          applied: isHealing ? (hpAfter ?? 0) - (hpBefore ?? 0) : (hpBefore ?? 0) - (hpAfter ?? 0),
+          hpBefore,
+          hpAfter,
+        });
+      } catch (err) {
+        errors.push(`${ref}: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      }
+    }
+    return { results, errors, totalRequested: refs.length, totalApplied: results.length };
+  }
+
+  async advanceTurn(direction: 'next-turn' | 'next-round' | 'previous-turn'): Promise<any> {
+    const combat = (game as any).combat;
+    if (!combat) throw new Error('No active combat');
+    if (direction === 'next-round') await combat.nextRound();
+    else if (direction === 'previous-turn') await combat.previousTurn();
+    else await combat.nextTurn();
+
+    const active = combat.combatant;
+    return {
+      round: combat.round,
+      turn: combat.turn,
+      activeCombatant: active
+        ? {
+            name: active.name,
+            actorId: active.actorId,
+            tokenId: active.tokenId,
+            initiative: active.initiative,
+          }
+        : null,
+    };
+  }
+
+  async setInitiative(combatantRef: string, value?: number): Promise<any> {
+    const combat = (game as any).combat;
+    if (!combat) throw new Error('No active combat');
+    const ref = String(combatantRef).toLowerCase();
+    let combatant =
+      combat.combatants.get(combatantRef) ||
+      combat.combatants.find((ct: any) => ct.name?.toLowerCase() === ref) ||
+      combat.combatants.find((ct: any) => ct.actor?.name?.toLowerCase() === ref);
+    if (!combatant) throw new Error(`No combatant found matching "${combatantRef}"`);
+
+    if (value !== undefined && value !== null) {
+      await combat.setInitiative(combatant.id, value);
+    } else {
+      await combat.rollInitiative([combatant.id]);
+    }
+    combatant = combat.combatants.get(combatant.id) ?? combatant;
+    return { combatant: combatant.name, initiative: combatant.initiative };
+  }
+
+  async applyActiveEffect(data: {
+    actor: string;
+    condition?: string;
+    effect?: {
+      label: string;
+      icon?: string;
+      changes?: Array<{ key: string; mode?: number; value: string | number }>;
+      duration?: { rounds?: number; turns?: number; seconds?: number };
+    };
+  }): Promise<any> {
+    const { actor } = this.resolveTokenOrActor(data.actor);
+
+    if (data.condition) {
+      const validIds = ((CONFIG as any).statusEffects ?? []).map((s: any) => s.id);
+      if (!validIds.includes(data.condition)) {
+        throw new Error(
+          `Unknown condition "${data.condition}". Valid conditions: ${validIds.join(', ')}`
+        );
+      }
+      await actor.toggleStatusEffect(data.condition, { active: true });
+      return { actor: actor.name, applied: data.condition, type: 'condition' };
+    }
+
+    if (data.effect?.label) {
+      const addMode = (CONST as any).ACTIVE_EFFECT_MODES?.ADD ?? 2;
+      await actor.createEmbeddedDocuments('ActiveEffect', [
+        {
+          name: data.effect.label,
+          img: data.effect.icon ?? 'icons/svg/aura.svg',
+          changes: (data.effect.changes ?? []).map(c => ({
+            key: c.key,
+            mode: c.mode ?? addMode,
+            value: String(c.value),
+          })),
+          duration: data.effect.duration ?? {},
+        },
+      ]);
+      return { actor: actor.name, applied: data.effect.label, type: 'custom' };
+    }
+
+    throw new Error('Either condition or effect (with label) is required');
+  }
+
+  async removeActiveEffect(actorRef: string, effect: string): Promise<any> {
+    const { actor } = this.resolveTokenOrActor(actorRef);
+    const ref = String(effect).toLowerCase();
+
+    // Status conditions must go through toggleStatusEffect — dnd5e status
+    // effects use fixed synthetic ids and reject direct document deletion.
+    const validIds = ((CONFIG as any).statusEffects ?? []).map((s: any) => s.id);
+    const statusId = validIds.includes(effect) ? effect : validIds.includes(ref) ? ref : null;
+    if (statusId && actor.statuses?.has(statusId)) {
+      await actor.toggleStatusEffect(statusId, { active: false });
+      return { actor: actor.name, removed: statusId };
+    }
+
+    const effectDoc =
+      actor.effects.find((e: any) => e.name?.toLowerCase() === ref) ||
+      actor.effects.find((e: any) => e.statuses?.has(effect));
+    if (effectDoc) {
+      // Custom effect: delete the document; if it's status-backed, fall back to toggle
+      try {
+        await effectDoc.delete();
+      } catch (_e) {
+        const backing = Array.from(effectDoc.statuses ?? [])[0] as string | undefined;
+        if (!backing) throw _e;
+        await actor.toggleStatusEffect(backing, { active: false });
+      }
+      return { actor: actor.name, removed: effectDoc.name };
+    }
+
+    // Not present: report cleanly rather than throwing. Removing an absent
+    // effect is effectively a no-op, so callers get a clear result instead of
+    // an error they must special-case.
+    const current = actor.effects.map((e: any) => e.name).join(', ') || 'none';
+    return {
+      actor: actor.name,
+      removed: null,
+      found: false,
+      errorType: 'EFFECT_NOT_FOUND',
+      errorMessage: `No effect "${effect}" found on "${actor.name}". Current effects: ${current}`,
+    };
+  }
+
+  private buildCombatantStatus(actor: any, token: any, combatant: any): any {
+    const systemId = (game.system as any)?.id;
+    const hp = this.resolveHpData(actor);
+    // System-agnostic fields only. HP via the resolver; conditions/effects/
+    // initiative come from Foundry core and apply to every system.
+    const hpBlock: any = { value: hp.value, max: hp.max };
+    if (hp.temp !== undefined) hpBlock.temp = hp.temp;
+    const status: any = {
+      name: token?.name ?? actor.name,
+      actorId: actor.id,
+      hp: hpBlock,
+      conditions: Array.from(actor.statuses ?? []),
+      effects: actor.effects.map((e: any) => ({
+        name: e.name,
+        duration: e.duration?.remaining ?? e.duration?.rounds ?? undefined,
+      })),
+    };
+    if (token) status.tokenId = token.id;
+
+    // AC — dnd5e always uses system.attributes.ac.value; pf2e normally does
+    // too, but some pf2e data stores ac as a bare number. Mirror the pf2e
+    // adapter's `ac?.value ?? ac` fallback and only emit a numeric result so
+    // neither system yields undefined or an object.
+    if (systemId === 'dnd5e' || systemId === 'pf2e') {
+      const acRaw = actor?.system?.attributes?.ac;
+      const ac = acRaw?.value ?? acRaw;
+      if (typeof ac === 'number') status.ac = ac;
+    }
+
+    // Movement, spell slots, and consumables use dnd5e-specific data shapes;
+    // omit these keys cleanly for other systems rather than emitting empty or
+    // misleading blocks.
+    if (systemId === 'dnd5e') {
+      const attrs = actor?.system?.attributes ?? {};
+      const movement = attrs.movement ?? {};
+      const move: Record<string, any> = {};
+      for (const key of ['walk', 'fly', 'swim']) {
+        if (movement[key]) move[key] = movement[key];
+      }
+      if (Object.keys(move).length > 0) status.movement = move;
+
+      const spells: Record<string, any> = actor?.system?.spells ?? {};
+      const spellSlots: Record<string, any> = {};
+      for (const [level, slot] of Object.entries(spells)) {
+        if (slot && typeof slot === 'object' && (slot.max ?? 0) > 0) {
+          spellSlots[level] = { value: slot.value, max: slot.max };
+        }
+      }
+      if (Object.keys(spellSlots).length > 0) status.spellSlots = spellSlots;
+
+      const consumables: any[] = [];
+      for (const item of actor.items) {
+        const usesMax = item.system?.uses?.max;
+        if (item.type === 'consumable' || usesMax) {
+          const entry: any = { name: item.name };
+          if (item.system?.quantity !== undefined) entry.quantity = item.system.quantity;
+          if (usesMax) entry.uses = { value: item.system.uses.value, max: usesMax };
+          consumables.push(entry);
+        }
+      }
+      if (consumables.length > 0) status.consumables = consumables;
+    }
+
+    if (combatant) {
+      status.initiative = combatant.initiative;
+      status.isCurrentTurn = (game as any).combat?.combatant?.id === combatant.id;
+    }
+    return status;
+  }
+
+  async getCombatantStatus(data: { actor?: string; all?: boolean }): Promise<any> {
+    if (data.all) {
+      const combat = (game as any).combat;
+      if (!combat) throw new Error('No active combat');
+      const combatants: any[] = [];
+      const errors: string[] = [];
+      // Per-item resilience: one malformed combatant must not kill the read.
+      for (const ct of combat.combatants.filter((c: any) => c.actor)) {
+        try {
+          combatants.push(this.buildCombatantStatus(ct.actor, ct.token?.object ?? null, ct));
+        } catch (err) {
+          const name = ct.token?.name ?? ct.actor?.name ?? ct.name;
+          errors.push(`${name}: ${err instanceof Error ? err.message : 'Unknown error'}`);
+        }
+      }
+      return { round: combat.round, turn: combat.turn, combatants, errors };
+    }
+    if (!data.actor) throw new Error('Either actor or all: true is required');
+    const { token, actor } = this.resolveTokenOrActor(data.actor);
+    const combatant =
+      (game as any).combat?.combatants?.find(
+        (ct: any) => ct.actorId === actor.id || (token && ct.tokenId === token.id)
+      ) ?? null;
+    return this.buildCombatantStatus(actor, token, combatant);
+  }
+
+  private formatWorldTime(totalSeconds: number): string {
+    const seconds = Math.floor(Math.abs(totalSeconds));
+    const sign = totalSeconds < 0 ? '-' : '';
+    const d = Math.floor(seconds / 86400);
+    const h = Math.floor((seconds % 86400) / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = seconds % 60;
+    const parts: string[] = [];
+    if (d) parts.push(`${d}d`);
+    if (h) parts.push(`${h}h`);
+    if (m) parts.push(`${m}m`);
+    if (s || parts.length === 0) parts.push(`${s}s`);
+    return sign + parts.join(' ');
+  }
+
+  async advanceGameTime(
+    amount: number,
+    unit: 'seconds' | 'rounds' | 'minutes' | 'hours' | 'days'
+  ): Promise<any> {
+    if (typeof amount !== 'number' || !Number.isFinite(amount) || amount <= 0) {
+      throw new Error('amount must be a positive number');
+    }
+    const unitSeconds: Record<string, number> = {
+      seconds: 1,
+      rounds: 6,
+      minutes: 60,
+      hours: 3600,
+      days: 86400,
+    };
+    if (!unitSeconds[unit]) {
+      throw new Error(`unit must be one of: ${Object.keys(unitSeconds).join(', ')}`);
+    }
+    const seconds = Math.round(amount * unitSeconds[unit]);
+    await (game as any).time.advance(seconds);
+    const worldTime = (game as any).time.worldTime;
+    return { advanced: seconds, worldTime, formatted: this.formatWorldTime(worldTime) };
+  }
+
+  getGameTime(): any {
+    const worldTime = (game as any).time.worldTime;
+    return { worldTime, formatted: this.formatWorldTime(worldTime) };
+  }
+
+  pingLocation(data: { x?: number; y?: number; token?: string; pull?: boolean }): any {
+    let x: number;
+    let y: number;
+    if (data?.token) {
+      const { token } = this.resolveTokenOrActor(data.token);
+      if (!token) {
+        throw new Error(`"${data.token}" matched an actor but no token on the current scene`);
+      }
+      x = token.center.x;
+      y = token.center.y;
+    } else if (typeof data?.x === 'number' && typeof data?.y === 'number') {
+      x = data.x;
+      y = data.y;
+    } else {
+      throw new Error('Provide either both x and y coordinates or a token reference');
+    }
+    const pull = data?.pull === true;
+    const c: any = canvas as any;
+    // Fire-and-forget: the ping promise resolves only when the ANIMATION
+    // completes, and animations pause in a backgrounded tab — awaiting hangs
+    // the query. The ping is broadcast immediately either way.
+    if (typeof c?.ping === 'function') {
+      Promise.resolve(c.ping({ x, y }, { pull })).catch(() => {});
+    } else if (typeof c?.controls?.ping === 'function') {
+      Promise.resolve(c.controls.ping({ x, y }, { pull })).catch(() => {});
+    } else {
+      throw new Error('Canvas ping is not available in this Foundry version');
+    }
+    return { pinged: { x, y } };
+  }
+
+  async playSound(data: { file: string; volume?: number; forEveryone?: boolean }): Promise<any> {
+    let volume = typeof data.volume === 'number' ? data.volume : 0.8;
+    volume = Math.min(Math.max(volume, 0), 1);
+    const forEveryone = data.forEveryone !== false;
+    // Foundry v13 namespaced AudioHelper with fallback for older versions
+    const AudioHelperClass =
+      (foundry as any)?.audio?.AudioHelper ?? (globalThis as any).AudioHelper;
+    if (!AudioHelperClass?.play) {
+      throw new Error('AudioHelper is not available in this Foundry version');
+    }
+    // Fire-and-forget: do not await playback. The browser can keep the audio
+    // context suspended until a user gesture, which would otherwise hang the
+    // request indefinitely. Mirrors ping-location's non-blocking approach.
+    void Promise.resolve(
+      AudioHelperClass.play({ src: data.file, volume, autoplay: true, loop: false }, forEveryone)
+    ).catch((err: unknown) => {
+      console.warn(`foundry-mcp-bridge play-sound failed: ${String(err)}`);
+    });
+    return { played: data.file };
+  }
+
+  // ─── playlists ──────────────────────────────────────────────────────────────
+
+  /** Resolve a playlist by id first, then case-insensitive name. */
+  private resolvePlaylist(ref: string): any {
+    const collection = (game as any).playlists;
+    if (!collection) throw new Error('No playlists collection available');
+    const byId = collection.get?.(ref);
+    if (byId) return byId;
+    const wanted = String(ref).trim().toLowerCase();
+    const all: any[] = Array.from(collection.values?.() ?? collection ?? []);
+    const byName = all.find(p => p?.name?.toLowerCase() === wanted);
+    if (byName) return byName;
+    const available = all
+      .map(p => p?.name)
+      .filter(Boolean)
+      .join(', ');
+    throw new Error(`No playlist named "${ref}". Available: ${available || '(none)'}`);
+  }
+
+  /** Resolve a sound within a playlist by id first, then case-insensitive name. */
+  private resolvePlaylistSound(playlist: any, ref: string): any {
+    const byId = playlist.sounds?.get?.(ref);
+    if (byId) return byId;
+    const wanted = String(ref).trim().toLowerCase();
+    const all: any[] = Array.from(playlist.sounds?.values?.() ?? playlist.sounds ?? []);
+    const byName = all.find(s => s?.name?.toLowerCase() === wanted);
+    if (byName) return byName;
+    const available = all
+      .map(s => s?.name)
+      .filter(Boolean)
+      .join(', ');
+    throw new Error(
+      `No sound named "${ref}" in playlist "${playlist.name}". Available: ${available || '(none)'}`
+    );
+  }
+
+  /**
+   * Resolve a playlist-mode string to its Foundry mode number via
+   * CONST.PLAYLIST_MODES (resolved at runtime — never hardcoded ints).
+   */
+  private resolvePlaylistMode(mode: string): number {
+    const keys: Record<string, string> = {
+      sequential: 'SEQUENTIAL',
+      shuffle: 'SHUFFLE',
+      simultaneous: 'SIMULTANEOUS',
+    };
+    const key = keys[mode];
+    const modes = (CONST as any)?.PLAYLIST_MODES as Record<string, number> | undefined;
+    const value = key && modes ? modes[key] : undefined;
+    if (typeof value !== 'number') {
+      throw new Error(
+        `Invalid playlist mode "${mode}". Valid modes: ${Object.keys(keys).join(', ')}`
+      );
+    }
+    return value;
+  }
+
+  /** Reverse-map a numeric playlist mode to its lowercase label. */
+  private playlistModeLabel(mode: number): string {
+    const modes = (CONST as any)?.PLAYLIST_MODES as Record<string, number> | undefined;
+    if (modes) {
+      for (const [key, value] of Object.entries(modes)) {
+        if (value === mode) return key.toLowerCase();
+      }
+    }
+    return String(mode);
+  }
+
+  /** List playlists (read-only). Optionally only those currently playing. */
+  async listPlaylists(data: { playingOnly?: boolean }): Promise<{
+    playlists: Array<{
+      id: string;
+      name: string;
+      mode: string;
+      playing: boolean;
+      sounds: Array<{ id: string; name: string; playing: boolean }>;
+    }>;
+  }> {
+    this.validateFoundryState();
+    const collection = (game as any).playlists;
+    const all: any[] = Array.from(collection?.values?.() ?? collection ?? []);
+    const playingOnly = data?.playingOnly === true;
+    const playlists = all
+      .filter(p => (playingOnly ? p?.playing === true : true))
+      .map(p => ({
+        id: p.id,
+        name: p.name,
+        mode: this.playlistModeLabel(p.mode),
+        playing: p.playing === true,
+        sounds: Array.from(p.sounds?.values?.() ?? p.sounds ?? []).map((s: any) => ({
+          id: s.id,
+          name: s.name,
+          playing: s.playing === true,
+        })),
+      }));
+    return { playlists };
+  }
+
+  /** Play all sounds in a playlist (resolve id/name → playAll). */
+  async playPlaylist(data: { playlist: string }): Promise<{ playlist: string; playing: boolean }> {
+    this.validateFoundryState();
+    const playlist = this.resolvePlaylist(data.playlist);
+    await playlist.playAll();
+    this.auditLog('playPlaylist', data, 'success');
+    return { playlist: playlist.name, playing: true };
+  }
+
+  /** Stop all sounds in a playlist (resolve id/name → stopAll). */
+  async stopPlaylist(data: { playlist: string }): Promise<{ playlist: string; playing: boolean }> {
+    this.validateFoundryState();
+    const playlist = this.resolvePlaylist(data.playlist);
+    await playlist.stopAll();
+    this.auditLog('stopPlaylist', data, 'success');
+    return { playlist: playlist.name, playing: false };
+  }
+
+  /** Play a single sound within a playlist (resolve playlist + sound). */
+  async playPlaylistSound(data: {
+    playlist: string;
+    sound: string;
+  }): Promise<{ playlist: string; sound: string; playing: boolean }> {
+    this.validateFoundryState();
+    const playlist = this.resolvePlaylist(data.playlist);
+    const sound = this.resolvePlaylistSound(playlist, data.sound);
+    await playlist.playSound(sound);
+    this.auditLog('playPlaylistSound', data, 'success');
+    return { playlist: playlist.name, sound: sound.name, playing: true };
+  }
+
+  /**
+   * Stop every currently-playing playlist. Batch operation — one failure does
+   * not abort the rest; failures are collected into `errors`.
+   */
+  async stopAllPlaylists(): Promise<{
+    stopped: string[];
+    errors: Array<{ playlist: string; error: string }>;
+  }> {
+    this.validateFoundryState();
+    const collection = (game as any).playlists;
+    const all: any[] = Array.from(collection?.values?.() ?? collection ?? []);
+    const stopped: string[] = [];
+    const errors: Array<{ playlist: string; error: string }> = [];
+    for (const p of all) {
+      if (p?.playing !== true) continue;
+      try {
+        await p.stopAll();
+        stopped.push(p.name);
+      } catch (error) {
+        errors.push({
+          playlist: p?.name ?? 'unknown',
+          error: error instanceof Error ? error.message : 'Unknown error',
+        });
+      }
+    }
+    this.auditLog('stopAllPlaylists', { stopped, errors }, 'success');
+    return { stopped, errors };
+  }
+
+  /** Set a playlist's playback mode (sequential/shuffle/simultaneous). */
+  async setPlaylistMode(data: {
+    playlist: string;
+    mode: string;
+  }): Promise<{ playlist: string; mode: string }> {
+    this.validateFoundryState();
+    const playlist = this.resolvePlaylist(data.playlist);
+    const modeValue = this.resolvePlaylistMode(data.mode);
+    await playlist.update({ mode: modeValue });
+    this.auditLog('setPlaylistMode', data, 'success');
+    return { playlist: playlist.name, mode: this.playlistModeLabel(modeValue) };
+  }
+
+  /** Create a playlist, optionally pre-filled with sounds (path + name). */
+  async createPlaylist(data: {
+    name: string;
+    mode?: string;
+    sounds?: Array<{ name: string; path: string; repeat?: boolean; volume?: number }>;
+  }): Promise<{ playlist: string; id: string; sounds: string[] }> {
+    this.validateFoundryState();
+    const PlaylistClass = (globalThis as any).Playlist ?? (CONFIG as any)?.Playlist?.documentClass;
+    if (!PlaylistClass?.create) throw new Error('Playlist document class unavailable');
+    const mode = this.resolvePlaylistMode(data.mode ?? 'sequential');
+    const sounds = (data.sounds ?? []).map(sd => ({
+      name: sd.name,
+      path: sd.path,
+      repeat: sd.repeat ?? false,
+      volume: typeof sd.volume === 'number' ? Math.min(Math.max(sd.volume, 0), 1) : 0.8,
+    }));
+    const created = await PlaylistClass.create({ name: data.name, mode, sounds });
+    this.auditLog('createPlaylist', { name: data.name, count: sounds.length }, 'success');
+    return {
+      playlist: created.name,
+      id: created.id,
+      sounds: Array.from(created.sounds?.values?.() ?? []).map((s: any) => s.name),
+    };
+  }
+
   // ─── mgt2e ──────────────────────────────────────────────────────────────────
 }
 

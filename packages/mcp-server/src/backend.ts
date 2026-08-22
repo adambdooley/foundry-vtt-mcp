@@ -34,6 +34,12 @@ import { CampaignManagementTools } from './tools/campaign-management.js';
 import { OwnershipTools } from './tools/ownership.js';
 import { WFRP4eUpdateActorTools } from './tools/wfrp4e/update-actor.js';
 import { WFRP4eAddItemsTools } from './tools/wfrp4e/add-items.js';
+import { CombatTools } from './tools/combat-tools.js';
+import { WorldTools } from './tools/world-tools.js';
+import { GmUtilsTools } from './tools/gm-utils.js';
+import { ChatTools } from './tools/chat-tools.js';
+import { MacroTools } from './tools/macro-tools.js';
+import { PlaylistTools } from './tools/playlist-tools.js';
 
 import { MapGenerationTools } from './tools/map-generation.js';
 
@@ -1217,6 +1223,16 @@ async function startBackend(): Promise<void> {
   const wfrp4eUpdateActorTools = new WFRP4eUpdateActorTools({ foundryClient, logger });
   const wfrp4eAddItemsTools = new WFRP4eAddItemsTools({ foundryClient, logger });
 
+  const combatTools = new CombatTools({ foundryClient, logger });
+  const worldTools = new WorldTools({ foundryClient, logger });
+  const gmUtilsTools = new GmUtilsTools({ foundryClient, logger });
+
+  const chatTools = new ChatTools({ foundryClient, logger });
+
+  const macroTools = new MacroTools({ foundryClient, logger });
+
+  const playlistTools = new PlaylistTools({ foundryClient, logger });
+
   // Initialize mapgen-style backend components for map generation
   let mapGenerationJobQueue: any = null;
   let mapGenerationComfyUIClient: any = null;
@@ -1444,6 +1460,18 @@ async function startBackend(): Promise<void> {
     ...tokenManipulationTools.getToolDefinitions(),
 
     ...mapGenerationTools.getToolDefinitions(),
+
+    ...combatTools.getToolDefinitions(),
+
+    ...worldTools.getToolDefinitions(),
+
+    ...gmUtilsTools.getToolDefinitions(),
+
+    ...chatTools.getToolDefinitions(),
+
+    ...macroTools.getToolDefinitions(),
+
+    ...playlistTools.getToolDefinitions(),
   ];
 
   // Start Foundry connector (owns app port 31415)
@@ -1670,6 +1698,44 @@ async function startBackend(): Promise<void> {
 
                 case 'request-player-rolls':
                   result = await diceRollTools.handleRequestPlayerRolls(args);
+
+                  break;
+
+                // Core combat tools
+
+                case 'manage-combat':
+                  result = await combatTools.handleManageCombat(args);
+
+                  break;
+
+                // Core world tools
+
+                case 'manage-time':
+                  result = await worldTools.handleManageTime(args);
+
+                  break;
+
+                // GM utilities (canvas ping, audio)
+
+                case 'gm-utils':
+                  result = await gmUtilsTools.handleGmUtils(args);
+
+                  break;
+
+                // Core chat, macro, and playlist tools
+
+                case 'manage-chat':
+                  result = await chatTools.handleManageChat(args);
+
+                  break;
+
+                case 'manage-macros':
+                  result = await macroTools.handleManageMacros(args);
+
+                  break;
+
+                case 'manage-playlists':
+                  result = await playlistTools.handleManagePlaylists(args);
 
                   break;
 

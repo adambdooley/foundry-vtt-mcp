@@ -6,6 +6,7 @@
  *
  * Actor actions:  create, update, delete
  * Item actions:   update-items, delete-items  (embedded items on an actor)
+ * HP actions:     damage, heal  (system-aware application, not a raw data merge)
  * Listing actors is handled by the existing list-characters tool.
  * Adding items is handled by manage-world-items → add-to-actor.
  */
@@ -52,6 +53,12 @@ export class ActorManagementTools {
           '- "delete": Permanently delete one or more actors by ID.\n' +
           '- "update-items": Update embedded items on an actor by item ID.\n' +
           '- "delete-items": Delete embedded items from an actor by item ID.\n' +
+          '- "damage": Apply damage to one or more targets through the game system\'s own damage\n' +
+          '  application, respecting resistances, immunities, and vulnerabilities. Use for\n' +
+          '  environmental damage, traps, or narrative damage — NOT "update", which merges raw data\n' +
+          '  and bypasses the system. Returns HP before/after per target.\n' +
+          '- "heal": Apply healing to one or more targets through the same system-aware path,\n' +
+          '  clamped to their HP maximum. Returns HP before/after per target.\n' +
           '- "describe": Return system-specific actor schema notes (actor types, item restrictions,\n' +
           '  field paths, skill shorthands). Call this before creating actors in an unfamiliar system.',
         inputSchema: {
@@ -59,10 +66,20 @@ export class ActorManagementTools {
           properties: {
             action: {
               type: 'string',
-              enum: ['create', 'update', 'delete', 'update-items', 'delete-items', 'describe'],
+              enum: [
+                'create',
+                'update',
+                'delete',
+                'update-items',
+                'delete-items',
+                'damage',
+                'heal',
+                'describe',
+              ],
               description:
                 'Operation to perform: "create" / "update" / "delete" actors, ' +
                 '"update-items" / "delete-items" for embedded items, ' +
+                '"damage" / "heal" for system-aware HP changes, ' +
                 'or "describe" to get system-specific schema notes.',
             },
             // ── create ──────────────────────────────────────────────────────
@@ -180,6 +197,29 @@ export class ActorManagementTools {
               minItems: 1,
               description: 'Required for "delete-items". IDs of the embedded items to delete.',
             },
+            // ── damage / heal ───────────────────────────────────────────────
+            targets: {
+              type: 'array',
+              items: { type: 'string' },
+              minItems: 1,
+              description:
+                'Required for "damage" and "heal". Target token/actor references (IDs or names).',
+            },
+            amount: {
+              type: 'number',
+              description:
+                'Required for "damage" and "heal". Positive number — damage before resistances, or healing before the HP-max clamp.',
+            },
+            damageType: {
+              type: 'string',
+              description:
+                'For "damage": damage type for resistance/immunity calculation, e.g. "fire", "slashing", "necrotic" (default: "bludgeoning").',
+            },
+            half: {
+              type: 'boolean',
+              description:
+                'For "damage": if true, apply half damage rounded down (e.g. a successful save against a breath weapon).',
+            },
           },
           required: ['action'],
         },
@@ -190,7 +230,16 @@ export class ActorManagementTools {
   async handleManageActors(args: any): Promise<any> {
     const { action } = z
       .object({
-        action: z.enum(['create', 'update', 'delete', 'update-items', 'delete-items', 'describe']),
+        action: z.enum([
+          'create',
+          'update',
+          'delete',
+          'update-items',
+          'delete-items',
+          'damage',
+          'heal',
+          'describe',
+        ]),
       })
       .parse(args);
 
@@ -205,8 +254,65 @@ export class ActorManagementTools {
         return this.handleUpdateItems(args);
       case 'delete-items':
         return this.handleDeleteItems(args);
+      case 'damage':
+        return this.handleDamage(args);
+      case 'heal':
+        return this.handleHeal(args);
       case 'describe':
         return this.handleDescribe();
+    }
+  }
+
+  // ── damage / heal ─────────────────────────────────────────────────────────
+  // Routed through the system's own damage application (e.g. actor.applyDamage)
+  // rather than a generic data merge, so resistances, immunities, and the HP-max
+  // clamp are honoured.
+
+  private async handleDamage(args: any): Promise<any> {
+    const schema = z.object({
+      targets: z.array(z.string().min(1)).min(1),
+      amount: z.number().positive('amount must be a positive number'),
+      damageType: z.string().optional(),
+      half: z.boolean().optional(),
+    });
+    const parsed = schema.parse(args);
+
+    this.logger.info('Applying damage', {
+      targetCount: parsed.targets.length,
+      amount: parsed.amount,
+      damageType: parsed.damageType,
+      half: parsed.half,
+    });
+
+    try {
+      return await this.foundryClient.query('foundry-mcp-bridge.apply-damage', parsed);
+    } catch (error) {
+      this.logger.error('Failed to apply damage', error);
+      throw new Error(
+        `Failed to apply damage: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  private async handleHeal(args: any): Promise<any> {
+    const schema = z.object({
+      targets: z.array(z.string().min(1)).min(1),
+      amount: z.number().positive('amount must be a positive number'),
+    });
+    const parsed = schema.parse(args);
+
+    this.logger.info('Applying healing', {
+      targetCount: parsed.targets.length,
+      amount: parsed.amount,
+    });
+
+    try {
+      return await this.foundryClient.query('foundry-mcp-bridge.apply-healing', parsed);
+    } catch (error) {
+      this.logger.error('Failed to apply healing', error);
+      throw new Error(
+        `Failed to apply healing: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 

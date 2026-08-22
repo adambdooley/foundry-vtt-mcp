@@ -1,3 +1,45 @@
+## Unreleased
+
+### New Features
+
+- **`manage-combat`** — combat flow control
+  - `action: 'advance-turn'` — step the active combat forward a turn/round or back a turn
+  - `action: 'set-initiative'` — set an explicit initiative value or roll it for a combatant
+
+- **`manage-time`** — game-clock control
+  - `action: 'get'` — read the world clock with a human-readable formatted breakdown
+  - `action: 'advance'` — move the clock forward by seconds/rounds/minutes/hours/days
+
+- **`gm-utils`** — cosmetic table-facing effects that change no game state
+  - `action: 'ping'` — ping a coordinate or token on the canvas, optionally pulling every player's camera
+  - `action: 'play-sound'` — play an audio file for the table (or GM-only) via Foundry's AudioHelper
+
+- **`manage-chat`** — GM narration and dice output
+  - `action: 'post'` — post a message, optionally speaking as a token/actor, in/out of character, or whispered
+  - `action: 'roll'` — evaluate a dice formula and post the styled roll card with a per-die breakdown
+  - `action: 'draw-table'` — draw from a RollTable and post the results
+
+- **`manage-macros`** — Foundry Macro document management
+  - `action: 'create' | 'list' | 'delete'` — store, find, and remove clickable hotbar macros. The MCP never executes macro code; a script macro's JavaScript runs solely on a human click
+
+- **`manage-playlists`** — audio playlist control over core `game.playlists`
+  - `action: 'list' | 'play' | 'stop' | 'play-sound' | 'stop-all' | 'set-mode' | 'create'`
+
+### Enhancements
+
+- **`manage-actors`** gains system-aware HP actions, distinct from `update`'s generic data merge
+  - `action: 'damage'` / `action: 'heal'` — adjust one or more targets' HP through the system's own damage application; damage respects resistances/immunities when available, healing clamps to max; returns HP before/after per target
+
+- **`toggle-token-condition`** gains custom active effects alongside status conditions
+  - `action: 'apply-effect'` / `action: 'remove-effect'` — apply/remove a custom active effect (attribute changes + round/turn/second durations). The default `toggle` action is unchanged
+
+- **`get-token-details`** gains tactical combat status alongside token document detail
+  - `actor` — HP, conditions, effects, and initiative for one actor, plus AC/movement/spell-slots/consumables where the game system exposes them
+  - `all: true` — the same for every combatant in the active combat, plus round/turn
+  - `tokenId` still returns token document detail and is now one of three mutually exclusive modes
+
+---
+
 ## v0.8.3 (2026-06-11)
 
 ### New Features

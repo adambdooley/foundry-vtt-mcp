@@ -69,6 +69,44 @@ export class QueryHandlers {
     CONFIG.queries[`${modulePrefix}.request-player-rolls`] =
       this.handleRequestPlayerRolls.bind(this);
 
+    // Core combat tools
+    CONFIG.queries[`${modulePrefix}.apply-damage`] = this.handleApplyDamage.bind(this);
+    CONFIG.queries[`${modulePrefix}.apply-healing`] = this.handleApplyHealing.bind(this);
+    CONFIG.queries[`${modulePrefix}.advance-turn`] = this.handleAdvanceTurn.bind(this);
+    CONFIG.queries[`${modulePrefix}.set-initiative`] = this.handleSetInitiative.bind(this);
+    CONFIG.queries[`${modulePrefix}.apply-active-effect`] = this.handleApplyActiveEffect.bind(this);
+    CONFIG.queries[`${modulePrefix}.remove-active-effect`] =
+      this.handleRemoveActiveEffect.bind(this);
+    CONFIG.queries[`${modulePrefix}.get-combatant-status`] =
+      this.handleGetCombatantStatus.bind(this);
+
+    // Core world tools
+    CONFIG.queries[`${modulePrefix}.advance-game-time`] = this.handleAdvanceGameTime.bind(this);
+    CONFIG.queries[`${modulePrefix}.get-game-time`] = this.handleGetGameTime.bind(this);
+    CONFIG.queries[`${modulePrefix}.ping-location`] = this.handlePingLocation.bind(this);
+
+    // Core audio tools
+    CONFIG.queries[`${modulePrefix}.play-sound`] = this.handlePlaySound.bind(this);
+
+    // Core chat tools
+    CONFIG.queries[`${modulePrefix}.post-chat-message`] = this.handlePostChatMessage.bind(this);
+    CONFIG.queries[`${modulePrefix}.roll-dice`] = this.handleRollDice.bind(this);
+    CONFIG.queries[`${modulePrefix}.draw-roll-table`] = this.handleDrawRollTable.bind(this);
+
+    // Core macro tools
+    CONFIG.queries[`${modulePrefix}.create-macro`] = this.handleCreateMacro.bind(this);
+    CONFIG.queries[`${modulePrefix}.list-macros`] = this.handleListMacros.bind(this);
+    CONFIG.queries[`${modulePrefix}.delete-macro`] = this.handleDeleteMacro.bind(this);
+
+    // Core playlist tools
+    CONFIG.queries[`${modulePrefix}.list-playlists`] = this.handleListPlaylists.bind(this);
+    CONFIG.queries[`${modulePrefix}.play-playlist`] = this.handlePlayPlaylist.bind(this);
+    CONFIG.queries[`${modulePrefix}.stop-playlist`] = this.handleStopPlaylist.bind(this);
+    CONFIG.queries[`${modulePrefix}.play-playlist-sound`] = this.handlePlayPlaylistSound.bind(this);
+    CONFIG.queries[`${modulePrefix}.stop-all-playlists`] = this.handleStopAllPlaylists.bind(this);
+    CONFIG.queries[`${modulePrefix}.set-playlist-mode`] = this.handleSetPlaylistMode.bind(this);
+    CONFIG.queries[`${modulePrefix}.create-playlist`] = this.handleCreatePlaylist.bind(this);
+
     // Enhanced creature index for campaign analysis
     CONFIG.queries[`${modulePrefix}.getEnhancedCreatureIndex`] =
       this.handleGetEnhancedCreatureIndex.bind(this);
@@ -2064,5 +2102,623 @@ export class QueryHandlers {
     if (!gmCheck.allowed) return { error: 'Access denied', success: false };
     this.dataAccess.validateFoundryState();
     return this.dataAccess.deleteActorItems(data.actorIdentifier, data.itemIds);
+  }
+
+  // ===== CORE COMBAT HANDLERS =====
+
+  private async handleApplyDamage(data: {
+    targets: string[];
+    amount: number;
+    damageType?: string;
+    half?: boolean;
+  }): Promise<any> {
+    try {
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) return { error: 'Access denied', success: false };
+      this.dataAccess.validateFoundryState();
+      if (!Array.isArray(data.targets) || data.targets.length === 0) {
+        throw new Error('targets is required');
+      }
+      if (typeof data.amount !== 'number' || data.amount <= 0) {
+        throw new Error('amount must be a positive number');
+      }
+      const amount = data.half ? Math.floor(data.amount / 2) : data.amount;
+      return await this.dataAccess.applyDamageOrHealing(
+        data.targets,
+        amount,
+        data.damageType ?? 'bludgeoning'
+      );
+    } catch (error) {
+      throw new Error(
+        `Failed to apply damage: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  private async handleApplyHealing(data: { targets: string[]; amount: number }): Promise<any> {
+    try {
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) return { error: 'Access denied', success: false };
+      this.dataAccess.validateFoundryState();
+      if (!Array.isArray(data.targets) || data.targets.length === 0) {
+        throw new Error('targets is required');
+      }
+      if (typeof data.amount !== 'number' || data.amount <= 0) {
+        throw new Error('amount must be a positive number');
+      }
+      return await this.dataAccess.applyDamageOrHealing(data.targets, data.amount, 'healing');
+    } catch (error) {
+      throw new Error(
+        `Failed to apply healing: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  private async handleAdvanceTurn(data: {
+    direction?: 'next-turn' | 'next-round' | 'previous-turn';
+  }): Promise<any> {
+    try {
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) return { error: 'Access denied', success: false };
+      this.dataAccess.validateFoundryState();
+      return await this.dataAccess.advanceTurn(data.direction ?? 'next-turn');
+    } catch (error) {
+      throw new Error(
+        `Failed to advance turn: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  private async handleSetInitiative(data: { combatant: string; value?: number }): Promise<any> {
+    try {
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) return { error: 'Access denied', success: false };
+      this.dataAccess.validateFoundryState();
+      if (!data.combatant) {
+        throw new Error('combatant is required');
+      }
+      return await this.dataAccess.setInitiative(data.combatant, data.value);
+    } catch (error) {
+      throw new Error(
+        `Failed to set initiative: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  private async handleApplyActiveEffect(data: {
+    actor: string;
+    condition?: string;
+    effect?: {
+      label: string;
+      icon?: string;
+      changes?: Array<{ key: string; mode?: number; value: string | number }>;
+      duration?: { rounds?: number; turns?: number; seconds?: number };
+    };
+  }): Promise<any> {
+    try {
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) return { error: 'Access denied', success: false };
+      this.dataAccess.validateFoundryState();
+      if (!data.actor) {
+        throw new Error('actor is required');
+      }
+      return await this.dataAccess.applyActiveEffect(data);
+    } catch (error) {
+      throw new Error(
+        `Failed to apply active effect: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  private async handleRemoveActiveEffect(data: { actor: string; effect: string }): Promise<any> {
+    try {
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) return { error: 'Access denied', success: false };
+      this.dataAccess.validateFoundryState();
+      if (!data.actor || !data.effect) {
+        throw new Error('actor and effect are required');
+      }
+      return await this.dataAccess.removeActiveEffect(data.actor, data.effect);
+    } catch (error) {
+      throw new Error(
+        `Failed to remove active effect: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  // Read-only: skip the GM gate (per contract, get-*/read tools are ungated).
+  private async handleGetCombatantStatus(data: { actor?: string; all?: boolean }): Promise<any> {
+    try {
+      this.dataAccess.validateFoundryState();
+      return await this.dataAccess.getCombatantStatus(data);
+    } catch (error) {
+      throw new Error(
+        `Failed to get combatant status: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  // ===== CORE WORLD HANDLERS =====
+
+  private async handleAdvanceGameTime(data: {
+    amount: number;
+    unit: 'seconds' | 'rounds' | 'minutes' | 'hours' | 'days';
+  }): Promise<any> {
+    try {
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) return { error: 'Access denied', success: false };
+      this.dataAccess.validateFoundryState();
+      return await this.dataAccess.advanceGameTime(data.amount, data.unit);
+    } catch (error) {
+      throw new Error(
+        `Failed to advance game time: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  // Read-only: skip the GM gate (per contract, get-*/read tools are ungated).
+  private async handleGetGameTime(_data: unknown): Promise<any> {
+    try {
+      this.dataAccess.validateFoundryState();
+      return this.dataAccess.getGameTime();
+    } catch (error) {
+      throw new Error(
+        `Failed to get game time: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  private async handlePingLocation(data: {
+    x?: number;
+    y?: number;
+    token?: string;
+    pull?: boolean;
+  }): Promise<any> {
+    try {
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) return { error: 'Access denied', success: false };
+      this.dataAccess.validateFoundryState();
+      return this.dataAccess.pingLocation(data);
+    } catch (error) {
+      throw new Error(
+        `Failed to ping location: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  // ===== CORE AUDIO HANDLERS =====
+
+  private async handlePlaySound(data: {
+    file: string;
+    volume?: number;
+    forEveryone?: boolean;
+  }): Promise<any> {
+    try {
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) return { error: 'Access denied', success: false };
+      this.dataAccess.validateFoundryState();
+      if (!data?.file || typeof data.file !== 'string') {
+        throw new Error('file parameter is required and must be a string');
+      }
+      return await this.dataAccess.playSound(data);
+    } catch (error) {
+      throw new Error(
+        `Failed to play sound: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  // ===== CORE CHAT HANDLERS =====
+  // Foundry work is inline: the bridge runs inside Foundry, so `game`, `canvas`,
+  // `ChatMessage`, `Roll`, `CONST`, and `CONFIG` are ambient globals.
+
+  /** Resolve a speaker ref (token/actor id or name) to { token, actor }; either may be null. */
+  private resolveSpeaker(ref: string): { token: any; actor: any } {
+    const g = game as any;
+    const tokens = (canvas as any)?.tokens;
+    const wanted = ref.toLowerCase();
+    let token =
+      tokens?.get?.(ref) ??
+      tokens?.placeables?.find?.((t: any) => t.name?.toLowerCase() === wanted) ??
+      null;
+    const actor =
+      token?.actor ??
+      g.actors?.get?.(ref) ??
+      g.actors?.find?.((a: any) => a.name?.toLowerCase() === wanted) ??
+      null;
+    if (!token && actor) {
+      const onCanvas = tokens?.placeables?.find?.((t: any) => t.actor?.id === actor.id);
+      if (onCanvas) token = onCanvas;
+    }
+    return { token, actor };
+  }
+
+  /** Build a ChatMessage speaker object from an optional ref, defaulting to the GM speaker. */
+  private buildSpeaker(ref?: string): any {
+    const CM = ChatMessage as any;
+    if (!ref) return CM.getSpeaker();
+    const { token, actor } = this.resolveSpeaker(ref);
+    if (token) return CM.getSpeaker({ token: token.document ?? token });
+    if (actor) return CM.getSpeaker({ actor });
+    return CM.getSpeaker();
+  }
+
+  /**
+   * Resolve player names to user ids. Unmatched names are skipped. When no names
+   * resolve (and gmFallback), fall back to all GM users.
+   */
+  private resolveWhisper(
+    names: string[] | undefined,
+    gmFallback: boolean
+  ): { ids: string[]; names: string[] } {
+    const users: any[] = (game as any).users?.contents ?? (game as any).users ?? [];
+    const list = Array.isArray(users) ? users : ((users as any).filter?.(() => true) ?? []);
+    const resolved: any[] = [];
+    if (Array.isArray(names) && names.length > 0) {
+      for (const name of names) {
+        const wanted = name.toLowerCase();
+        const u = list.find?.((x: any) => x.name?.toLowerCase() === wanted);
+        if (u) resolved.push(u);
+      }
+    }
+    if (resolved.length === 0 && gmFallback) {
+      for (const u of list) if (u?.isGM) resolved.push(u);
+    }
+    return { ids: resolved.map((u: any) => u.id), names: resolved.map((u: any) => u.name) };
+  }
+
+  private async handlePostChatMessage(data: {
+    content: string;
+    speaker?: string;
+    style?: 'ic' | 'ooc' | 'emote' | 'whisper';
+    whisperTo?: string[];
+    flavor?: string;
+  }): Promise<any> {
+    try {
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) return { error: 'Access denied', success: false };
+      this.dataAccess.validateFoundryState();
+
+      if (!data.content?.trim()) throw new Error('content is required');
+      const style = data.style ?? 'ooc';
+      const STYLES = (CONST as any).CHAT_MESSAGE_STYLES ?? {};
+      const styleMap: Record<string, number> = {
+        ic: STYLES.IC,
+        ooc: STYLES.OOC,
+        emote: STYLES.EMOTE,
+        whisper: STYLES.OTHER,
+      };
+
+      const messageData: any = {
+        user: (game as any).user?.id,
+        content: data.content,
+        style: styleMap[style],
+        speaker: this.buildSpeaker(data.speaker),
+      };
+      if (data.flavor) messageData.flavor = data.flavor;
+
+      let whisperedNames: string[] | undefined;
+      if (style === 'whisper') {
+        const { ids, names } = this.resolveWhisper(data.whisperTo, true);
+        messageData.whisper = ids;
+        whisperedNames = names;
+      }
+
+      const message = await (ChatMessage as any).create(messageData);
+      const response: any = { messageId: message?.id, style };
+      if (whisperedNames !== undefined) response.whisperedTo = whisperedNames;
+      return response;
+    } catch (error) {
+      throw new Error(
+        `Failed to post chat message: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  private async handleRollDice(data: {
+    formula: string;
+    flavor?: string;
+    speaker?: string;
+    whisperTo?: string[];
+  }): Promise<any> {
+    try {
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) return { error: 'Access denied', success: false };
+      this.dataAccess.validateFoundryState();
+
+      if (!data.formula?.trim()) throw new Error('formula is required');
+      const RollCls = Roll as any;
+      if (typeof RollCls.validate === 'function' && !RollCls.validate(data.formula))
+        throw new Error(`Invalid dice formula: "${data.formula}"`);
+
+      let roll: any;
+      try {
+        roll = await new RollCls(data.formula).evaluate();
+      } catch (err) {
+        throw new Error(
+          `Invalid dice formula "${data.formula}": ${
+            err instanceof Error ? err.message : 'could not evaluate'
+          }`
+        );
+      }
+
+      const messageData: any = {
+        user: (game as any).user?.id,
+        speaker: this.buildSpeaker(data.speaker),
+        rolls: [roll],
+        sound: (CONFIG as any).sounds?.dice,
+      };
+      if (data.flavor) messageData.flavor = data.flavor;
+      if (Array.isArray(data.whisperTo) && data.whisperTo.length > 0) {
+        const { ids } = this.resolveWhisper(data.whisperTo, true);
+        messageData.whisper = ids;
+      }
+
+      const message = await (ChatMessage as any).create(messageData);
+
+      const terms = (roll.dice ?? []).map((d: any) => ({
+        faces: d.faces,
+        number: d.number,
+        results: (d.results ?? []).map((r: any) => r.result),
+      }));
+
+      return {
+        messageId: message?.id,
+        formula: roll.formula,
+        total: roll.total,
+        result: roll.result,
+        terms,
+      };
+    } catch (error) {
+      throw new Error(
+        `Failed to roll dice: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  private async handleDrawRollTable(data: {
+    table: string;
+    rolls?: number;
+    displayChat?: boolean;
+  }): Promise<any> {
+    try {
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) return { error: 'Access denied', success: false };
+      this.dataAccess.validateFoundryState();
+
+      if (!data.table?.trim()) throw new Error('table is required');
+      const g = game as any;
+      const tables = g.tables;
+      const wanted = data.table.toLowerCase();
+      const table =
+        tables?.get?.(data.table) ?? tables?.find?.((t: any) => t.name?.toLowerCase() === wanted);
+      if (!table) throw new Error(`No RollTable named "${data.table}"`);
+
+      const n = data.rolls ?? 1;
+      const displayChat = data.displayChat !== false;
+      const draw =
+        n > 1 ? await table.drawMany(n, { displayChat }) : await table.draw({ displayChat });
+
+      const rawResults: any[] = draw?.results ?? [];
+      const results = rawResults.map((r: any) => {
+        const item: any = {
+          text: r.text ?? r.name ?? r.description ?? '',
+          type: r.type,
+        };
+        const uuid = r.documentUuid ?? undefined;
+        if (uuid) item.documentUuid = uuid;
+        const img = r.img ?? r.icon ?? undefined;
+        if (img) item.img = img;
+        return item;
+      });
+
+      const response: any = { table: table.name, results };
+      const total = draw?.roll?.total;
+      if (total !== undefined && total !== null) response.total = total;
+      return response;
+    } catch (error) {
+      throw new Error(
+        `Failed to draw from roll table: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  // ===== CORE MACRO HANDLERS =====
+  // SECURITY: this never executes macro code. create-macro stores a Macro
+  // document for a human to click; a script macro's JS runs solely on that click.
+
+  /** Resolve a macro reference (id first, then case-insensitive exact name). */
+  private resolveMacro(ref: string): any {
+    const macros = (game as any).macros;
+    const byId = macros?.get?.(ref);
+    if (byId) return byId;
+    const wanted = ref.toLowerCase();
+    const matches: any[] = (macros?.contents ?? macros ?? []).filter(
+      (m: any) => m?.name?.toLowerCase() === wanted
+    );
+    if (matches.length > 1) throw new Error(`multiple macros named ${ref} — pass the id`);
+    if (matches.length === 1) return matches[0];
+    return null;
+  }
+
+  private async handleCreateMacro(data: {
+    name: string;
+    type?: 'chat' | 'script';
+    command: string;
+    img?: string;
+    hotbarSlot?: number;
+  }): Promise<any> {
+    try {
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) return { error: 'Access denied', success: false };
+      this.dataAccess.validateFoundryState();
+
+      if (!data.name) throw new Error('name is required');
+      if (!data.command) throw new Error('command is required');
+      const type = data.type ?? 'chat';
+
+      const createData: any = { name: data.name, type, command: data.command, scope: 'global' };
+      if (data.img !== undefined) createData.img = data.img;
+
+      const macro = await (Macro as any).create(createData);
+      if (!macro) throw new Error('Foundry did not return the created macro');
+
+      if (data.hotbarSlot !== undefined) {
+        await (game as any).user?.assignHotbarMacro(macro, data.hotbarSlot);
+      }
+
+      const response: any = { macroId: macro.id, name: macro.name, type };
+      if (data.hotbarSlot !== undefined) response.hotbarSlot = data.hotbarSlot;
+      return response;
+    } catch (error) {
+      throw new Error(
+        `Failed to create macro: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  private async handleListMacros(data: { search?: string }): Promise<any> {
+    try {
+      // SECURITY: Silent GM validation
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) return { error: 'Access denied', success: false };
+      this.dataAccess.validateFoundryState();
+
+      const all: any[] = (game as any).macros?.contents ?? [];
+      const search = data?.search?.toLowerCase();
+      const filtered = search ? all.filter(m => m?.name?.toLowerCase().includes(search)) : all;
+
+      const macros = filtered.map(m => {
+        const item: any = { id: m.id, name: m.name, type: m.type };
+        const command = m.command;
+        if (typeof command === 'string' && command.length > 0)
+          item.command = command.length > 120 ? `${command.slice(0, 120)}…` : command;
+        return item;
+      });
+      return { macros };
+    } catch (error) {
+      throw new Error(
+        `Failed to list macros: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  private async handleDeleteMacro(data: { macro: string }): Promise<any> {
+    try {
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) return { error: 'Access denied', success: false };
+      this.dataAccess.validateFoundryState();
+
+      if (!data.macro) throw new Error('macro (id or name) is required');
+      const macro = this.resolveMacro(data.macro);
+      if (!macro) throw new Error(`Could not resolve a macro: ${data.macro}`);
+
+      const macroId = macro.id;
+      const name = macro.name;
+      await macro.delete();
+      return { deleted: true, macroId, name };
+    } catch (error) {
+      throw new Error(
+        `Failed to delete macro: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  // ===== CORE PLAYLIST HANDLERS =====
+
+  private async handleListPlaylists(data: { playingOnly?: boolean }): Promise<any> {
+    try {
+      // SECURITY: Silent GM validation
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) return { error: 'Access denied', success: false };
+      this.dataAccess.validateFoundryState();
+      return await this.dataAccess.listPlaylists(data ?? {});
+    } catch (error) {
+      throw new Error(
+        `Failed to list playlists: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  private async handlePlayPlaylist(data: { playlist: string }): Promise<any> {
+    try {
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) return { error: 'Access denied', success: false };
+      this.dataAccess.validateFoundryState();
+      return await this.dataAccess.playPlaylist(data);
+    } catch (error) {
+      throw new Error(
+        `Failed to play playlist: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  private async handleStopPlaylist(data: { playlist: string }): Promise<any> {
+    try {
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) return { error: 'Access denied', success: false };
+      this.dataAccess.validateFoundryState();
+      return await this.dataAccess.stopPlaylist(data);
+    } catch (error) {
+      throw new Error(
+        `Failed to stop playlist: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  private async handlePlayPlaylistSound(data: { playlist: string; sound: string }): Promise<any> {
+    try {
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) return { error: 'Access denied', success: false };
+      this.dataAccess.validateFoundryState();
+      return await this.dataAccess.playPlaylistSound(data);
+    } catch (error) {
+      throw new Error(
+        `Failed to play playlist sound: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  private async handleStopAllPlaylists(): Promise<any> {
+    try {
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) return { error: 'Access denied', success: false };
+      this.dataAccess.validateFoundryState();
+      return await this.dataAccess.stopAllPlaylists();
+    } catch (error) {
+      throw new Error(
+        `Failed to stop all playlists: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  private async handleSetPlaylistMode(data: { playlist: string; mode: string }): Promise<any> {
+    try {
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) return { error: 'Access denied', success: false };
+      this.dataAccess.validateFoundryState();
+      return await this.dataAccess.setPlaylistMode(data);
+    } catch (error) {
+      throw new Error(
+        `Failed to set playlist mode: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  private async handleCreatePlaylist(data: {
+    name: string;
+    mode?: string;
+    sounds?: Array<{ name: string; path: string; repeat?: boolean; volume?: number }>;
+  }): Promise<any> {
+    try {
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) return { error: 'Access denied', success: false };
+      this.dataAccess.validateFoundryState();
+      return await this.dataAccess.createPlaylist(data);
+    } catch (error) {
+      throw new Error(
+        `Failed to create playlist: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
   }
 }
