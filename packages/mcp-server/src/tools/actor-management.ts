@@ -59,9 +59,18 @@ export class ActorManagementTools {
           properties: {
             action: {
               type: 'string',
-              enum: ['create', 'update', 'delete', 'update-items', 'delete-items', 'describe'],
+              enum: [
+                'create',
+                'update',
+                'delete',
+                'place',
+                'update-items',
+                'delete-items',
+                'describe',
+              ],
               description:
                 'Operation to perform: "create" / "update" / "delete" actors, ' +
+                '"place" existing world actors as tokens on the current scene, ' +
                 '"update-items" / "delete-items" for embedded items, ' +
                 'or "describe" to get system-specific schema notes.',
             },
@@ -146,6 +155,24 @@ export class ActorManagementTools {
               minItems: 1,
               description: 'Required for "delete". IDs of the actors to delete.',
             },
+            // ── place ───────────────────────────────────────────────────────
+            actorIds: {
+              type: 'array',
+              items: { type: 'string' },
+              minItems: 1,
+              description:
+                'Required for "place". IDs of existing world actors to drop as tokens on the ' +
+                'current scene.',
+            },
+            placement: {
+              type: 'string',
+              enum: ['random', 'grid', 'center'],
+              description: 'For "place": token layout strategy. Defaults to "random".',
+            },
+            hidden: {
+              type: 'boolean',
+              description: 'For "place": create the tokens hidden from players. Defaults to false.',
+            },
             // ── update-items ─────────────────────────────────────────────────
             actorIdentifier: {
               type: 'string',
@@ -190,7 +217,15 @@ export class ActorManagementTools {
   async handleManageActors(args: any): Promise<any> {
     const { action } = z
       .object({
-        action: z.enum(['create', 'update', 'delete', 'update-items', 'delete-items', 'describe']),
+        action: z.enum([
+          'create',
+          'update',
+          'delete',
+          'place',
+          'update-items',
+          'delete-items',
+          'describe',
+        ]),
       })
       .parse(args);
 
@@ -201,6 +236,8 @@ export class ActorManagementTools {
         return this.handleUpdate(args);
       case 'delete':
         return this.handleDelete(args);
+      case 'place':
+        return this.handlePlace(args);
       case 'update-items':
         return this.handleUpdateItems(args);
       case 'delete-items':
@@ -208,6 +245,32 @@ export class ActorManagementTools {
       case 'describe':
         return this.handleDescribe();
     }
+  }
+
+  // ── place ─────────────────────────────────────────────────────────────────
+
+  private async handlePlace(args: any): Promise<any> {
+    const schema = z.object({
+      actorIds: z.array(z.string().min(1)).min(1),
+      placement: z.enum(['random', 'grid', 'center']).default('random'),
+      hidden: z.boolean().default(false),
+    });
+
+    const { actorIds, placement, hidden } = schema.parse(args);
+
+    this.logger.info('Placing existing actors on scene', {
+      count: actorIds.length,
+      placement,
+      hidden,
+    });
+
+    // The module already exposes a GM-gated addActorsToScene query taking existing
+    // world actor IDs; expose it here rather than only via create-from-compendium.
+    return await this.foundryClient.query('foundry-mcp-bridge.addActorsToScene', {
+      actorIds,
+      placement,
+      hidden,
+    });
   }
 
   private async handleDescribe(): Promise<any> {
