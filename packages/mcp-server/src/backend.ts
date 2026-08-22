@@ -1651,6 +1651,11 @@ async function startBackend(): Promise<void> {
 
                   break;
 
+                case 'replace-journal-page':
+                  result = await questCreationTools.handleReplaceJournalPage(args);
+
+                  break;
+
                 case 'list-journals':
                   result = await questCreationTools.handleListJournals(args);
 
