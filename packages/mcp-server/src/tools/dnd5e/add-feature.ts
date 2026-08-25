@@ -73,10 +73,14 @@ const damagePartSchema = {
   type: 'object',
   properties: {
     number: { type: 'number', description: 'Number of dice (e.g. 4)', minimum: 1 },
-    denomination: { type: 'number', description: 'Die size', enum: [4, 6, 8, 10, 12, 20, 100] },
+    denomination: {
+      type: 'number',
+      description: 'Die size. Must be one of: 4, 6, 8, 10, 12, 20, 100.',
+    },
     type: { type: 'string', description: 'Damage type (e.g. "fire", "slashing", "cold")' },
   },
   required: ['number', 'denomination', 'type'],
+  additionalProperties: false,
 };
 
 // ---------------------------------------------------------------------------
@@ -241,12 +245,11 @@ export class DnD5eAddFeatureTool {
             // ── Area parameters ───────────────────────────────────────────────
             areaType: {
               type: 'string',
-              enum: ['cone', 'cube', 'cylinder', 'emanation', 'line', 'radius', 'sphere', ''],
+              enum: ['cone', 'cube', 'cylinder', 'emanation', 'line', 'radius', 'sphere'],
               description:
                 'Area-of-effect template shape. ' +
-                'For save: optional (omit or use "" for no template); if set, areaSize is required. ' +
+                'For save: optional (omit for no template); if set, areaSize is required. ' +
                 'For aura: required — use "emanation" or "sphere" for radial auras.',
-              default: '',
             },
             areaSize: {
               type: 'number',
@@ -263,7 +266,7 @@ export class DnD5eAddFeatureTool {
             },
             affectsType: {
               type: 'string',
-              enum: ['creature', 'object', 'space', ''],
+              enum: ['creature', 'object', 'space'],
               description: 'What the area targets. Used by: save, aura. Default: "creature".',
               default: 'creature',
             },
