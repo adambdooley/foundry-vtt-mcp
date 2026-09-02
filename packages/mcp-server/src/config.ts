@@ -12,6 +12,7 @@ const ConfigSchema = z.object({
   foundry: z.object({
     host: z.string().default('localhost'),
     port: z.number().min(1024).max(65535).default(31415),
+    bindHost: z.string().default('0.0.0.0'),
     namespace: z.string().default('/foundry-mcp'),
     reconnectAttempts: z.number().min(1).max(20).default(5),
     reconnectDelay: z.number().min(100).max(30000).default(1000),
@@ -62,6 +63,10 @@ const rawConfig = {
   foundry: {
     host: process.env.FOUNDRY_HOST || 'localhost',
     port: parseInt(process.env.FOUNDRY_PORT || '31415', 10),
+    // Interface the module-facing WebSocket and WebRTC signaling servers bind to.
+    // Set FOUNDRY_BIND_HOST=127.0.0.1 when the backend runs on a host reachable
+    // from the internet and the Foundry client connects from the same machine.
+    bindHost: process.env.FOUNDRY_BIND_HOST || '0.0.0.0',
     namespace: process.env.FOUNDRY_NAMESPACE || '/foundry-mcp',
     reconnectAttempts: parseInt(process.env.FOUNDRY_RECONNECT_ATTEMPTS || '5', 10),
     reconnectDelay: parseInt(process.env.FOUNDRY_RECONNECT_DELAY || '1000', 10),

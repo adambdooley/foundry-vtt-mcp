@@ -1,6 +1,9 @@
 import { MODULE_ID, CONNECTION_STATES } from './constants.js';
 import { WebRTCConnection, type WebRTCConfig } from './webrtc-connection.js';
 
+/** Reconnect backoff ceiling - after this the bridge retries at a steady interval. */
+const RECONNECT_MAX_DELAY_MS = 30000;
+
 export interface BridgeConfig {
   enabled: boolean;
   serverHost: string;
@@ -55,10 +58,14 @@ export class SocketBridge {
     const configType = this.config.connectionType || 'auto';
 
     if (configType === 'auto') {
-      // Use WebRTC for HTTPS (secure), WebSocket for HTTP (localhost)
-      // WebRTC provides P2P encrypted channel without needing SSL certificates
+      // A loopback MCP host always takes plain WebSocket: browsers treat loopback as a
+      // potentially trustworthy origin, so ws://localhost is allowed even from an HTTPS
+      // page, and the WebRTC signaling path is fragile there (silent handshake failures).
+      // Remote hosts keep the old rule: WebRTC for HTTPS pages, WebSocket for HTTP.
+      const host = this.config.serverHost;
+      const isLoopback = ['localhost', '127.0.0.1', '::1', '[::1]'].includes(host);
       const isHttps = window.location.protocol === 'https:';
-      const type = isHttps ? 'webrtc' : 'websocket';
+      const type = isLoopback ? 'websocket' : isHttps ? 'webrtc' : 'websocket';
       this.log(`Auto-detected connection type: ${type} (page is ${window.location.protocol})`);
       return type;
     }
@@ -377,10 +384,7 @@ export class SocketBridge {
             `[foundry-mcp-bridge] Scene background did not persist on create (got "${scene.background?.src}"), repairing via update()...`
           );
           await scene.update({ background: { src: expectedBackgroundSrc } });
-          console.log(
-            `[foundry-mcp-bridge] Scene background after repair:`,
-            scene.background?.src
-          );
+          console.log(`[foundry-mcp-bridge] Scene background after repair:`, scene.background?.src);
         }
       }
 
@@ -503,19 +507,23 @@ export class SocketBridge {
   }
 
   private scheduleReconnect(): void {
-    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      this.log(`Max reconnection attempts reached (${this.maxReconnectAttempts})`);
-      return;
-    }
-
+    // No attempt ceiling: a GM client that outlives the MCP server must reconnect
+    // on its own once the server is back, however long that takes.
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
     }
 
-    const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 30000); // Exponential backoff, max 30s
+    // Exponential backoff capped at 30s, then a steady 30s retry forever.
+    // The exponent is clamped so long outages cannot overflow the calculation.
+    const exponent = Math.min(this.reconnectAttempts, 20);
+    const delay = Math.min(1000 * Math.pow(2, exponent), RECONNECT_MAX_DELAY_MS);
     this.reconnectAttempts++;
 
-    this.log(`Scheduling reconnection attempt ${this.reconnectAttempts} in ${delay}ms`);
+    // Log the first attempt and then every tenth, so a server left down overnight
+    // does not fill the console.
+    if (this.reconnectAttempts === 1 || this.reconnectAttempts % 10 === 0) {
+      this.log(`Scheduling reconnection attempt ${this.reconnectAttempts} in ${delay}ms`);
+    }
     this.connectionState = CONNECTION_STATES.RECONNECTING;
 
     this.reconnectTimer = setTimeout(async () => {

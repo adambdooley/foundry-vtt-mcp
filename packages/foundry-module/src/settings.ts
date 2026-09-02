@@ -201,6 +201,18 @@ export class ModuleSettings {
       onChange: this.onEnabledChange.bind(this),
     });
 
+    // Client-scope: which browser actually holds the bridge connection.
+    // Every GM client loads the module, but only the ticked one talks to the MCP
+    // server, so a second GM tab cannot steal the socket.
+    game.settings.register(this.moduleId, 'actAsBridge', {
+      name: 'Act as MCP bridge client',
+      hint: 'Only this browser connects to the MCP server. Untick on GM clients that should stay passive.',
+      scope: 'client',
+      config: true,
+      type: Boolean,
+      default: true,
+    });
+
     game.settings.register(this.moduleId, 'connectionType', {
       name: 'Connection Type',
       hint: 'Auto: Smart selection (HTTPS→WebRTC, HTTP→WebSocket). WebRTC: Encrypted P2P (works over internet). WebSocket: Traditional (localhost only).',
@@ -455,6 +467,7 @@ export class ModuleSettings {
       'serverHost',
       'serverPort',
       'connectionType',
+      'actAsBridge',
       // Permissions
       'allowWriteOperations',
       // Safety Controls

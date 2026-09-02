@@ -83,9 +83,10 @@ export class FoundryConnector {
 
     // Start WebRTC signaling server
     await new Promise<void>((resolve, reject) => {
-      this.webrtcSignalingServer.listen(WEBRTC_PORT, '0.0.0.0', () => {
+      const bindHost = this.config.bindHost || '0.0.0.0';
+      this.webrtcSignalingServer.listen(WEBRTC_PORT, bindHost, () => {
         this.logger.info(`WebRTC signaling server listening on port ${WEBRTC_PORT}`);
-        console.error(`[WebRTC] Server started on 0.0.0.0:${WEBRTC_PORT}`);
+        console.error(`[WebRTC] Server started on ${bindHost}:${WEBRTC_PORT}`);
         resolve();
       });
       this.webrtcSignalingServer.on('error', (error: Error) => {
@@ -162,9 +163,12 @@ export class FoundryConnector {
 
     // Start the HTTP server
     await new Promise<void>((resolve, reject) => {
-      this.httpServer.listen(this.config.port, () => {
+      this.httpServer.listen(this.config.port, this.config.bindHost || '0.0.0.0', () => {
         this.isStarted = true;
-        this.logger.info('Foundry connector listening', { port: this.config.port });
+        this.logger.info('Foundry connector listening', {
+          port: this.config.port,
+          bindHost: this.config.bindHost || '0.0.0.0',
+        });
         resolve();
       });
 

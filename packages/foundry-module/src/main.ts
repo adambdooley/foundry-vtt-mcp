@@ -6,6 +6,9 @@ import { CampaignHooks } from './campaign-hooks.js';
 import { ComfyUIManager } from './comfyui-manager.js';
 // Connection control now handled through settings menu
 
+/** How often, at most, the "MCP Server not found" notification may be shown. */
+const MCP_SERVER_NOTIFICATION_INTERVAL_MS = 10 * 60 * 1000;
+
 /**
  * Main Foundry MCP Bridge Module Class
  */
@@ -19,6 +22,7 @@ class FoundryMCPBridge {
   private heartbeatInterval: number | null = null;
   private lastActivity: Date = new Date();
   private isConnecting = false;
+  private heartbeatFailures = 0;
 
   constructor() {
     this.settings = new ModuleSettings();
@@ -165,6 +169,16 @@ class FoundryMCPBridge {
       return;
     }
 
+    // Client-scope opt-out: a GM browser with "Act as MCP bridge client" unticked
+    // stays passive - no socket, no heartbeat, no error.
+    if (!this.settings.getSetting('actAsBridge')) {
+      console.log(
+        `[${MODULE_ID}] Act as MCP bridge client is off for this browser - staying passive`
+      );
+      this.settings.updateConnectionStatusDisplay(false, 0);
+      return;
+    }
+
     if (this.socketBridge?.isConnected() || this.isConnecting) {
       console.log(`[${MODULE_ID}] Bridge already running or connecting`);
       return;
@@ -223,12 +237,13 @@ class FoundryMCPBridge {
           errorMessage.includes('ECONNREFUSED') ||
           errorMessage.includes('connect ECONNREFUSED')
         ) {
-          // Only show this notification if it's been more than 30 seconds since last shown
+          // Reconnect now runs forever, so this notification is throttled hard:
+          // once per 10 minutes, not once per retry.
           const lastShown = this.settings.getSetting('lastMCPServerNotification') as string;
           const now = new Date().getTime();
-          const thirtySecondsAgo = now - 30 * 1000;
+          const throttleCutoff = now - MCP_SERVER_NOTIFICATION_INTERVAL_MS;
 
-          if (!lastShown || new Date(lastShown).getTime() < thirtySecondsAgo) {
+          if (!lastShown || new Date(lastShown).getTime() < throttleCutoff) {
             ui.notifications?.warn(
               'MCP Server not found. Install it from https://github.com/adambdooley/foundry-vtt-mcp'
             );
@@ -259,6 +274,11 @@ class FoundryMCPBridge {
       return;
     }
 
+    // Remembered before the disconnect: only a live connection is worth announcing.
+    // The heartbeat restarts the bridge on every tick while the server is down, and
+    // a toast per tick would be unreadable.
+    const wasConnected = this.socketBridge.isConnected();
+
     try {
       console.log(`[${MODULE_ID}] Stopping MCP bridge...`);
 
@@ -276,7 +296,7 @@ class FoundryMCPBridge {
       console.log(`[${MODULE_ID}] Bridge stopped`);
 
       // Show disconnection notification based on user preference
-      if (this.settings.getSetting('enableNotifications')) {
+      if (wasConnected && this.settings.getSetting('enableNotifications')) {
         ui.notifications.info('MCP Bridge disconnected');
       }
     } catch (error) {
@@ -307,6 +327,7 @@ class FoundryMCPBridge {
     return {
       initialized: this.isInitialized,
       enabled: this.settings.getSetting('enabled'),
+      actAsBridge: this.settings.getSetting('actAsBridge'),
       connected: this.socketBridge?.isConnected() ?? false,
       connectionState: this.socketBridge?.getConnectionState() ?? 'disconnected',
       connectionInfo: this.socketBridge?.getConnectionInfo(),
@@ -349,38 +370,42 @@ class FoundryMCPBridge {
    */
   private async performHeartbeat(): Promise<void> {
     try {
+      // A passive browser has nothing to keep alive
+      if (!this.settings.getSetting('actAsBridge')) {
+        return;
+      }
+
       // Lightweight connection check - just verify socket state
       if (!this.socketBridge || !this.socketBridge.isConnected()) {
-        // Only log once per disconnection to avoid spam
-        if (this.lastActivity && new Date().getTime() - this.lastActivity.getTime() > 60000) {
-          console.warn(`[${MODULE_ID}] Heartbeat: Connection lost`);
-
-          // Attempt auto-reconnection if enabled (with backoff)
-          if (this.settings.getSetting('autoReconnectEnabled')) {
-            console.log(`[${MODULE_ID}] Attempting auto-reconnection...`);
-            await this.restart();
-          }
+        // Retry on every heartbeat for as long as the socket stays down. The
+        // reconnect ceiling is gone on purpose: a GM tab left open over a server
+        // restart has to come back on its own.
+        if (this.settings.getSetting('autoReconnectEnabled')) {
+          await this.restart();
         }
         return;
       }
 
       // Just update activity timestamp - no actual network ping needed
       // The socket bridge already handles connection state monitoring
+      this.heartbeatFailures = 0;
       this.updateLastActivity();
     } catch (error) {
-      // Only attempt reconnect once per failure cycle
-      if (this.settings.getSetting('autoReconnectEnabled')) {
-        console.log(`[${MODULE_ID}] Heartbeat failure - attempting single reconnection...`);
-        try {
-          await this.restart();
-        } catch (reconnectError) {
-          console.error(`[${MODULE_ID}] Auto-reconnection failed:`, reconnectError);
-          // Disable further attempts until manual intervention
-          await this.settings.setSetting('autoReconnectEnabled', false);
-          if (this.settings.getSetting('enableNotifications')) {
-            ui.notifications.warn('⚠️ Lost connection to AI model - Auto-reconnect disabled');
-          }
-        }
+      // Never latch auto-reconnect off - the next heartbeat tries again.
+      // Logged on the first failure and every tenth after it, so an MCP server
+      // left down overnight does not fill the console.
+      this.heartbeatFailures++;
+      if (this.heartbeatFailures === 1 || this.heartbeatFailures % 10 === 0) {
+        console.warn(
+          `[${MODULE_ID}] Heartbeat reconnect failed (attempt ${this.heartbeatFailures}), retrying on next tick:`,
+          error
+        );
+      }
+
+      // restart() stops the heartbeat through stop(); when the following start()
+      // throws, nothing re-arms it and the retry loop dies with the first failure.
+      if (this.heartbeatInterval === null) {
+        this.startHeartbeat();
       }
     }
   }
@@ -591,16 +616,21 @@ Hooks.once('ready', async () => {
 // Handle settings menu close to check for changes
 Hooks.on('closeSettingsConfig', () => {
   try {
-    const enabled = foundryMCPBridge.getStatus().enabled;
-    const connected = foundryMCPBridge.getStatus().connected;
+    const status = foundryMCPBridge.getStatus();
+    // The bridge should run only when the world enables it AND this browser
+    // volunteers to be the bridge client.
+    const shouldRun = status.enabled && status.actAsBridge !== false;
+    // connectionInfo is present whenever a socket bridge object exists, which
+    // also covers a connection still in progress.
+    const hasBridge = status.connected || status.connectionInfo !== undefined;
 
-    if (enabled && !connected) {
-      // Setting was enabled but not connected, try to start
+    if (shouldRun && !status.connected) {
+      // Newly enabled here, connect
       foundryMCPBridge.start().catch(error => {
         console.error(`[${MODULE_ID}] Failed to start after settings change:`, error);
       });
-    } else if (!enabled && connected) {
-      // Setting was disabled but still connected, stop
+    } else if (!shouldRun && hasBridge) {
+      // Turned off world-wide or on this browser, drop the socket
       foundryMCPBridge.stop().catch(error => {
         console.error(`[${MODULE_ID}] Failed to stop after settings change:`, error);
       });

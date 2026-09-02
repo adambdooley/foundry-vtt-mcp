@@ -20,6 +20,8 @@ import * as fs from 'fs';
 
 import * as path from 'path';
 
+import { hydrateToolArgs, dehydrateToolResult, toolErrorResult } from './tool-files.js';
+
 const CONTROL_HOST = '127.0.0.1';
 
 const CONTROL_PORT = 31414;
@@ -358,10 +360,28 @@ async function startWrapper() {
   mcp.setRequestHandler(CallToolRequestSchema, async request => {
     const { name, arguments: args } = request.params as any;
 
-    try {
-      const res = await backend.send('call_tool', { name, args: args ?? {} });
+    // Files live on this machine, not necessarily on the backend host, so file-backed
+    // arguments are read here and the payload is inlined before the call is forwarded.
 
-      return res;
+    const hydrated = hydrateToolArgs(name, args ?? {});
+
+    if (!hydrated.ok) {
+      try {
+        (backend as any).log?.('CallTool: argument hydration failed', {
+          name,
+          error: hydrated.error,
+        });
+      } catch {
+        // Logging is best effort; the error still reaches the client below.
+      }
+
+      return toolErrorResult(hydrated.error) as any;
+    }
+
+    try {
+      const res = await backend.send('call_tool', { name, args: hydrated.args });
+
+      return dehydrateToolResult(name, hydrated.args, res);
     } catch (e: any) {
       return {
         content: [{ type: 'text', text: `Error: ${e?.message || 'Backend unavailable'}` }],

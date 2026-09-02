@@ -22,7 +22,8 @@ const importDist = async (relativePath) =>
 
 const [{ config }, { Logger }, { FoundryClient }, { CharacterTools }, { CompendiumTools }, { SceneTools },
   { ActorCreationTools }, { QuestCreationTools }, { DiceRollTools }, { CampaignManagementTools },
-  { OwnershipTools }, { TokenManipulationTools }, { MapGenerationTools }, { getSystemRegistry },
+  { OwnershipTools }, { TokenManipulationTools }, { MapGenerationTools }, { RawActorTools },
+  { getSystemRegistry },
   { DnD5eAdapter }, { PF2eAdapter }, { DSA5Adapter }, { CosmereRpgAdapter }] = await Promise.all([
   importDist('config.js'),
   importDist('logger.js'),
@@ -37,6 +38,7 @@ const [{ config }, { Logger }, { FoundryClient }, { CharacterTools }, { Compendi
   importDist('tools/ownership.js'),
   importDist('tools/token-manipulation.js'),
   importDist('tools/map-generation.js'),
+  importDist('tools/raw-actor.js'),
   importDist('systems/index.js'),
   importDist('systems/dnd5e/adapter.js'),
   importDist('systems/pf2e/adapter.js'),
@@ -64,6 +66,7 @@ const tools = [
   ...new OwnershipTools({ foundryClient, logger }).getToolDefinitions(),
   ...new TokenManipulationTools({ foundryClient, logger }).getToolDefinitions(),
   ...new MapGenerationTools({ foundryClient, logger, backendComfyUIHandlers: {} }).getToolDefinitions(),
+  ...new RawActorTools({ foundryClient, logger }).getToolDefinitions(),
 ];
 
 if (!tools.length) {
@@ -86,6 +89,26 @@ if (additionalPropertiesFalseCount === objectSchemas.length) {
   fail(
     'Every tool schema has additionalProperties=false. This indicates schema normalization is forcing strictness globally.',
   );
+}
+
+const rawActorToolNames = [
+  'import-actor',
+  'export-actor',
+  'manage-compendium',
+  'manage-actor-items',
+  'update-actor-raw',
+  'run-script',
+  'bridge-info',
+];
+for (const name of rawActorToolNames) {
+  if (!tools.some((tool) => tool.name === name)) {
+    fail(`Expected raw actor tool "${name}" to be present but it was not found.`);
+  }
+}
+
+const importActorDescription = tools.find((tool) => tool.name === 'import-actor').description;
+if (!importActorDescription.includes('full Foundry actor source including items with activities')) {
+  fail('Tool "import-actor" no longer advertises that it takes full actor source with activities.');
 }
 
 const switchSceneSchema = tools.find((tool) => tool.name === 'switch-scene')?.inputSchema;

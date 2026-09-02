@@ -30,7 +30,7 @@
     }
   ],
   "socket": true,
-  "manifest": "https://github.com/adambdooley/foundry-vtt-mcp/releases/latest/download/module.json",
+  "manifest": "https://raw.githubusercontent.com/adambdooley/foundry-vtt-mcp/master/packages/foundry-module/module.json",
   "download": "https://github.com/adambdooley/foundry-vtt-mcp/releases/latest/download/foundry-vtt-mcp.zip",
   "protected": false,
   "coreTranslation": false,

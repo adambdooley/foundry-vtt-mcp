@@ -14,6 +14,7 @@ The Foundry MCP Bridge enables natural AI conversations with your Foundry VTT ga
 - **Dice Coordination**: Interactive roll requests with player targeting
 - **Campaign Management**: Multi-part quest and campaign tracking
 - **Map Generation**: Create maps from prompts and automatically upload them into scenes in Foundry VTT using the optional ComfyUI component
+- **Raw Document Access**: Import and export complete actors (items with activities included), manage world compendiums, apply verbatim item and actor updates, and run scripts in the GM client - see [docs/raw-actor-tools.md](docs/raw-actor-tools.md)
 
 ## Installation
 
