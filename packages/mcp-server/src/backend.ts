@@ -24,6 +24,7 @@ import { SceneTools } from './tools/scene.js';
 
 import { ActorCreationTools } from './tools/actor-creation.js';
 import { ActorManagementTools } from './tools/actor-management.js';
+import { RawActorTools } from './tools/raw-actor.js';
 
 import { QuestCreationTools } from './tools/quest-creation.js';
 
@@ -1194,6 +1195,7 @@ async function startBackend(): Promise<void> {
 
   const actorCreationTools = new ActorCreationTools({ foundryClient, logger });
   const actorManagementTools = new ActorManagementTools({ foundryClient, logger, systemRegistry });
+  const rawActorTools = new RawActorTools({ foundryClient, logger });
 
   const dsa5CharacterCreator = new DSA5CharacterCreator({ foundryClient, logger });
 
@@ -1423,6 +1425,8 @@ async function startBackend(): Promise<void> {
     ...actorCreationTools.getToolDefinitions(),
     ...actorManagementTools.getToolDefinitions(),
 
+    ...rawActorTools.getToolDefinitions(),
+
     ...dsa5CharacterCreator.getToolDefinitions(),
 
     ...dnd5eAddFeatureTool.getToolDefinitions(),
@@ -1601,6 +1605,43 @@ async function startBackend(): Promise<void> {
 
                 case 'manage-actors':
                   result = await actorManagementTools.handleManageActors(args);
+
+                  break;
+
+                // Raw document tools (import/export, compendiums, scripting)
+
+                case 'import-actor':
+                  result = await rawActorTools.handleImportActor(args);
+
+                  break;
+
+                case 'export-actor':
+                  result = await rawActorTools.handleExportActor(args);
+
+                  break;
+
+                case 'manage-compendium':
+                  result = await rawActorTools.handleManageCompendium(args);
+
+                  break;
+
+                case 'manage-actor-items':
+                  result = await rawActorTools.handleManageActorItems(args);
+
+                  break;
+
+                case 'update-actor-raw':
+                  result = await rawActorTools.handleUpdateActorRaw(args);
+
+                  break;
+
+                case 'run-script':
+                  result = await rawActorTools.handleRunScript(args);
+
+                  break;
+
+                case 'bridge-info':
+                  result = await rawActorTools.handleBridgeInfo(args);
 
                   break;
 

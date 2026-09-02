@@ -1,3 +1,17 @@
+## Unreleased
+
+### Added
+- Raw document tools: `import-actor`, `export-actor`, `manage-compendium`, `manage-actor-items`, `update-actor-raw`, `run-script`, `bridge-info`. Full actor source (items with activities, effects, prototype token) goes in and out unchanged, world compendiums can be created and filled, embedded items and actors accept verbatim updates (dotted keys and `-=` deletions), and a script can run in the GM client. See `docs/raw-actor-tools.md`.
+- File-backed arguments (`filePath`, `scriptFile`, `outFile`) handled by the stdio wrapper on the machine that runs the MCP client, so the backend may live on another host.
+- `FOUNDRY_BIND_HOST` for the backend: bind the module-facing WebSocket and WebRTC signaling listeners to a specific interface (for example `127.0.0.1` when the backend runs next to Foundry on a public server).
+- Client-scoped module setting "Act as MCP bridge client" so extra GM sessions can stay passive.
+- `scripts/headless-gm/headless-gm.mjs`: a puppeteer runner that keeps a dedicated GM user logged in next to the Foundry server so the bridge does not depend on anyone's browser.
+- `scripts/mcp-call.mjs` (call any tool from the shell through the wrapper) and `scripts/deploy-module.sh` (rsync the built module to a remote Foundry data directory).
+
+### Changed
+- The module reconnects indefinitely with capped backoff instead of giving up after five attempts, and the heartbeat keeps retrying while the MCP server is down.
+- Connection type `auto` picks WebSocket for loopback hosts even on HTTPS pages; the WebRTC signaling path is only used for remote hosts.
+
 ## v0.8.3 (2026-06-11)
 
 ### New Features

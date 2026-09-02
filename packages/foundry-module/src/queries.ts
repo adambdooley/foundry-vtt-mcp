@@ -1,14 +1,17 @@
 import { MODULE_ID } from './constants.js';
 import { FoundryDataAccess } from './data-access.js';
 import { ComfyUIManager } from './comfyui-manager.js';
+import { RawHandlers } from './raw-handlers.js';
 
 export class QueryHandlers {
   public dataAccess: FoundryDataAccess;
   private comfyuiManager: ComfyUIManager;
+  private rawHandlers: RawHandlers;
 
   constructor() {
     this.dataAccess = new FoundryDataAccess();
     this.comfyuiManager = new ComfyUIManager();
+    this.rawHandlers = new RawHandlers(this.dataAccess);
   }
 
   /**
@@ -158,6 +161,9 @@ export class QueryHandlers {
     CONFIG.queries[`${modulePrefix}.addSpellsToActor`] = this.handleAddSpellsToActor.bind(this);
     CONFIG.queries[`${modulePrefix}.addFeaturesFromCompendium`] =
       this.handleAddFeaturesFromCompendium.bind(this);
+
+    // Raw document queries (raw.*), kept in their own file
+    this.rawHandlers.registerHandlers();
   }
 
   /**
