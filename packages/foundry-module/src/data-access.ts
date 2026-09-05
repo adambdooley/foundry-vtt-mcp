@@ -7358,8 +7358,12 @@ export class FoundryDataAccess {
 
     try {
       const scene = this.findSceneByIdentifier(options.scene_identifier);
-      const playlistId = (scene as any).playlist || null;
-      const soundId = (scene as any).playlistSound || null;
+      // On a live client, scene.playlist / playlistSound are resolved
+      // documents after an update; normalize back to ids.
+      const plRaw = (scene as any).playlist;
+      const sndRaw = (scene as any).playlistSound;
+      const playlistId = typeof plRaw === 'string' ? plRaw : plRaw?.id || null;
+      const soundId = typeof sndRaw === 'string' ? sndRaw : sndRaw?.id || null;
       const playlistDoc = playlistId ? (game as any).playlists?.get(playlistId) || null : null;
       const soundDoc = playlistDoc && soundId ? playlistDoc.sounds?.get(soundId) || null : null;
 
