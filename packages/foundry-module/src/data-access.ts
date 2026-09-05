@@ -4727,6 +4727,139 @@ export class FoundryDataAccess {
     }
   }
 
+  async createActorFromData(request: {
+    actorData: Record<string, unknown>;
+    addToScene?: boolean;
+    updateExisting?: boolean;
+    existingActorIdentifier?: string;
+    preserveItemTypes?: string[];
+    placement?: {
+      type: 'random' | 'grid' | 'center' | 'coordinates';
+      coordinates?: { x: number; y: number }[];
+    };
+  }): Promise<{
+    success: boolean;
+    actor?: { id: string; name: string; type: string };
+    updatedExisting?: boolean;
+    tokensPlaced?: number;
+    errors?: string[];
+  }> {
+    this.validateFoundryState();
+
+    const permissionCheck = permissionManager.checkWritePermission('createActor', { quantity: 1 });
+    if (!permissionCheck.allowed) {
+      throw new Error(`${ERROR_MESSAGES.ACCESS_DENIED}: ${permissionCheck.reason}`);
+    }
+    permissionManager.auditPermissionCheck('createActor', permissionCheck, request);
+
+    try {
+      const actorData = foundry.utils.deepClone(request.actorData) as any;
+
+      delete actorData._id;
+      delete actorData.sort;
+
+      if (!actorData.name || typeof actorData.name !== 'string') {
+        throw new Error('actorData.name is required and must be a string');
+      }
+      if (!actorData.type || typeof actorData.type !== 'string') {
+        actorData.type = 'character';
+      }
+      if (!actorData.system || typeof actorData.system !== 'object') {
+        actorData.system = {};
+      }
+
+      if (Array.isArray(actorData.items)) {
+        actorData.items = actorData.items
+          .filter((item: any) => item && typeof item === 'object')
+          .map((item: any) => {
+            const clonedItem = foundry.utils.deepClone(item);
+            delete clonedItem._id;
+            delete clonedItem.folder;
+            delete clonedItem.sort;
+            return clonedItem;
+          });
+      } else {
+        actorData.items = [];
+      }
+
+      if (Array.isArray(actorData.effects)) {
+        actorData.effects = actorData.effects
+          .filter((effect: any) => effect && typeof effect === 'object')
+          .map((effect: any) => {
+            const clonedEffect = foundry.utils.deepClone(effect);
+            delete clonedEffect._id;
+            delete clonedEffect.folder;
+            delete clonedEffect.sort;
+            return clonedEffect;
+          });
+      } else {
+        actorData.effects = [];
+      }
+
+      if (actorData.prototypeToken?.texture?.src?.startsWith('http')) {
+        actorData.prototypeToken.texture.src = null;
+      }
+
+      if (!actorData.folder) {
+        const folderId = await this.getOrCreateFolder('Foundry MCP Imported Actors', 'Actor');
+        if (folderId) {
+          actorData.folder = folderId;
+        }
+      }
+
+      const incomingItems = actorData.items;
+      const incomingEffects = actorData.effects;
+      delete actorData.items;
+      delete actorData.effects;
+
+      const createdActor = await Actor.create(actorData as any);
+      if (!createdActor) {
+        throw new Error(`Failed to create actor "${actorData.name}"`);
+      }
+
+      if (Array.isArray(incomingItems) && incomingItems.length > 0) {
+        await createdActor.createEmbeddedDocuments('Item', incomingItems as any[]);
+      }
+      if (Array.isArray(incomingEffects) && incomingEffects.length > 0) {
+        await createdActor.createEmbeddedDocuments('ActiveEffect', incomingEffects as any[]);
+      }
+
+      let tokensPlaced = 0;
+      if (request.addToScene) {
+        const scene = (game.scenes as any).active;
+        if (scene) {
+          const placement = request.placement || { type: 'center' };
+          const position = this.calculateTokenPosition(placement.type, scene, 0);
+          const tokenData = {
+            actorId: createdActor.id,
+            x: position.x,
+            y: position.y,
+          };
+          await scene.createEmbeddedDocuments('Token', [tokenData], {});
+          tokensPlaced = 1;
+        }
+      }
+
+      return {
+        success: true,
+        actor: {
+          id: createdActor.id as string,
+          name: createdActor.name as string,
+          type: createdActor.type,
+        },
+        tokensPlaced,
+      };
+    } catch (error) {
+      this.auditLog(
+        'createActorFromData',
+        request,
+        'failure',
+        error instanceof Error ? error.message : 'Unknown error'
+      );
+      throw error;
+    }
+  }
+
   /**
    * Remove embedded Items from an existing Actor.
    *
