@@ -21,6 +21,7 @@ import { CharacterTools } from './tools/character.js';
 import { CompendiumTools } from './tools/compendium.js';
 
 import { SceneTools } from './tools/scene.js';
+import { PlaylistTools } from './tools/playlist.js';
 
 import { ActorCreationTools } from './tools/actor-creation.js';
 import { ActorManagementTools } from './tools/actor-management.js';
@@ -1191,6 +1192,7 @@ async function startBackend(): Promise<void> {
   const compendiumTools = new CompendiumTools({ foundryClient, logger, systemRegistry });
 
   const sceneTools = new SceneTools({ foundryClient, logger });
+  const playlistTools = new PlaylistTools({ foundryClient, logger });
 
   const actorCreationTools = new ActorCreationTools({ foundryClient, logger });
   const actorManagementTools = new ActorManagementTools({ foundryClient, logger, systemRegistry });
@@ -1444,6 +1446,8 @@ async function startBackend(): Promise<void> {
     ...tokenManipulationTools.getToolDefinitions(),
 
     ...mapGenerationTools.getToolDefinitions(),
+
+    ...playlistTools.getToolDefinitions(),
   ];
 
   // Start Foundry connector (owns app port 31415)
@@ -1753,6 +1757,33 @@ async function startBackend(): Promise<void> {
 
                 case 'switch-scene':
                   result = await mapGenerationTools.switchScene(args);
+
+                  break;
+
+                // Playlist management tools
+
+                case 'manage-playlists':
+                  result = await playlistTools.handleManagePlaylists(args);
+
+                  break;
+
+                case 'control-playlist':
+                  result = await playlistTools.handleControlPlaylist(args);
+
+                  break;
+
+                case 'get-scene-music':
+                  result = await sceneTools.handleGetSceneMusic(args);
+
+                  break;
+
+                case 'update-scene-music':
+                  result = await sceneTools.handleUpdateSceneMusic(args);
+
+                  break;
+
+                case 'list-playlists':
+                  result = await sceneTools.handleListPlaylists(args);
 
                   break;
 

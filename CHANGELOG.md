@@ -1,3 +1,18 @@
+## Unreleased
+
+### New Features
+
+- **Scene music tools** (Closes #93)
+  - `get-scene-music`: read a scene's `playlist` / `playlistSound` binding (ids + names)
+  - `update-scene-music`: set or clear the binding by id or unique name; writes through `scene.update()` with the core `playlist` / `playlistSound` fields so it syncs to connected clients without a reload. Validates both ids exist before writing; a sound cannot be bound without its parent playlist.
+  - `list-playlists`: playlists with all sounds (id, name, path) for name-to-id resolution
+
+- **Playlist management + playback tools**
+  - `manage-playlists` (`create` | `update` | `delete` | `describe`): playlist CRUD on any system; `create` accepts sounds inline (`path` required, plus `name`, `volume`, `repeat`, `fade`); `update` patches playlist fields and/or individual sounds matched by exact id or unique path/name within the playlist; `describe` with no identifier lists all playlists compactly, with an identifier returns the full document including every sound
+  - `control-playlist`: `play` (playAll), `stop` (stopAll), `cycle-mode` (sequential -> shuffle -> soundboard), plus per-sound `play-sound` / `stop-sound` - all through the client Playlist API so the server and every connected client stay in sync
+
+Both tools are GM-only (same silent GM validation as every other bridge tool) and system-agnostic.
+
 ## v0.8.3 (2026-06-11)
 
 ### New Features
