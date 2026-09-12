@@ -63,6 +63,20 @@ export class PermissionManager {
       settingKey: 'allowWriteOperations',
       requiresGM: true,
     },
+    rollDice: {
+      name: 'Roll Dice',
+      level: PERMISSION_LEVELS.LOW_RISK,
+      description: 'Execute and persist a dice roll in Foundry chat',
+      settingKey: 'allowWriteOperations',
+      requiresGM: true,
+    },
+    manageCombat: {
+      name: 'Manage Combat',
+      level: PERMISSION_LEVELS.MEDIUM_RISK,
+      description: 'Change the active combat tracker, turns, initiative, or combatants',
+      settingKey: 'allowWriteOperations',
+      requiresGM: true,
+    },
   };
 
   /**

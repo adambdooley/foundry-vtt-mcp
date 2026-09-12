@@ -20,6 +20,7 @@ export class WebRTCPeer {
   private config: Config['foundry']['webrtc'];
   private onMessageHandler: (message: any) => Promise<void>;
   private isConnected = false;
+  private outboundSendQueue: Promise<void> = Promise.resolve();
   private pendingChunks: Map<
     string,
     {
@@ -177,18 +178,61 @@ export class WebRTCPeer {
     };
   }
 
-  sendMessage(message: any): void {
-    if (!this.dataChannel || !this.isConnected) {
+  sendMessage(message: any): Promise<void> {
+    const send = this.outboundSendQueue.then(() => this.sendMessageNow(message));
+
+    // Keep the queue usable after a failed send. Callers historically treated
+    // this method as fire-and-forget, so failures remain logged rather than
+    // becoming unhandled promise rejections.
+    this.outboundSendQueue = send.catch(error => {
+      this.logger.error('Failed to send WebRTC message', error);
+    });
+
+    return this.outboundSendQueue;
+  }
+
+  private async sendMessageNow(message: any): Promise<void> {
+    const dataChannel = this.dataChannel;
+    if (!dataChannel || !this.isConnected || dataChannel.readyState !== 'open') {
       this.logger.warn('Cannot send message - data channel not open');
       return;
     }
 
-    try {
-      this.dataChannel.send(JSON.stringify(message));
-      this.logger.debug('Sent WebRTC message', { type: message.type });
-    } catch (error) {
-      this.logger.error('Failed to send WebRTC message', error);
-    }
+    dataChannel.bufferedAmountLowThreshold = 0;
+    dataChannel.send(JSON.stringify(message));
+    await this.waitForSendBufferToDrain(dataChannel);
+    this.logger.debug('Sent WebRTC message', { type: message.type });
+  }
+
+  private async waitForSendBufferToDrain(dataChannel: any): Promise<void> {
+    if (dataChannel.bufferedAmount <= 0) return;
+
+    const timeoutMs = 10000;
+    await new Promise<void>((resolve, reject) => {
+      let settled = false;
+      const subscriptionState: { current?: { unSubscribe: () => void } } = {};
+
+      const finish = (error?: Error) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeout);
+        subscriptionState.current?.unSubscribe();
+        if (error) reject(error);
+        else resolve();
+      };
+
+      const timeout = setTimeout(() => {
+        finish(new Error(`WebRTC send buffer did not drain within ${timeoutMs}ms`));
+      }, timeoutMs);
+
+      subscriptionState.current = dataChannel.bufferedAmountLow.subscribe(() => {
+        if (dataChannel.bufferedAmount <= 0) finish();
+      });
+
+      // Avoid missing the event if Werift drained the queue between the first
+      // bufferedAmount check and installing the subscription.
+      if (dataChannel.bufferedAmount <= 0) finish();
+    });
   }
 
   /**
@@ -390,6 +434,7 @@ export class WebRTCPeer {
     }
 
     this.isConnected = false;
+    this.outboundSendQueue = Promise.resolve();
     this.pendingChunks.clear();
     this.logger.info('WebRTC peer disconnected');
   }
