@@ -107,7 +107,8 @@ export class MapGenerationTools {
       },
       {
         name: 'list-scenes',
-        description: 'List all available Foundry VTT scenes with their details',
+        description:
+          'List all available Foundry VTT scenes with their details, including the music binding (playlist + playlistSound) for each scene',
         inputSchema: {
           type: 'object',
           properties: {

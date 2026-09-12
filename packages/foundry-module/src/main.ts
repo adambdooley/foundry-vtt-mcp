@@ -131,7 +131,9 @@ class FoundryMCPBridge {
           console.log(
             `[${MODULE_ID}] Enhanced creature index not found, building automatically for better UX...`
           );
-          ui.notifications?.info('Building enhanced creature index for faster searches...');
+          if (this.settings.getSetting('informationNotifications')) {
+            ui.notifications?.info('Building enhanced creature index for faster searches...');
+          }
 
           // Trigger index build through data access
           if (this.queryHandlers?.dataAccess?.rebuildEnhancedCreatureIndex) {
@@ -415,9 +417,11 @@ class FoundryMCPBridge {
       console.log(`[${MODULE_ID}] Starting ComfyUI monitoring...`);
 
       // Show initial loading banner
-      ui.notifications?.info(
-        `🔗 Starting AI Map Generation service... (Models loading, please wait)`
-      );
+      if (this.settings.getSetting('informationNotifications')) {
+        ui.notifications?.info(
+          `🔗 Starting AI Map Generation service... (Models loading, please wait)`
+        );
+      }
 
       let attempts = 0;
       const maxAttempts = 24; // 2 minutes with 5-second intervals
@@ -432,9 +436,11 @@ class FoundryMCPBridge {
 
           if (status.status === 'running') {
             // Success! ComfyUI is ready
-            ui.notifications?.info(
-              `✅ AI Map Generation service ready! Models loaded successfully.`
-            );
+            if (this.settings.getSetting('informationNotifications')) {
+              ui.notifications?.info(
+                `✅ AI Map Generation service ready! Models loaded successfully.`
+              );
+            }
             console.log(
               `[${MODULE_ID}] ComfyUI ready after ${attempts} attempts (${attempts * 5}s)`
             );

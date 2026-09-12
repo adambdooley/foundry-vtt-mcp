@@ -376,12 +376,24 @@ export class ActorManagementTools {
       actorIdentifier: z.string().min(1),
       itemUpdates: z
         .array(
-          z.object({
-            id: z.string().min(1),
-            name: z.string().optional(),
-            img: z.string().optional(),
-            system: z.record(z.any()).optional(),
-          })
+          z
+            .object({
+              id: z.string().min(1),
+              name: z.string().optional(),
+              img: z.string().optional(),
+              system: z.record(z.any()).optional(),
+              effects: z.unknown().optional(),
+            })
+            .superRefine((update, ctx) => {
+              if (Object.prototype.hasOwnProperty.call(update, 'effects')) {
+                ctx.addIssue({
+                  code: z.ZodIssueCode.custom,
+                  path: ['effects'],
+                  message:
+                    'Item ActiveEffects are not supported by update-items and require dedicated effect management.',
+                });
+              }
+            })
         )
         .min(1),
     });

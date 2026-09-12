@@ -67,7 +67,55 @@ const damagePart = z.object({
       message: 'denomination must be one of 4, 6, 8, 10, 12, 20, 100',
     }),
   type: z.string().min(1, 'damage type cannot be empty'),
+  bonus: z.number().int().optional(),
 });
+
+const usesTracker = z
+  .object({
+    max: z.number().int().min(1),
+    per: z.enum(['day', 'recharge']),
+    rechargeOn: z.number().int().min(2).max(6).optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.per === 'recharge' && data.rechargeOn === undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['rechargeOn'],
+        message: 'rechargeOn is required when per is "recharge" (e.g. 5 for "Recharge 5-6")',
+      });
+    }
+  });
+
+const usesTrackerSchema = {
+  type: 'object',
+  description:
+    'Limited-use tracker for this feature (e.g. "3/Day" or "Recharge 5-6"). Omit entirely for ' +
+    'unlimited use. Used by: passive, save, attack, attack-with-save, aura.',
+  properties: {
+    max: {
+      type: 'number',
+      description:
+        'Number of uses before it needs to recover (e.g. 3 for "3/Day", 1 for a recharge ability).',
+      minimum: 1,
+    },
+    per: {
+      type: 'string',
+      enum: ['day', 'recharge'],
+      description:
+        '"day" — recovers to max uses once per day (long rest). ' +
+        '"recharge" — recovers on a d6 roll at the start of each turn, using rechargeOn as the threshold.',
+    },
+    rechargeOn: {
+      type: 'number',
+      description:
+        'Minimum d6 roll needed to recharge (e.g. 5 for "Recharge 5-6", 6 for "Recharge 6"). ' +
+        'Required when per is "recharge".',
+      minimum: 2,
+      maximum: 6,
+    },
+  },
+  required: ['max', 'per'],
+};
 
 const damagePartSchema = {
   type: 'object',
@@ -75,6 +123,11 @@ const damagePartSchema = {
     number: { type: 'number', description: 'Number of dice (e.g. 4)', minimum: 1 },
     denomination: { type: 'number', description: 'Die size', enum: [4, 6, 8, 10, 12, 20, 100] },
     type: { type: 'string', description: 'Damage type (e.g. "fire", "slashing", "cold")' },
+    bonus: {
+      type: 'number',
+      description:
+        'Flat damage bonus added on top of the dice for this part (e.g. a +2 magic weapon on top of the ability modifier). Optional.',
+    },
   },
   required: ['number', 'denomination', 'type'],
 };
@@ -112,27 +165,27 @@ export class DnD5eAddFeatureTool {
           'Set featureType to select the mode — each mode uses only its own parameters:\n\n' +
           '• passive — descriptive trait, no roll (Multiattack, Magic Resistance, Spider Climb).\n' +
           '  Required: actorIdentifier, featureName\n' +
-          '  Optional: description, sourceRules, sourceBook, sourcePage\n\n' +
+          '  Optional: description, uses, sourceRules, sourceBook, sourcePage\n\n' +
           '• save — feature that forces a saving throw (breath weapon, cone of cold, etc.).\n' +
           '  Required: actorIdentifier, featureName, saveAbility, saveDC, damageParts\n' +
-          '  Optional: description, activationType, halfOnSave, areaType, areaSize ' +
+          '  Optional: description, activationType, uses, halfOnSave, areaType, areaSize ' +
           '(required if areaType set), areaUnits, affectsType\n\n' +
           '• attack — weapon attack with to-hit roll (Claw, Bite, Scimitar, etc.).\n' +
           '  Required: actorIdentifier, featureName, attackType, damageParts\n' +
           '  Required when ranged: rangeFt\n' +
           '  Optional: description, activationType, weaponClass, abilityModifier, attackBonus, ' +
-          'proficient, equipped, reachFt, longRangeFt, properties, sourceRules, sourceBook, sourcePage\n\n' +
+          'proficient, equipped, reachFt, longRangeFt, properties, uses, sourceRules, sourceBook, sourcePage\n\n' +
           '• attack-with-save — attack roll on hit + forced save for bonus damage ' +
           '(e.g. Stinger: piercing hit + CON save or poison damage).\n' +
           '  Required: actorIdentifier, featureName, attackType, damageParts, ' +
           'saveAbility, saveDC, saveDamageParts\n' +
           '  Required when ranged: rangeFt\n' +
           '  Optional: description, activationType, weaponClass, abilityModifier, attackBonus, ' +
-          'proficient, equipped, reachFt, longRangeFt, properties, saveOnSave, ' +
+          'proficient, equipped, reachFt, longRangeFt, properties, saveOnSave, uses, ' +
           'sourceRules, sourceBook, sourcePage\n\n' +
           '• aura — automatic-damage area, no to-hit, no save (all creatures in range take damage).\n' +
           '  Required: actorIdentifier, featureName, damageParts, areaType, areaSize\n' +
-          '  Optional: description, activationType, areaUnits, affectsType, ' +
+          '  Optional: description, activationType, areaUnits, affectsType, uses, ' +
           'sourceRules, sourceBook, sourcePage\n\n' +
           '• spellcasting — configure spell slots and casting ability. ' +
           'Run this BEFORE featureType "spells".\n' +
@@ -188,6 +241,7 @@ export class DnD5eAddFeatureTool {
                 'Action economy type. Used by: save, attack, attack-with-save, aura. Default: "action".',
               default: 'action',
             },
+            uses: usesTrackerSchema,
 
             // ── Damage ────────────────────────────────────────────────────────
             damageParts: {
@@ -473,6 +527,7 @@ export class DnD5eAddFeatureTool {
       actorIdentifier: z.string().min(1, 'actorIdentifier cannot be empty'),
       featureName: z.string().min(1, 'featureName cannot be empty'),
       description: z.string().default(''),
+      uses: usesTracker.optional(),
       sourceRules: z.enum(['2014', '2024']).default('2014'),
       sourceBook: z.string().default(''),
       sourcePage: z.string().default(''),
@@ -551,6 +606,7 @@ export class DnD5eAddFeatureTool {
         areaSize: z.number().positive().optional(),
         areaUnits: z.enum(['ft', 'm']).default('ft'),
         affectsType: z.enum(['creature', 'object', 'space', '']).default('creature'),
+        uses: usesTracker.optional(),
       })
       .superRefine((data, ctx) => {
         if (data.areaType !== '' && data.areaSize === undefined) {
@@ -650,6 +706,7 @@ export class DnD5eAddFeatureTool {
         longRangeFt: z.number().int().min(1).optional(),
         damageParts: z.array(damagePart).min(1, 'at least one damage part is required'),
         properties: z.array(z.string()).default([]),
+        uses: usesTracker.optional(),
         sourceRules: z.enum(['2014', '2024']).default('2014'),
         sourceBook: z.string().default(''),
         sourcePage: z.string().default(''),
@@ -791,6 +848,7 @@ export class DnD5eAddFeatureTool {
         saveDC: z.number().int().min(1).max(30),
         saveDamageParts: z.array(damagePart).min(1, 'at least one save damage part is required'),
         saveOnSave: z.enum(['half', 'none']).default('none'),
+        uses: usesTracker.optional(),
         sourceRules: z.enum(['2014', '2024']).default('2014'),
         sourceBook: z.string().default(''),
         sourcePage: z.string().default(''),
@@ -915,6 +973,7 @@ export class DnD5eAddFeatureTool {
       areaSize: z.number().positive('areaSize must be greater than 0'),
       areaUnits: z.enum(['ft', 'm']).default('ft'),
       affectsType: z.enum(['creature', 'object', 'space', '']).default('creature'),
+      uses: usesTracker.optional(),
       sourceRules: z.enum(['2014', '2024']).default('2014'),
       sourceBook: z.string().default(''),
       sourcePage: z.string().default(''),

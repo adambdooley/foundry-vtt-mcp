@@ -397,6 +397,32 @@ export class QuestCreationTools {
       // Auto-convert Markdown to plain text with warning (don't block)
       request.newContent = this.convertMarkdownToPlainText(request.newContent);
 
+      // If both pageId and newPageName are given, rename AND update that existing
+      // page in place -- must be checked before the newPageName-only branch below,
+      // or this falls through to "create a new page" and silently drops pageId.
+      if (request.pageId && request.newPageName) {
+        const formattedContent = this.formatNewPageContent(request.newContent, request.updateType);
+        const result = await this.foundryClient.query('foundry-mcp-bridge.updateJournalContent', {
+          journalId: request.journalId,
+          content: formattedContent,
+          pageId: request.pageId,
+          newPageName: request.newPageName,
+        });
+
+        if (!result || result.error || !result.success) {
+          throw new Error(result?.error || 'Failed to rename/update journal page');
+        }
+
+        return {
+          success: true,
+          updateType: request.updateType,
+          message: `Page renamed to "${request.newPageName}" and updated`,
+          pageId: result.pageId,
+          pageName: result.pageName,
+          verified: true,
+        };
+      }
+
       // If creating a new page, skip the read-modify-write cycle
       if (request.newPageName) {
         const formattedContent = this.formatNewPageContent(request.newContent, request.updateType);

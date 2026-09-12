@@ -1,11 +1,12 @@
 {
   "name": "@foundry-mcp/module",
-  "version": "0.8.3",
+  "version": "0.8.4",
   "description": "Foundry VTT module for MCP bridge integration",
   "type": "module",
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
+    "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src --ext .ts",
     "lint:fix": "eslint src --ext .ts --fix"

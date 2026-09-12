@@ -123,26 +123,26 @@
   font-weight: 500;
 }
 
-.form-footer {
+.eci-settings .form-footer {
   padding: 16px 20px;
   background: var(--color-bg-darker, #171717);
   border-top: 1px solid var(--color-border-dark-2, #2a2a2a);
   text-align: right;
 }
 
-.form-footer .eci-btn {
+.eci-settings .form-footer .eci-btn {
   background: var(--color-bg-btn, #5e5e5e);
   border-color: var(--color-border-dark, #444);
   color: var(--color-text-light-1, #f0f0e0);
   font-weight: 500;
 }
 
-.form-footer .eci-btn:hover {
+.eci-settings .form-footer .eci-btn:hover {
   background: var(--color-bg-btn-hover, #6a6a6a);
   border-color: var(--color-border-light-2, #666);
 }
 
-.form-footer .eci-btn:active {
+.eci-settings .form-footer .eci-btn:active {
   background: var(--color-bg-btn-active, #4a4a4a);
   transform: translateY(1px);
 }

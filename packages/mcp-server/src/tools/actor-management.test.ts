@@ -57,3 +57,59 @@ describe('manage-actors place action', () => {
     expect(query).not.toHaveBeenCalled();
   });
 });
+
+describe('manage-actors update-items action', () => {
+  it('forwards supported Item fields and returns the update result', async () => {
+    const updateResult = {
+      updated: [{ id: 'item-id', name: 'Updated Item' }],
+      total: 1,
+    };
+    const { tools, query } = makeTools(async () => updateResult);
+
+    const result = await tools.handleManageActors({
+      action: 'update-items',
+      actorIdentifier: 'actor-id',
+      itemUpdates: [
+        {
+          id: 'item-id',
+          name: 'Updated Item',
+          img: 'icons/updated.webp',
+          system: { quantity: 2 },
+        },
+      ],
+    });
+
+    expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.updateActorItems', {
+      actorIdentifier: 'actor-id',
+      itemUpdates: [
+        {
+          id: 'item-id',
+          name: 'Updated Item',
+          img: 'icons/updated.webp',
+          system: { quantity: 2 },
+        },
+      ],
+    });
+    expect(result).toEqual(updateResult);
+  });
+
+  it('rejects Item ActiveEffects instead of reporting success', async () => {
+    const { tools, query } = makeTools();
+
+    await expect(
+      tools.handleManageActors({
+        action: 'update-items',
+        actorIdentifier: 'actor-id',
+        itemUpdates: [
+          {
+            id: 'item-id',
+            effects: [{ _id: 'effect-id', disabled: true }],
+          },
+        ],
+      })
+    ).rejects.toThrow(
+      'Item ActiveEffects are not supported by update-items and require dedicated effect management.'
+    );
+    expect(query).not.toHaveBeenCalled();
+  });
+});

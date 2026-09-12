@@ -105,7 +105,14 @@ jobs:
         
     - name: Build MCP Server (Bundled)
       run: npm run build:bundle --workspace=packages/mcp-server
-        
+
+    # The Mac and release jobs already do this. Without it this job zipped whatever
+    # dist/ happened to be lying around (it is gitignored, so on a clean checkout
+    # that means stale or missing compiled code), producing a module zip that did
+    # not contain the build under test.
+    - name: Build Foundry Module
+      run: npm run build --workspace=packages/foundry-module
+
     - name: Setup NSIS
       run: choco install nsis -y
 
@@ -224,6 +231,17 @@ jobs:
       with:
         name: foundry-mcp-server-installer-${{ env.PACKAGE_VERSION }}
         path: installer/build/FoundryMCPServer-Setup-${{ env.PACKAGE_VERSION }}.exe
+        retention-days: 30
+
+    # Also publish the Foundry module zip as a run artifact, not just as a release
+    # asset, so a tester can install a build from a PR or a manual run without us
+    # cutting a release. Note the module.json inside still carries the committed
+    # version — these builds are for testing, not for the package registry.
+    - name: Upload Foundry module as artifact
+      uses: actions/upload-artifact@v6
+      with:
+        name: foundry-module-${{ env.PACKAGE_VERSION }}
+        path: foundry-vtt-mcp.zip
         retention-days: 30
 
   build-mac-pkg:

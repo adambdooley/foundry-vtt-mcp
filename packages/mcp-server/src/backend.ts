@@ -21,9 +21,11 @@ import { CharacterTools } from './tools/character.js';
 import { CompendiumTools } from './tools/compendium.js';
 
 import { SceneTools } from './tools/scene.js';
+import { PlaylistTools } from './tools/playlist.js';
 
 import { ActorCreationTools } from './tools/actor-creation.js';
 import { ActorManagementTools } from './tools/actor-management.js';
+import { EffectManagementTools } from './tools/effect-management.js';
 
 import { QuestCreationTools } from './tools/quest-creation.js';
 
@@ -1192,9 +1194,11 @@ async function startBackend(): Promise<void> {
   const compendiumTools = new CompendiumTools({ foundryClient, logger, systemRegistry });
 
   const sceneTools = new SceneTools({ foundryClient, logger });
+  const playlistTools = new PlaylistTools({ foundryClient, logger });
 
   const actorCreationTools = new ActorCreationTools({ foundryClient, logger });
   const actorManagementTools = new ActorManagementTools({ foundryClient, logger, systemRegistry });
+  const effectManagementTools = new EffectManagementTools({ foundryClient, logger });
 
   const dsa5CharacterCreator = new DSA5CharacterCreator({ foundryClient, logger });
   const dsa5JsonActorImporter = new DSA5JsonActorImporter({ foundryClient, logger });
@@ -1424,6 +1428,7 @@ async function startBackend(): Promise<void> {
 
     ...actorCreationTools.getToolDefinitions(),
     ...actorManagementTools.getToolDefinitions(),
+    ...effectManagementTools.getToolDefinitions(),
 
     ...dsa5CharacterCreator.getToolDefinitions(),
     ...dsa5JsonActorImporter.getToolDefinitions(),
@@ -1447,6 +1452,8 @@ async function startBackend(): Promise<void> {
     ...tokenManipulationTools.getToolDefinitions(),
 
     ...mapGenerationTools.getToolDefinitions(),
+
+    ...playlistTools.getToolDefinitions(),
   ];
 
   // Start Foundry connector (owns app port 31415)
@@ -1607,6 +1614,11 @@ async function startBackend(): Promise<void> {
 
                   break;
 
+                case 'manage-effects':
+                  result = await effectManagementTools.handleManageEffects(args);
+
+                  break;
+
                 // DSA5 character creation tools
 
                 case 'create-dsa5-character-from-archetype':
@@ -1761,6 +1773,23 @@ async function startBackend(): Promise<void> {
 
                 case 'switch-scene':
                   result = await mapGenerationTools.switchScene(args);
+
+                  break;
+
+                // Playlist management tools
+
+                case 'manage-playlists':
+                  result = await playlistTools.handleManagePlaylists(args);
+
+                  break;
+
+                case 'control-playlist':
+                  result = await playlistTools.handleControlPlaylist(args);
+
+                  break;
+
+                case 'update-scene-music':
+                  result = await sceneTools.handleUpdateSceneMusic(args);
 
                   break;
 

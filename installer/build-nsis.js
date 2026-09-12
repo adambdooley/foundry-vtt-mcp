@@ -84,7 +84,7 @@ function downloadAndExtractNode() {
     console.log(`   🌐 Downloading: ${config.nodeUrl}`);
     try {
       execSync(
-        `powershell -Command "Invoke-WebRequest -Uri '${config.nodeUrl}' -OutFile '${nodeZipPath}'"`,
+        `powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -Uri '${config.nodeUrl}' -OutFile '${nodeZipPath}'"`,
         {
           stdio: 'inherit',
         }
@@ -102,7 +102,7 @@ function downloadAndExtractNode() {
 
   try {
     execSync(
-      `powershell -Command "Expand-Archive -Path '${nodeZipPath}' -DestinationPath '${nodeExtractPath}' -Force"`,
+      `powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Expand-Archive -Path '${nodeZipPath}' -DestinationPath '${nodeExtractPath}' -Force"`,
       {
         stdio: 'inherit',
       }
@@ -408,39 +408,6 @@ function copyInstallerFiles() {
   console.log('   ✓ Installer files prepared');
 }
 
-function updateNSISVersion(sourcePath, destPath, version) {
-  // Read the NSIS script
-  let content = fs.readFileSync(sourcePath, 'utf8');
-
-  // Convert version format (remove 'v' prefix if present)
-  const cleanVersion = version.startsWith('v') ? version.slice(1) : version;
-  const versionParts = cleanVersion.split('.');
-
-  // Ensure we have 4 parts for Windows version (e.g., "0.4.9.0")
-  while (versionParts.length < 4) {
-    versionParts.push('0');
-  }
-  const windowsVersion = versionParts.join('.');
-
-  // Update VIProductVersion (needs 4-part version)
-  content = content.replace(/VIProductVersion\s+"[\d.]+"/, `VIProductVersion "${windowsVersion}"`);
-
-  // Update VIAddVersionKey "FileVersion" (needs 4-part version)
-  content = content.replace(
-    /VIAddVersionKey\s+"FileVersion"\s+"[\d.]+"/,
-    `VIAddVersionKey "FileVersion" "${windowsVersion}"`
-  );
-
-  // Update DisplayVersion in registry (can use 3-part version)
-  content = content.replace(
-    /WriteRegStr\s+HKCU\s+"Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\FoundryMCPServer"\s+"DisplayVersion"\s+"[\d.]+"/,
-    `WriteRegStr HKCU "Software\\\\Microsoft\\\\Windows\\\\CurrentVersion\\\\Uninstall\\\\FoundryMCPServer" "DisplayVersion" "${cleanVersion}"`
-  );
-
-  // Write the updated content to destination
-  fs.writeFileSync(destPath, content);
-}
-
 function buildInstaller() {
   console.log('🔨 Building NSIS installer...');
 
@@ -470,10 +437,11 @@ function buildInstaller() {
     const beforeFiles = fs.readdirSync(config.outputDir);
     beforeFiles.forEach(file => console.log(`      - ${file}`));
 
-    // Copy NSIS script to output directory and update version numbers
+    // Copy the script locally. VERSION_BASE in the NSIS script is derived from
+    // the /DVERSION value passed to makensis below.
     const nsisScriptLocal = path.join(config.outputDir, 'foundry-mcp-server.nsi');
-    updateNSISVersion(nsisScript, nsisScriptLocal, version);
-    console.log(`   📋 Copied NSIS script with updated version ${version} to working directory`);
+    fs.copyFileSync(nsisScript, nsisScriptLocal);
+    console.log(`   📋 Copied NSIS script; installer version is ${version}`);
 
     // Change to output directory so NSIS can find files
     const originalCwd = process.cwd();

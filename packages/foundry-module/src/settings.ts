@@ -322,6 +322,15 @@ export class ModuleSettings {
       default: true,
     });
 
+    game.settings.register(this.moduleId, 'informationNotifications', {
+      name: 'Show Information Notifications',
+      hint: 'Display informational toasts such as creature index builds and map generation service status. Warnings and errors are always shown.',
+      scope: 'world',
+      config: true,
+      type: Boolean,
+      default: true,
+    });
+
     game.settings.register(this.moduleId, 'autoReconnectEnabled', {
       name: 'Auto-Reconnect on Disconnect',
       hint: 'Automatically try to reconnect if the connection to AI model is lost',

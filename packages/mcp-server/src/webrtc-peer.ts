@@ -192,6 +192,33 @@ export class WebRTCPeer {
   }
 
   /**
+   * Fail the query that a broken chunked response belonged to.
+   *
+   * The waiting promise lives on THIS side of the channel, so sending an error back
+   * to the module can't release it — previously a dropped chunk just left the caller
+   * to hit its own timeout with no explanation (#89). Synthesising the `mcp-response`
+   * shape the connector already understands rejects that query immediately, with a
+   * message that says what actually went wrong.
+   */
+  private async failPendingQuery(originalId: string | undefined, reason: string): Promise<void> {
+    if (!originalId) return;
+
+    try {
+      await this.onMessageHandler({
+        type: 'mcp-response',
+        id: originalId,
+        data: { success: false, error: reason },
+      });
+    } catch (error) {
+      this.logger.error('Failed to surface chunk failure to the waiting query', {
+        originalId,
+        reason,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  /**
    * Handle incoming chunked message fragments
    * Validates chunks, stores them, and reassembles when all pieces arrive
    */
@@ -289,6 +316,10 @@ export class WebRTCPeer {
             totalChunks,
           });
           this.pendingChunks.delete(chunkId);
+          await this.failPendingQuery(
+            originalId,
+            `Chunked response incomplete: chunk ${i + 1} of ${totalChunks} never arrived`
+          );
           return;
         }
         reassembled += chunkData;
@@ -314,15 +345,13 @@ export class WebRTCPeer {
           reassembledLength: reassembled.length,
         });
 
-        // Send error response to client if we have a requestId
-        if (originalId) {
-          this.sendMessage({
-            type: 'error',
-            requestId: originalId,
-            error: 'Failed to reassemble chunked message',
-            details: error instanceof Error ? error.message : String(error),
-          });
-        }
+        // Reject the waiting query locally rather than messaging the far side.
+        await this.failPendingQuery(
+          originalId,
+          `Failed to reassemble chunked response: ${
+            error instanceof Error ? error.message : String(error)
+          }`
+        );
       }
 
       // Clean up completed message
@@ -351,15 +380,12 @@ export class WebRTCPeer {
             ageMs: age,
           });
 
-          // Send error response to client if we have a requestId
-          if (pending.originalId) {
-            this.sendMessage({
-              type: 'error',
-              requestId: pending.originalId,
-              error: 'Chunked message timeout',
-              details: `Received ${pending.chunks.size}/${pending.totalChunks} chunks before timeout`,
-            });
-          }
+          // Reject the waiting query locally. Sending an error to the module (what
+          // this used to do) cannot release a promise held on this side.
+          void this.failPendingQuery(
+            pending.originalId,
+            `Chunked response timed out: received ${pending.chunks.size} of ${pending.totalChunks} chunks`
+          );
 
           this.pendingChunks.delete(chunkId);
           cleanedCount++;

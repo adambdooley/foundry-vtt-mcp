@@ -1,5 +1,15 @@
 import { MODULE_ID, CONNECTION_STATES } from './constants.js';
 
+/**
+ * Queue no more than this many bytes in the data channel's send buffer before
+ * pausing. 256KB is comfortably above a single 50KB chunk, so small messages never
+ * wait, while a multi-chunk payload is paced instead of dumped into SCTP at once.
+ */
+const BUFFER_LOW_WATER_MARK = 256 * 1024;
+
+/** Never wait longer than this for the buffer to drain before sending anyway. */
+const BUFFER_DRAIN_TIMEOUT_MS = 5000;
+
 export interface WebRTCConfig {
   serverHost: string;
   serverPort: number;
@@ -40,10 +50,15 @@ export class WebRTCConnection {
         iceServers: this.config.stunServers.map(url => ({ urls: url })),
       });
 
-      // Step 2: Create data channel
+      // Step 2: Create data channel.
+      // Fully reliable + ordered (the default when neither maxRetransmits nor
+      // maxPacketLifeTime is set) — behaves like TCP. Setting maxRetransmits makes
+      // the channel PARTIALLY reliable: SCTP gives up after that many retries and
+      // silently drops the message. For chunked payloads that meant one lost chunk
+      // left the receiver waiting forever for a chunk that would never arrive, which
+      // surfaced only as a generic query timeout on large actors (#89).
       this.dataChannel = this.peerConnection.createDataChannel('foundry-mcp', {
         ordered: true,
-        maxRetransmits: 10,
       });
 
       this.setupDataChannelHandlers();
@@ -192,7 +207,37 @@ export class WebRTCConnection {
     this.log('WebRTC connection closed');
   }
 
-  sendMessage(message: any): void {
+  /**
+   * Wait until the data channel's send buffer has drained below the low-water mark.
+   *
+   * Chunks used to be pushed out in a tight loop with no regard for how much was
+   * already queued, which congests SCTP on large payloads. Resolves immediately when
+   * the buffer is already small, so normal-sized messages pay nothing for this.
+   */
+  private waitForDrain(): Promise<void> {
+    const channel = this.dataChannel;
+    if (!channel || channel.bufferedAmount <= BUFFER_LOW_WATER_MARK) {
+      return Promise.resolve();
+    }
+
+    return new Promise<void>(resolve => {
+      let settled = false;
+      const finish = () => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        channel.removeEventListener('bufferedamountlow', finish);
+        resolve();
+      };
+
+      // Safety net: never block sending forever if the event does not arrive.
+      const timer = setTimeout(finish, BUFFER_DRAIN_TIMEOUT_MS);
+      channel.bufferedAmountLowThreshold = BUFFER_LOW_WATER_MARK;
+      channel.addEventListener('bufferedamountlow', finish);
+    });
+  }
+
+  async sendMessage(message: any): Promise<void> {
     if (!this.dataChannel || this.dataChannel.readyState !== 'open') {
       this.log('Cannot send message - data channel not open');
       return;
@@ -240,6 +285,11 @@ export class WebRTCConnection {
                 `Original message may be too large to chunk safely.`
             );
           }
+
+          // Let the send buffer drain before queueing the next chunk. Without this the
+          // whole payload is dumped into SCTP at once, which congests the channel on
+          // large actors and was a contributing cause of #89.
+          await this.waitForDrain();
 
           this.dataChannel.send(chunkJson);
           this.log(`Sent chunk ${i + 1}/${totalChunks} (${chunkJson.length} bytes)`);

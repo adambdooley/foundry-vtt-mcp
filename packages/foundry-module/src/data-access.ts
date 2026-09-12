@@ -48,6 +48,7 @@ interface CharacterItem {
   type: string;
   img?: string;
   system: Record<string, unknown>;
+  effects: Record<string, unknown>[];
 }
 
 interface CharacterEffect {
@@ -200,6 +201,10 @@ interface SceneInfo {
   lights: number;
   sounds: number;
   notes: SceneNote[];
+  music: {
+    playlist: { id: string; name: string } | null;
+    playlistSound: { id: string; name: string } | null;
+  };
 }
 
 interface SceneToken {
@@ -309,6 +314,29 @@ interface TokenPlacementResult {
   errors?: string[] | undefined;
 }
 
+type ItemTargetingStatus = 'not-requested' | 'applied' | 'partial' | 'failed';
+
+interface AppliedItemTarget {
+  identifier: string;
+  tokenId: string;
+  tokenName: string;
+}
+
+interface FailedItemTarget {
+  identifier: string;
+  tokenId?: string | undefined;
+  tokenName?: string | undefined;
+  error: string;
+}
+
+interface ItemTargetingResult {
+  status: ItemTargetingStatus;
+  requested: string[];
+  applied: AppliedItemTarget[];
+  unresolved: string[];
+  failed: FailedItemTarget[];
+}
+
 /**
  * Persistent Enhanced Creature Index System
  * Stores pre-computed creature data in JSON file within Foundry world directory for instant filtering
@@ -320,6 +348,23 @@ class PersistentCreatureIndex {
   private readonly INDEX_FILENAME = 'enhanced-creature-index.json';
   private buildInProgress = false;
   private hooksRegistered = false;
+
+  /**
+   * Check whether informational notifications should be shown (user setting)
+   */
+  private showInfoNotifications(): boolean {
+    return game.settings.get(this.moduleId, 'informationNotifications') !== false;
+  }
+
+  /**
+   * Show an informational notification unless the user disabled them
+   */
+  private info(message: string): any {
+    if (!this.showInfoNotifications()) {
+      return undefined;
+    }
+    return ui.notifications?.info(message);
+  }
 
   constructor() {
     this.registerFoundryHooks();
@@ -649,9 +694,7 @@ class PersistentCreatureIndex {
       const packFingerprints = new Map<string, PackFingerprint>();
 
       // Show initial progress notification
-      ui.notifications?.info(
-        `Starting enhanced creature index build from ${actorPacks.length} packs...`
-      );
+      this.info(`Starting enhanced creature index build from ${actorPacks.length} packs...`);
 
       for (let i = 0; i < actorPacks.length; i++) {
         const pack = actorPacks[i];
@@ -662,7 +705,7 @@ class PersistentCreatureIndex {
           if (progressNotification) {
             progressNotification.remove();
           }
-          progressNotification = ui.notifications?.info(
+          progressNotification = this.info(
             `Building creature index... ${progressPercent}% (${i + 1}/${actorPacks.length}) Processing: ${pack.metadata.label}`
           );
         }
@@ -682,7 +725,7 @@ class PersistentCreatureIndex {
             if (progressNotification) {
               progressNotification.remove();
             }
-            progressNotification = ui.notifications?.info(
+            progressNotification = this.info(
               `Processing large pack: ${pack.metadata.label} (${packSize} documents)...`
             );
           }
@@ -700,7 +743,7 @@ class PersistentCreatureIndex {
             if (progressNotification) {
               progressNotification.remove();
             }
-            progressNotification = ui.notifications?.info(
+            progressNotification = this.info(
               `Index Progress: ${i + 1}/${actorPacks.length} packs complete, ${totalCreaturesSoFar} creatures indexed`
             );
           }
@@ -717,7 +760,7 @@ class PersistentCreatureIndex {
       if (progressNotification) {
         progressNotification.remove();
       }
-      ui.notifications?.info(
+      this.info(
         `Saving enhanced index to world database... (${enhancedCreatures.length} creatures)`
       );
 
@@ -740,7 +783,7 @@ class PersistentCreatureIndex {
       const errorText = totalErrors > 0 ? ` (${totalErrors} extraction errors)` : '';
       const successMessage = `Enhanced creature index complete! ${enhancedCreatures.length} creatures indexed from ${actorPacks.length} packs in ${buildTimeSeconds}s${errorText}`;
 
-      ui.notifications?.info(successMessage);
+      this.info(successMessage);
 
       return enhancedCreatures;
     } catch (error) {
@@ -1003,9 +1046,7 @@ class PersistentCreatureIndex {
       const enhancedCreatures: PF2eCreatureIndex[] = [];
       const packFingerprints = new Map<string, PackFingerprint>();
 
-      ui.notifications?.info(
-        `Starting PF2e creature index build from ${actorPacks.length} packs...`
-      );
+      this.info(`Starting PF2e creature index build from ${actorPacks.length} packs...`);
 
       let currentPack = 0;
       for (const pack of actorPacks) {
@@ -1014,7 +1055,7 @@ class PersistentCreatureIndex {
         if (progressNotification) {
           progressNotification.remove();
         }
-        progressNotification = ui.notifications?.info(
+        progressNotification = this.info(
           `Building PF2e index: Pack ${currentPack}/${actorPacks.length} (${pack.metadata.label})...`
         );
 
@@ -1029,9 +1070,7 @@ class PersistentCreatureIndex {
       if (progressNotification) {
         progressNotification.remove();
       }
-      ui.notifications?.info(
-        `Saving PF2e index to world database... (${enhancedCreatures.length} creatures)`
-      );
+      this.info(`Saving PF2e index to world database... (${enhancedCreatures.length} creatures)`);
 
       const persistentIndex: PersistentEnhancedIndex = {
         metadata: {
@@ -1050,7 +1089,7 @@ class PersistentCreatureIndex {
       const errorText = totalErrors > 0 ? ` (${totalErrors} extraction errors)` : '';
       const successMessage = `PF2e creature index complete! ${enhancedCreatures.length} creatures indexed from ${actorPacks.length} packs in ${buildTimeSeconds}s${errorText}`;
 
-      ui.notifications?.info(successMessage);
+      this.info(successMessage);
 
       return enhancedCreatures;
     } catch (error) {
@@ -1256,9 +1295,7 @@ class PersistentCreatureIndex {
       const enhancedCreatures: CosmereRpgCreatureIndex[] = [];
       const packFingerprints = new Map<string, PackFingerprint>();
 
-      ui.notifications?.info(
-        `Starting Cosmere RPG creature index build from ${actorPacks.length} packs...`
-      );
+      this.info(`Starting Cosmere RPG creature index build from ${actorPacks.length} packs...`);
 
       for (let i = 0; i < actorPacks.length; i++) {
         const pack = actorPacks[i];
@@ -1268,7 +1305,7 @@ class PersistentCreatureIndex {
           if (progressNotification) {
             progressNotification.remove();
           }
-          progressNotification = ui.notifications?.info(
+          progressNotification = this.info(
             `Building creature index... ${progressPercent}% (${i + 1}/${actorPacks.length}) Processing: ${pack.metadata.label}`
           );
         }
@@ -1289,7 +1326,7 @@ class PersistentCreatureIndex {
             if (progressNotification) {
               progressNotification.remove();
             }
-            progressNotification = ui.notifications?.info(
+            progressNotification = this.info(
               `Index Progress: ${i + 1}/${actorPacks.length} packs complete, ${totalCreaturesSoFar} creatures indexed`
             );
           }
@@ -1304,7 +1341,7 @@ class PersistentCreatureIndex {
       if (progressNotification) {
         progressNotification.remove();
       }
-      ui.notifications?.info(
+      this.info(
         `Saving enhanced index to world database... (${enhancedCreatures.length} creatures)`
       );
 
@@ -1325,7 +1362,7 @@ class PersistentCreatureIndex {
       const errorText = totalErrors > 0 ? ` (${totalErrors} extraction errors)` : '';
       const successMessage = `Cosmere RPG creature index complete! ${enhancedCreatures.length} creatures indexed from ${actorPacks.length} packs in ${buildTimeSeconds}s${errorText}`;
 
-      ui.notifications?.info(successMessage);
+      this.info(successMessage);
 
       return enhancedCreatures;
     } catch (error) {
@@ -1371,9 +1408,7 @@ class PersistentCreatureIndex {
       const enhancedCreatures: MGT2eCreatureIndex[] = [];
       const packFingerprints = new Map<string, PackFingerprint>();
 
-      ui.notifications?.info(
-        `Starting Traveller creature index build from ${actorPacks.length} packs...`
-      );
+      this.info(`Starting Traveller creature index build from ${actorPacks.length} packs...`);
 
       for (let i = 0; i < actorPacks.length; i++) {
         const pack = actorPacks[i];
@@ -1382,7 +1417,7 @@ class PersistentCreatureIndex {
 
         if (i % 3 === 0) {
           if (progressNotification) progressNotification.remove();
-          progressNotification = ui.notifications?.info(
+          progressNotification = this.info(
             `Building Traveller index... ${Math.round((i / actorPacks.length) * 100)}% — ${pack.metadata.label}`
           );
         }
@@ -1413,7 +1448,7 @@ class PersistentCreatureIndex {
 
       const secs = Math.round((Date.now() - startTime) / 1000);
       const errText = totalErrors > 0 ? ` (${totalErrors} errors)` : '';
-      ui.notifications?.info(
+      this.info(
         `Traveller creature index complete! ${enhancedCreatures.length} actors indexed in ${secs}s${errText}`
       );
 
@@ -1703,12 +1738,14 @@ export class FoundryDataAccess {
       ...(actor.img ? { img: actor.img } : {}),
       system: this.sanitizeData((actor as any).system),
       items: actor.items.map(item => {
+        const itemData = item.toObject() as Record<string, any>;
         return {
           id: item.id,
           name: item.name,
           type: item.type,
           ...(item.img ? { img: item.img } : {}),
-          system: this.sanitizeData(item.system),
+          system: this.sanitizeData(itemData.system ?? {}),
+          effects: this.sanitizeData(itemData.effects ?? []),
         };
       }),
       effects: actor.effects.map(effect => {
@@ -1857,6 +1894,10 @@ export class FoundryDataAccess {
       invested?: boolean;
       // For actions
       actionType?: string;
+      // For effects
+      scope?: 'actor' | 'item';
+      parentItemId?: string;
+      parentItemName?: string;
     }>;
     totalMatches: number;
   }> {
@@ -2059,13 +2100,37 @@ export class FoundryDataAccess {
 
         const effectAny = effect;
         if (!matchesQuery(effectAny.name || effectAny.label)) continue;
+        const effectData = effectAny.toObject?.() ?? effectAny._source ?? effectAny;
 
         matches.push({
           id: effectAny.id,
           name: effectAny.name || effectAny.label,
           type: 'effect',
-          description: effectAny.description || undefined,
+          description: effectData.description || undefined,
+          scope: 'actor',
         });
+      }
+
+      for (const item of actor.items) {
+        if (matches.length >= limit) break;
+
+        for (const effect of item.effects || []) {
+          if (matches.length >= limit) break;
+
+          const effectAny = effect;
+          if (!matchesQuery(effectAny.name || effectAny.label)) continue;
+          const effectData = effectAny.toObject?.() ?? effectAny._source ?? effectAny;
+
+          matches.push({
+            id: effectAny.id,
+            name: effectAny.name || effectAny.label,
+            type: 'effect',
+            description: effectData.description || undefined,
+            scope: 'item',
+            parentItemId: item.id,
+            parentItemName: item.name,
+          });
+        }
       }
     }
 
@@ -3758,6 +3823,7 @@ export class FoundryDataAccess {
       walls: scene.walls.size,
       lights: scene.lights.size,
       sounds: scene.sounds.size,
+      music: this.resolveSceneMusicBinding(scene),
       notes: scene.notes.map((note: any) => ({
         id: note.id,
         text: note.text || '',
@@ -4264,7 +4330,21 @@ export class FoundryDataAccess {
         throw new Error('Journal entry not found');
       }
 
-      // Mode 1: Create a new page
+      // Mode 1: pageId + newPageName -> rename AND update the existing page
+      if (request.pageId && request.newPageName) {
+        const page = journal.pages.get(request.pageId);
+        if (!page) {
+          throw new Error(`Page not found: ${request.pageId}`);
+        }
+        await page.update({
+          name: request.newPageName,
+          'text.content': request.content,
+        });
+        this.auditLog('updateJournalContent', request, 'success');
+        return { success: true, pageId: page.id, pageName: page.name };
+      }
+
+      // Mode 2: Create a new page
       if (request.newPageName) {
         const created = await journal.createEmbeddedDocuments('JournalEntryPage', [
           {
@@ -4280,7 +4360,7 @@ export class FoundryDataAccess {
         return { success: true, pageId: newPage?.id || '', pageName: request.newPageName };
       }
 
-      // Mode 2: Update a specific page by ID
+      // Mode 3: Update a specific page by ID
       if (request.pageId) {
         const page = journal.pages.get(request.pageId);
         if (!page) {
@@ -4293,7 +4373,7 @@ export class FoundryDataAccess {
         return { success: true, pageId: page.id, pageName: page.name };
       }
 
-      // Mode 3: Update first text page or create one if none exists (backward compat)
+      // Mode 4: Update first text page or create one if none exists (backward compat)
       const firstPage = journal.pages.find((page: any) => page.type === 'text');
 
       if (firstPage) {
@@ -7364,6 +7444,7 @@ export class FoundryDataAccess {
         lighting: scene.lights?.size || 0,
         sounds: scene.sounds?.size || 0,
         navigation: scene.navigation || false,
+        music: this.resolveSceneMusicBinding(scene),
       }));
     } catch (error) {
       throw new Error(
@@ -7433,6 +7514,377 @@ export class FoundryDataAccess {
     }
   }
 
+  // ===== SCENE MUSIC BINDINGS =====
+
+  /**
+   * Find a scene by id or exact name (case-insensitive). Shared by the
+   * scene music methods; mirrors the switchScene lookup.
+   */
+  private findSceneByIdentifier(identifier: string): any {
+    const scenes = game.scenes?.contents || [];
+    const target = scenes.find(
+      (scene: any) =>
+        scene.id === identifier || scene.name.toLowerCase() === identifier.toLowerCase()
+    );
+    if (!target) {
+      throw new Error(`Scene not found: "${identifier}"`);
+    }
+    return target;
+  }
+
+  /**
+   * Resolve a playlist/sound identifier to its document. Accepts an exact id,
+   * an exact name, or (unless opts.exact) a unique case-insensitive name
+   * substring. Returns the document, or null for a null/empty identifier
+   * (intentional clear).
+   */
+  private findMusicDoc(
+    collection: any,
+    identifier: string | null | undefined,
+    kind: 'playlist' | 'playlistSound',
+    opts?: { exact?: boolean }
+  ): any | null {
+    if (identifier === null || identifier === undefined || identifier === '') {
+      return null;
+    }
+    if (typeof identifier !== 'string') {
+      throw new Error(`${kind} identifier must be a string or null`);
+    }
+    const docs = collection?.contents || collection || [];
+    const idMatch = docs.find((d: any) => d.id === identifier);
+    if (idMatch) return idMatch;
+    const lowered = identifier.toLowerCase();
+    const exact = docs.find((d: any) => (d.name || '').toLowerCase() === lowered);
+    if (exact) return exact;
+    if (opts?.exact) {
+      throw new Error(`${kind} not found: "${identifier}" (delete needs an exact id or name)`);
+    }
+    const partial = docs.filter((d: any) => (d.name || '').toLowerCase().includes(lowered));
+    if (partial.length === 1) return partial[0];
+    throw new Error(
+      partial.length > 1
+        ? `${kind} identifier is ambiguous: "${identifier}" matches ${partial.length} documents`
+        : `${kind} not found: "${identifier}"`
+    );
+  }
+
+  /**
+   * Read the music binding of a scene document (playlist + playlistSound,
+   * with names). Shared by the active-scene and scenes-list builders.
+   */
+  private resolveSceneMusicBinding(scene: any): {
+    playlist: { id: string; name: string } | null;
+    playlistSound: { id: string; name: string } | null;
+  } {
+    // On a live client, scene.playlist / playlistSound are resolved
+    // documents after an update; normalize back to ids.
+    const plRaw = (scene as any).playlist;
+    const sndRaw = (scene as any).playlistSound;
+    const playlistId = typeof plRaw === 'string' ? plRaw : plRaw?.id || null;
+    const soundId = typeof sndRaw === 'string' ? sndRaw : sndRaw?.id || null;
+    const playlistDoc = playlistId ? (game as any).playlists?.get(playlistId) || null : null;
+    const soundDoc = playlistDoc && soundId ? playlistDoc.sounds?.get(soundId) || null : null;
+    return {
+      playlist: playlistId ? { id: playlistId, name: playlistDoc?.name || '(unknown)' } : null,
+      playlistSound: soundId ? { id: soundId, name: soundDoc?.name || '(unknown)' } : null,
+    };
+  }
+
+  /**
+   * Set or clear the music binding of a scene. Writes through scene.update()
+   * with the core ForeignDocumentFields playlist/playlistSound (id-only),
+   * so the change syncs to connected clients without a reload. Both
+   * identifiers are validated to exist before writing; explicit null clears.
+   */
+  async updateSceneMusic(options: {
+    scene_identifier: string;
+    playlist?: string | null;
+    playlist_sound?: string | null;
+  }): Promise<any> {
+    this.validateFoundryState();
+
+    try {
+      const scene = this.findSceneByIdentifier(options.scene_identifier);
+
+      const update: Record<string, any> = {};
+      const result: Record<string, any> = {
+        success: true,
+        sceneId: scene.id,
+        sceneName: scene.name,
+      };
+
+      if ('playlist' in options) {
+        const pl = this.findMusicDoc((game as any).playlists, options.playlist, 'playlist');
+        update.playlist = pl ? pl.id : null;
+        result.playlist = pl ? { id: pl.id, name: pl.name } : null;
+      }
+      if ('playlist_sound' in options) {
+        // A sound id is only valid together with its parent playlist: the
+        // scene config UI enforces the same invariant.
+        if (options.playlist_sound && !('playlist' in options) && !(scene as any).playlist) {
+          throw new Error(
+            'playlist_sound requires the scene to have a playlist (pass playlist too)'
+          );
+        }
+        const parent = options.playlist
+          ? this.findMusicDoc((game as any).playlists, options.playlist, 'playlist')
+          : null;
+        const snd = this.findMusicDoc(
+          parent ? parent.sounds : null,
+          options.playlist_sound,
+          'playlistSound'
+        );
+        update.playlistSound = snd ? snd.id : null;
+        result.playlistSound = snd ? { id: snd.id, name: snd.name } : null;
+      }
+
+      if (Object.keys(update).length === 0) {
+        throw new Error('Nothing to update: pass playlist and/or playlist_sound (null to clear)');
+      }
+      if (
+        'playlist' in update &&
+        'playlistSound' in update &&
+        update.playlistSound &&
+        !update.playlist
+      ) {
+        throw new Error('playlist_sound cannot be set while clearing playlist');
+      }
+
+      await scene.update(update);
+
+      return result;
+    } catch (error) {
+      throw new Error(
+        `Failed to update scene music: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  // ===== PLAYLIST MANAGEMENT (CRUD + PLAYBACK) =====
+
+  /**
+   * Create or update a playlist, optionally with sounds in one call.
+   * playlist: null -> create; identifier -> update by id or (unique) name.
+   */
+  async managePlaylists(options: {
+    action: 'create' | 'update' | 'delete' | 'describe';
+    playlist?: string | null;
+    name?: string;
+    mode?: number;
+    fade?: number;
+    description?: string;
+    sorting?: 'a' | 'm';
+    folder?: string | null;
+    color?: string | null;
+    sounds?: Array<{
+      name?: string;
+      path?: string;
+      id?: string;
+      volume?: number;
+      repeat?: boolean;
+      fade?: number;
+    }>;
+    updates?: Record<string, any>;
+  }): Promise<any> {
+    this.validateFoundryState();
+
+    try {
+      const playlists = () => (game as any).playlists?.contents || [];
+
+      if (options.action === 'describe') {
+        const doc = options.playlist
+          ? this.findMusicDoc((game as any).playlists, options.playlist, 'playlist')
+          : null;
+        if (!doc) {
+          return {
+            success: true,
+            playlists: playlists().map((pl: any) => ({
+              id: pl.id,
+              name: pl.name,
+              mode: pl.mode,
+              playing: pl.playing,
+              soundCount: pl.sounds?.size || 0,
+            })),
+          };
+        }
+        return {
+          success: true,
+          playlist: {
+            id: doc.id,
+            name: doc.name,
+            mode: doc.mode,
+            playing: doc.playing,
+            description: doc.description || '',
+            folder: doc.folder || null,
+            sort: doc.sort,
+            sounds: (doc.sounds?.contents || []).map((s: any) => ({
+              id: s.id,
+              name: s.name,
+              path: s.path,
+              volume: s.volume,
+              repeat: s.repeat,
+              fade: s.fade,
+              playing: s.playing,
+            })),
+          },
+        };
+      }
+
+      if (options.action === 'create') {
+        if (!options.name || typeof options.name !== 'string') {
+          throw new Error('name is required for create');
+        }
+        const data: Record<string, any> = { name: options.name };
+        if (options.mode !== undefined) data.mode = options.mode;
+        if (options.fade !== undefined) data.fade = options.fade;
+        if (options.description !== undefined) data.description = options.description;
+        if (options.sorting !== undefined) data.sorting = options.sorting;
+        if (options.folder !== undefined) data.folder = options.folder;
+        if (options.color !== undefined) data.color = options.color;
+        const pl = await ((game as any).playlists as any).createDocuments([data]);
+        const doc = Array.isArray(pl) ? pl[0] : pl;
+
+        let soundsCreated = 0;
+        for (const s of options.sounds || []) {
+          if (!s.path) {
+            throw new Error(`sound entry needs a "path": ${JSON.stringify(s)}`);
+          }
+          const sdata: Record<string, any> = { path: s.path };
+          if (s.name !== undefined) sdata.name = s.name;
+          if (s.volume !== undefined) sdata.volume = s.volume;
+          if (s.repeat !== undefined) sdata.repeat = s.repeat;
+          if (s.fade !== undefined) sdata.fade = s.fade;
+          await (doc as any).createEmbeddedDocuments('PlaylistSound', [sdata]);
+          soundsCreated++;
+        }
+        return {
+          success: true,
+          playlist: { id: doc.id, name: doc.name, mode: doc.mode },
+          soundsCreated,
+        };
+      }
+
+      if (options.action === 'update') {
+        const doc = this.findMusicDoc((game as any).playlists, options.playlist, 'playlist');
+        if (!doc) throw new Error('update requires a playlist identifier');
+        const patch = { ...(options.updates || {}) } as Record<string, any>;
+        for (const key of [
+          'name',
+          'mode',
+          'fade',
+          'description',
+          'sorting',
+          'folder',
+          'color',
+        ] as const) {
+          if ((options as any)[key] !== undefined) patch[key] = (options as any)[key];
+        }
+        if (Object.keys(patch).length) await doc.update(patch);
+        // Sound-level ops in the same call
+        let soundsTouched = 0;
+        for (const s of options.sounds || []) {
+          if (!s.path && !s.name && !s.id) continue;
+          const list = doc.sounds?.contents || [];
+          let snd: any = null;
+          if (s.id) snd = list.find((x: any) => x.id === s.id);
+          else {
+            const byPath = s.path ? list.filter((x: any) => x.path === s.path) : [];
+            const byName = s.name ? list.filter((x: any) => x.name === s.name) : [];
+            snd = byPath.length === 1 ? byPath[0] : byName.length === 1 ? byName[0] : null;
+          }
+          if (!snd) {
+            throw new Error(
+              `sound not found in playlist "${doc.name}" (need exact id or unique path/name)`
+            );
+          }
+          const spatch: Record<string, any> = {};
+          if (s.name !== undefined) spatch.name = s.name;
+          if (s.path !== undefined) spatch.path = s.path;
+          if (s.volume !== undefined) spatch.volume = s.volume;
+          if (s.repeat !== undefined) spatch.repeat = s.repeat;
+          if (s.fade !== undefined) spatch.fade = s.fade;
+          if (Object.keys(spatch).length) {
+            await snd.update(spatch);
+            soundsTouched++;
+          }
+        }
+        return {
+          success: true,
+          playlist: { id: doc.id, name: doc.name },
+          soundsUpdated: soundsTouched,
+        };
+      }
+
+      if (options.action === 'delete') {
+        // Delete never guesses: exact id or name only.
+        const doc = this.findMusicDoc((game as any).playlists, options.playlist, 'playlist', {
+          exact: true,
+        });
+        if (!doc) throw new Error('delete requires a playlist identifier');
+        const name = doc.name;
+        await doc.delete();
+        return { success: true, deleted: name };
+      }
+
+      throw new Error(`Unknown action: ${options.action}`);
+    } catch (error) {
+      throw new Error(
+        `Failed to manage playlists: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  /**
+   * Playback control. Supports playlist-level play/stop/cycle-mode and
+   * per-sound play/stop, all through the client Playlist API so the server
+   * and every connected client stay in sync.
+   */
+  async controlPlaylist(options: {
+    playlist: string;
+    command: 'play' | 'stop' | 'cycle-mode' | 'play-sound' | 'stop-sound';
+    sound?: string;
+  }): Promise<any> {
+    this.validateFoundryState();
+
+    try {
+      const pl = this.findMusicDoc((game as any).playlists, options.playlist, 'playlist');
+      if (!pl) throw new Error('playlist identifier is required');
+      const info = { id: pl.id, name: pl.name, mode: pl.mode };
+
+      switch (options.command) {
+        case 'play':
+          await pl.playAll();
+          return { success: true, action: 'play', playlist: info };
+        case 'stop':
+          await pl.stopAll();
+          return { success: true, action: 'stop', playlist: info };
+        case 'cycle-mode':
+          await pl.cycleMode();
+          return { success: true, action: 'cycle-mode', playlist: info, mode: pl.mode as number };
+        case 'play-sound':
+        case 'stop-sound': {
+          if (!options.sound) throw new Error(`command ${options.command} requires "sound"`);
+          const snd = this.findMusicDoc(pl.sounds, options.sound, 'playlistSound');
+          if (!snd) throw new Error(`sound not found: "${options.sound}"`);
+          if (options.command === 'play-sound') await pl.playSound(snd);
+          else await pl.stopSound(snd);
+          return {
+            success: true,
+            action: options.command,
+            playlist: info,
+            sound: { id: snd.id, name: snd.name, path: snd.path },
+          };
+        }
+        default:
+          throw new Error(`Unknown command: ${options.command}`);
+      }
+    } catch (error) {
+      throw new Error(
+        `Failed to control playlist: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
   // ===== PHASE 7: CHARACTER ENTITY AND TOKEN MANIPULATION METHODS =====
 
   /**
@@ -7445,12 +7897,17 @@ export class FoundryDataAccess {
     this.validateFoundryState();
 
     try {
+      const serializeDocument = (document: any): Record<string, any> => {
+        const source = document?.toObject?.() ?? document?._source ?? document ?? {};
+        return source as Record<string, any>;
+      };
+
       // Find the character first
       const actors = game.actors?.contents || [];
       const character = actors.find(
         (actor: any) =>
           actor.id === data.characterIdentifier ||
-          actor.name.toLowerCase() === data.characterIdentifier.toLowerCase()
+          actor.name?.toLowerCase() === data.characterIdentifier.toLowerCase()
       );
 
       if (!character) {
@@ -7462,10 +7919,12 @@ export class FoundryDataAccess {
       let entity = items.find(
         (item: any) =>
           item.id === data.entityIdentifier ||
-          item.name.toLowerCase() === data.entityIdentifier.toLowerCase()
+          item.name?.toLowerCase() === data.entityIdentifier.toLowerCase()
       );
 
       if (entity) {
+        const itemData = serializeDocument(entity);
+        const itemSystem = this.sanitizeData(itemData.system ?? {});
         return {
           success: true,
           entityType: 'item',
@@ -7474,8 +7933,9 @@ export class FoundryDataAccess {
             name: entity.name,
             type: entity.type,
             img: entity.img,
-            description: entity.system?.description?.value || entity.system?.description || '',
-            system: entity.system,
+            description: itemSystem.description?.value || itemSystem.description || '',
+            system: itemSystem,
+            effects: itemData.effects ?? [],
           },
         };
       }
@@ -7489,39 +7949,69 @@ export class FoundryDataAccess {
         entity = actions.find(
           (action: any) =>
             action.id === data.entityIdentifier ||
-            action.name?.toLowerCase() === data.entityIdentifier.toLowerCase()
+            (action.name || action.label)?.toLowerCase() === data.entityIdentifier.toLowerCase()
         );
 
         if (entity) {
+          const actionData = this.sanitizeData(serializeDocument(entity));
           return {
             success: true,
             entityType: 'action',
-            entity,
+            entity: {
+              ...actionData,
+              name: entity.label || entity.name,
+              ...(entity.item ? { itemId: entity.item.id } : {}),
+            },
           };
         }
       }
 
-      // Search in effects
+      // Search in actor-owned effects
       const effects = character.effects?.contents || [];
       entity = effects.find(
         (effect: any) =>
           effect.id === data.entityIdentifier ||
-          effect.name?.toLowerCase() === data.entityIdentifier.toLowerCase()
+          (effect.name || effect.label)?.toLowerCase() === data.entityIdentifier.toLowerCase()
       );
 
       if (entity) {
+        const effectData = serializeDocument(entity);
         return {
           success: true,
           entityType: 'effect',
           entity: {
+            ...effectData,
             id: entity.id,
             name: entity.name || entity.label,
-            icon: entity.icon,
-            disabled: entity.disabled,
-            duration: entity.duration,
-            changes: entity.changes,
+            scope: 'actor',
           },
         };
+      }
+
+      // Search in Item-owned effects
+      for (const item of items) {
+        const itemEffects = item.effects?.contents || Array.from(item.effects || []);
+        entity = itemEffects.find(
+          (effect: any) =>
+            effect.id === data.entityIdentifier ||
+            (effect.name || effect.label)?.toLowerCase() === data.entityIdentifier.toLowerCase()
+        );
+
+        if (entity) {
+          const effectData = serializeDocument(entity);
+          return {
+            success: true,
+            entityType: 'effect',
+            entity: {
+              ...effectData,
+              id: entity.id,
+              name: entity.name || entity.label,
+              scope: 'item',
+              parentItemId: item.id,
+              parentItemName: item.name,
+            },
+          };
+        }
       }
 
       throw new Error(
@@ -7917,8 +8407,167 @@ export class FoundryDataAccess {
   }
 
   /**
-   * Move a token to a new position
+   * Resolve and apply requested targets without preventing the item workflow on failure.
    */
+
+  private async applyItemTargets(
+    actor: any,
+    targets: string[] | undefined
+  ): Promise<{ targeting: ItemTargetingResult; warnings: string[] }> {
+    const targeting: ItemTargetingResult = {
+      status: 'not-requested',
+      requested: targets ? [...targets] : [],
+      applied: [],
+      unresolved: [],
+      failed: [],
+    };
+    const warnings: string[] = [];
+
+    if (!targets || targets.length === 0) {
+      return { targeting, warnings };
+    }
+
+    targeting.status = 'failed';
+
+    try {
+      const currentCanvas = (globalThis as any).canvas;
+      const scene = currentCanvas?.scene ?? (game.scenes as any)?.active;
+      if (!scene) {
+        targeting.unresolved.push(...targets);
+        warnings.push('No active canvas scene is available to resolve the requested targets.');
+        return { targeting, warnings };
+      }
+
+      const canvasTokens = Array.from((currentCanvas?.tokens?.placeables ?? []) as any[]);
+      const controlledTokens = Array.from((currentCanvas?.tokens?.controlled ?? []) as any[]);
+      const sceneTokenObjects = Array.from(((scene as any).tokens ?? []) as any[])
+        .map((tokenDocument: any) => tokenDocument?.object)
+        .filter(Boolean);
+
+      const tokenId = (token: any): string =>
+        String(token?.id ?? token?.document?.id ?? token?.document?._id ?? '');
+      const tokenName = (token: any): string =>
+        String(token?.name ?? token?.document?.name ?? token?.actor?.name ?? 'Unknown Token');
+      const actingActorId = String(actor?.id ?? '');
+      const tokenRepresentsActor = (token: any): boolean =>
+        token?.actor === actor ||
+        (actingActorId !== '' &&
+          [token?.actor?.id, token?.document?.actorId, token?.actorId].some(
+            candidateId => String(candidateId ?? '') === actingActorId
+          ));
+      const sortTokens = (tokensToSort: any[]): any[] =>
+        [...tokensToSort].sort((a, b) => {
+          const idComparison = tokenId(a).localeCompare(tokenId(b));
+          return idComparison !== 0 ? idComparison : tokenName(a).localeCompare(tokenName(b));
+        });
+
+      const availableTokens: any[] = [];
+      const seenTokens = new Set<any>();
+      for (const token of [...canvasTokens, ...controlledTokens, ...sceneTokenObjects]) {
+        const identity = tokenId(token) || token;
+        if (!token || seenTokens.has(identity)) continue;
+        seenTokens.add(identity);
+        availableTokens.push(token);
+      }
+
+      const orderedTokens = sortTokens(availableTokens);
+      const orderedControlledTokens = sortTokens(controlledTokens);
+      const resolvedTargets: Array<{
+        identifier: string;
+        token: any;
+        tokenId: string;
+        tokenName: string;
+      }> = [];
+
+      for (const identifier of targets) {
+        const normalizedIdentifier = identifier.toLowerCase();
+        let token: any;
+
+        if (normalizedIdentifier === 'self') {
+          token =
+            orderedControlledTokens.find(tokenRepresentsActor) ??
+            orderedTokens.find(tokenRepresentsActor);
+        } else {
+          token = orderedTokens.find(candidate => {
+            const candidateName = tokenName(candidate).toLowerCase();
+            const candidateActorName = String(candidate?.actor?.name ?? '').toLowerCase();
+            return (
+              tokenId(candidate) === identifier ||
+              candidateName === normalizedIdentifier ||
+              candidateActorName === normalizedIdentifier
+            );
+          });
+        }
+
+        if (!token) {
+          targeting.unresolved.push(identifier);
+          warnings.push(`Target "${identifier}" was not found on the current canvas.`);
+          continue;
+        }
+
+        resolvedTargets.push({
+          identifier,
+          token,
+          tokenId: tokenId(token) || identifier,
+          tokenName: tokenName(token),
+        });
+      }
+
+      let hasAppliedTarget = false;
+      for (const resolvedTarget of resolvedTargets) {
+        try {
+          if (typeof resolvedTarget.token?.setTarget !== 'function') {
+            throw new Error('Token does not expose the public setTarget API');
+          }
+
+          await resolvedTarget.token.setTarget(true, {
+            releaseOthers: !hasAppliedTarget,
+          });
+          targeting.applied.push({
+            identifier: resolvedTarget.identifier,
+            tokenId: resolvedTarget.tokenId,
+            tokenName: resolvedTarget.tokenName,
+          });
+          hasAppliedTarget = true;
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'Unknown targeting error';
+          targeting.failed.push({
+            identifier: resolvedTarget.identifier,
+            tokenId: resolvedTarget.tokenId,
+            tokenName: resolvedTarget.tokenName,
+            error: message,
+          });
+          warnings.push(`Failed to target "${resolvedTarget.identifier}": ${message}`);
+        }
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown targeting error';
+      warnings.push(`Target setup failed: ${message}`);
+      for (const identifier of targets) {
+        if (
+          !targeting.applied.some(target => target.identifier === identifier) &&
+          !targeting.unresolved.includes(identifier) &&
+          !targeting.failed.some(target => target.identifier === identifier)
+        ) {
+          targeting.failed.push({ identifier, error: message });
+        }
+      }
+    }
+
+    if (
+      targeting.applied.length === targets.length &&
+      targeting.unresolved.length === 0 &&
+      targeting.failed.length === 0
+    ) {
+      targeting.status = 'applied';
+    } else if (targeting.applied.length > 0) {
+      targeting.status = 'partial';
+    } else {
+      targeting.status = 'failed';
+    }
+
+    return { targeting, warnings };
+  }
 
   /**
    * Use an item on a character (cast spell, use ability, consume item, etc.)
@@ -7944,6 +8593,8 @@ export class FoundryDataAccess {
     itemName?: string;
     actorName?: string;
     targets?: string[];
+    targeting: ItemTargetingResult;
+    warnings?: string[];
     requiresGMInteraction?: boolean;
   }> {
     this.validateFoundryState();
@@ -7968,58 +8619,8 @@ export class FoundryDataAccess {
     const itemAny = item;
     const systemId = (game.system as any).id;
 
-    // Handle targeting if targets are specified
-    const resolvedTargetNames: string[] = [];
-    if (targets && targets.length > 0) {
-      // Get all tokens on the current scene
-      const scene = (game.scenes as any)?.active;
-      if (!scene) {
-        throw new Error('No active scene to find targets on');
-      }
-
-      const sceneTokens = scene.tokens;
-      const tokenIds: string[] = [];
-
-      for (const targetIdentifier of targets) {
-        // Handle "self" - target the caster's token
-        if (targetIdentifier.toLowerCase() === 'self') {
-          // Find token for the caster actor
-          const selfToken = sceneTokens.find(
-            (t: any) => t.actor?.id === actor.id || t.actorId === actor.id
-          );
-          if (selfToken) {
-            tokenIds.push(selfToken.id);
-            resolvedTargetNames.push(actor.name);
-          } else {
-            console.warn(
-              `[foundry-mcp-bridge] No token found on scene for actor "${actor.name}" (self)`
-            );
-          }
-          continue;
-        }
-
-        // Find token by name or ID
-        const targetToken = sceneTokens.find(
-          (t: any) =>
-            t.id === targetIdentifier ||
-            t.name?.toLowerCase() === targetIdentifier.toLowerCase() ||
-            t.actor?.name?.toLowerCase() === targetIdentifier.toLowerCase()
-        );
-
-        if (targetToken) {
-          tokenIds.push(targetToken.id);
-          resolvedTargetNames.push(targetToken.name || targetToken.actor?.name || targetIdentifier);
-        } else {
-          console.warn(`[foundry-mcp-bridge] Target not found: "${targetIdentifier}"`);
-        }
-      }
-
-      // Set targets using Foundry's targeting system
-      if (tokenIds.length > 0 && game.user) {
-        await (game.user as any).updateTokenTargets(tokenIds);
-        console.log(`[foundry-mcp-bridge] Set targets: ${resolvedTargetNames.join(', ')}`);
-      }
-    }
+    const { targeting, warnings } = await this.applyItemTargets(actor, targets);
+    const resolvedTargetNames = targeting.applied.map(target => target.tokenName);
 
     try {
       // For items that may show dialogs (spells with choices, etc.),
@@ -8118,12 +8719,16 @@ export class FoundryDataAccess {
           itemId: item.id,
           itemName: item.name,
           targets: resolvedTargetNames,
+          targetingStatus: targeting.status,
+          targetingWarnings: warnings,
         },
         'success'
       );
 
       const targetInfo =
         resolvedTargetNames.length > 0 ? ` targeting ${resolvedTargetNames.join(', ')}` : '';
+      const targetingWarningInfo =
+        warnings.length > 0 ? ` Targeting warning: ${warnings.join(' ')}` : '';
 
       const result: {
         success: boolean;
@@ -8132,18 +8737,24 @@ export class FoundryDataAccess {
         itemName?: string;
         actorName?: string;
         targets?: string[];
+        targeting: ItemTargetingResult;
+        warnings?: string[];
         requiresGMInteraction?: boolean;
       } = {
         success: true,
         status: 'initiated',
-        message: `Item use initiated for ${actor.name} using ${item.name}${targetInfo}. If a dialog appeared in Foundry VTT, the GM should select options and confirm. The result will appear in chat.`,
+        message: `Item use initiated for ${actor.name} using ${item.name}${targetInfo}.${targetingWarningInfo} If a dialog appeared in Foundry VTT, the GM should select options and confirm. The result will appear in chat.`,
         itemName: item.name,
         actorName: actor.name,
+        targeting,
         requiresGMInteraction: true,
       };
 
       if (resolvedTargetNames.length > 0) {
         result.targets = resolvedTargetNames;
+      }
+      if (warnings.length > 0) {
+        result.warnings = warnings;
       }
 
       return result;
@@ -8177,12 +8788,13 @@ export class FoundryDataAccess {
     activationType: string;
     saveAbility: string;
     saveDC: number;
-    damageParts: Array<{ number: number; denomination: number; type: string }>;
+    damageParts: Array<{ number: number; denomination: number; type: string; bonus?: number }>;
     halfOnSave: boolean;
     areaType: string;
     areaSize?: number;
     areaUnits: string;
     affectsType: string;
+    uses?: { max: number; per: 'day' | 'recharge'; rechargeOn?: number };
   }): Promise<any> {
     this.validateFoundryState();
 
@@ -8219,83 +8831,160 @@ export class FoundryDataAccess {
       // 5a. Map emanation → radius (Foundry uses "radius" for radial emanations)
       const mappedAreaType: string = data.areaType === 'emanation' ? 'radius' : data.areaType;
 
-      // 6. Build item data — schema verified against dnd5e 5.1.8 real output
-      const itemData = {
-        name: data.featureName,
-        type: 'feat',
-        img: 'systems/dnd5e/icons/svg/items/feature.svg',
-        system: {
-          description: { value: data.description, chat: '' },
-          identifier,
-          source: { revision: 1, rules: '2024' },
-          type: { value: 'monster', subtype: '' },
-          uses: { spent: 0, recovery: [], max: '' },
-          advancement: [],
-          crewed: false,
-          enchant: {},
-          prerequisites: { items: [], repeatable: false, level: null },
-          properties: [],
-          requirements: '',
-          activities: {
-            [activityId]: {
-              _id: activityId,
-              type: 'save',
-              sort: 0,
-              name: '',
-              activation: {
-                type: data.activationType,
-                override: false,
-              },
-              consumption: {
-                scaling: { allowed: false },
-                spellSlot: true,
-                targets: [],
-              },
-              description: {},
-              duration: { units: 'inst', concentration: false, override: false },
-              effects: [],
-              range: { units: 'self', override: false },
-              uses: { spent: 0, recovery: [] },
-              target: {
-                template: {
-                  contiguous: false,
-                  units: data.areaUnits,
-                  count: '',
-                  type: mappedAreaType,
-                  size: mappedAreaType ? String(data.areaSize) : '',
+      // 6. Build item data — Tier 2: clone a real, live save-based monster feature (Adult Red
+      // Dragon's Fire Breath) as a structural scaffold, override only caller-specified fields.
+      // Falls back to full from-scratch construction if that live template isn't available.
+      const saveTemplate = await fetchLiveTemplate(
+        'dnd-monster-manual.actors',
+        'Adult Red Dragon',
+        'save'
+      );
+
+      let itemData: Record<string, any>;
+
+      if (saveTemplate) {
+        const activity = saveTemplate.activity;
+        activity._id = activityId;
+        activity.name = '';
+        activity.sort = 0;
+        activity.description = {};
+        activity.effects = [];
+        activity.activation = {
+          ...activity.activation,
+          type: data.activationType,
+          override: false,
+        };
+        activity.target = {
+          ...activity.target,
+          template: {
+            ...activity.target?.template,
+            contiguous: false,
+            units: data.areaUnits,
+            count: '',
+            type: mappedAreaType,
+            size: mappedAreaType ? String(data.areaSize) : '',
+          },
+          affects: {
+            choice: false,
+            count: '',
+            type: data.affectsType,
+            special: '',
+          },
+        };
+        activity.damage = {
+          ...activity.damage,
+          onSave: data.halfOnSave ? 'half' : 'none',
+          parts: data.damageParts.map(p => ({
+            custom: { enabled: false, formula: '' },
+            number: p.number,
+            denomination: p.denomination,
+            bonus: p.bonus !== undefined ? String(p.bonus) : '',
+            types: [p.type],
+            scaling: { mode: '', number: 1 },
+          })),
+        };
+        activity.save = {
+          ...activity.save,
+          ability: [data.saveAbility],
+          dc: { calculation: '', formula: String(data.saveDC) },
+        };
+
+        itemData = {
+          name: data.featureName,
+          type: 'feat',
+          img: 'systems/dnd5e/icons/svg/items/feature.svg',
+          system: {
+            ...(foundry.utils as any).deepClone(saveTemplate.itemSystem),
+            description: { value: data.description, chat: '' },
+            identifier,
+            source: { revision: 1, rules: '2024' },
+            type: { value: 'monster', subtype: '' },
+            uses: buildUsesField(data.uses),
+            properties: [],
+            requirements: '',
+            activities: { [activityId]: activity },
+          },
+          effects: [],
+        };
+      } else {
+        // Tier 3 — no live template available, build fully from scratch.
+        itemData = {
+          name: data.featureName,
+          type: 'feat',
+          img: 'systems/dnd5e/icons/svg/items/feature.svg',
+          system: {
+            description: { value: data.description, chat: '' },
+            identifier,
+            source: { revision: 1, rules: '2024' },
+            type: { value: 'monster', subtype: '' },
+            uses: buildUsesField(data.uses),
+            advancement: [],
+            crewed: false,
+            enchant: {},
+            prerequisites: { items: [], repeatable: false, level: null },
+            properties: [],
+            requirements: '',
+            activities: {
+              [activityId]: {
+                _id: activityId,
+                type: 'save',
+                sort: 0,
+                name: '',
+                activation: {
+                  type: data.activationType,
+                  override: false,
                 },
-                affects: {
-                  choice: false,
-                  count: '',
-                  type: data.affectsType,
-                  special: '',
+                consumption: {
+                  scaling: { allowed: false },
+                  spellSlot: true,
+                  targets: [],
                 },
-                override: false,
-                prompt: true,
-              },
-              damage: {
-                onSave: data.halfOnSave ? 'half' : 'none',
-                parts: data.damageParts.map(p => ({
-                  custom: { enabled: false, formula: '' },
-                  number: p.number,
-                  denomination: p.denomination,
-                  bonus: '',
-                  types: [p.type],
-                  scaling: { mode: '', number: 1 },
-                })),
-              },
-              save: {
-                ability: [data.saveAbility],
-                dc: {
-                  calculation: '',
-                  formula: String(data.saveDC),
+                description: {},
+                duration: { units: 'inst', concentration: false, override: false },
+                effects: [],
+                range: { units: 'self', override: false },
+                uses: { spent: 0, recovery: [] },
+                target: {
+                  template: {
+                    contiguous: false,
+                    units: data.areaUnits,
+                    count: '',
+                    type: mappedAreaType,
+                    size: mappedAreaType ? String(data.areaSize) : '',
+                  },
+                  affects: {
+                    choice: false,
+                    count: '',
+                    type: data.affectsType,
+                    special: '',
+                  },
+                  override: false,
+                  prompt: true,
+                },
+                damage: {
+                  onSave: data.halfOnSave ? 'half' : 'none',
+                  parts: data.damageParts.map(p => ({
+                    custom: { enabled: false, formula: '' },
+                    number: p.number,
+                    denomination: p.denomination,
+                    bonus: p.bonus !== undefined ? String(p.bonus) : '',
+                    types: [p.type],
+                    scaling: { mode: '', number: 1 },
+                  })),
+                },
+                save: {
+                  ability: [data.saveAbility],
+                  dc: {
+                    calculation: '',
+                    formula: String(data.saveDC),
+                  },
                 },
               },
             },
           },
-        },
-        effects: [],
-      };
+          effects: [],
+        };
+      }
 
       // 7. Create embedded item
       const [created] = (await actor.createEmbeddedDocuments('Item', [itemData])) as any[];
@@ -8587,14 +9276,19 @@ export class FoundryDataAccess {
 
       // 5. Damage parts for the activity (all except the first — which is system.damage.base)
       const activityDamageParts = (
-        data.damageParts as Array<{ number: number; denomination: number; type: string }>
+        data.damageParts as Array<{
+          number: number;
+          denomination: number;
+          type: string;
+          bonus?: number;
+        }>
       )
         .slice(1)
         .map(p => ({
           types: [p.type],
           number: p.number,
           denomination: p.denomination,
-          bonus: '',
+          bonus: p.bonus !== undefined ? String(p.bonus) : '',
           scaling: { mode: '', number: 1 },
           custom: { enabled: false },
         }));
@@ -8608,130 +9302,209 @@ export class FoundryDataAccess {
       // 7. Conditional 2024-only fields
       const sourceRules: string = data.sourceRules ?? '2014';
       const masteryField = sourceRules === '2024' ? { mastery: '' } : {};
-      const abilityField = sourceRules === '2024' ? { ability: data.effectiveAbility } : {};
+      // Attack ability must always be written regardless of rules edition — it was previously
+      // gated behind sourceRules === '2024' alongside the genuinely-2024-only mastery/classification
+      // fields, which silently dropped it for the default 2014 case and left attack.ability as the
+      // hardcoded empty string below, falling back to a wrong default at the sheet level.
+      const abilityField = { ability: data.effectiveAbility };
       const classification = sourceRules === '2014' ? 'weapon' : '';
 
-      // 8. Build item data
-      const itemData: Record<string, any> = {
-        name: data.featureName,
-        type: 'weapon',
-        system: {
-          description: {
-            value: data.description ?? '',
-            chat: '',
-            unidentified: '',
-          },
-          source: {
-            custom: '',
-            book: data.sourceBook ?? '',
-            page: data.sourcePage ?? '',
-            license: '',
-            rules: sourceRules,
-          },
-          quantity: 1,
-          weight: { value: 0, units: 'lb' },
-          price: { value: 0, denomination: 'gp' },
-          attunement: '',
-          equipped: data.equipped !== false,
-          rarity: '',
-          identified: true,
-          activation: {
-            type: data.activationType ?? 'action',
-            value: 1,
-            condition: '',
-            override: false,
-          },
-          duration: { value: '', units: '' },
-          cover: null,
-          target: {
-            template: {
-              count: '',
-              contiguous: false,
-              type: '',
-              size: '',
-              width: '',
-              height: '',
-              units: '',
-            },
-            affects: { count: '', type: '', choice: false, special: '' },
-            prompt: true,
-            override: false,
-          },
-          range: rangeObj,
-          uses: { value: null, max: '', recovery: [], prompt: true },
-          damage: {
-            base: {
-              types: [(data.damageParts as any[])[0].type],
-              number: (data.damageParts as any[])[0].number,
-              denomination: (data.damageParts as any[])[0].denomination,
-              bonus: '',
-              scaling: { mode: '', number: 1 },
-              custom: { enabled: false },
-            },
-          },
-          type: { value: data.weaponClass ?? 'natural', baseItem: '' },
-          properties: data.properties as string[],
-          proficient: 1,
-          magicalBonus: null,
-          ...masteryField,
-          activities: {
-            [activityId]: {
-              _id: activityId,
-              type: 'attack',
-              name: '',
-              img: '',
-              sort: 0,
-              description: {},
-              activation: {
-                type: data.activationType ?? 'action',
-                value: 1,
-                condition: '',
-                override: false,
-              },
-              duration: { units: '', value: '', override: false },
-              target: {
-                template: {
-                  count: '',
-                  contiguous: false,
-                  type: '',
-                  size: '',
-                  width: '',
-                  height: '',
-                  units: '',
-                },
-                affects: { count: '', type: '', choice: false, special: '' },
-                prompt: true,
-                override: false,
-              },
-              range: { units: 'self', override: false },
-              uses: { spent: 0, max: '', recovery: [] },
-              consumption: {
-                targets: [],
-                scaling: { allowed: false, max: '' },
-                spellSlot: true,
-              },
-              attack: {
-                ability: '',
-                bonus: data.attackBonus > 0 ? String(data.attackBonus) : '',
-                critical: { threshold: null },
-                flat: false,
-                type: {
-                  value: data.attackType ?? 'melee',
-                  classification: classification,
-                },
-                ...abilityField,
-              },
-              damage: {
-                critical: { bonus: '' },
-                includeBase: true,
-                parts: activityDamageParts,
-              },
-              effects: [],
-              save: { ability: '', dc: { formula: '', calculation: '' } },
-            },
-          },
-        },
+      // 8. Build item data — Tier 2: clone a real, live weapon (Dagger/Shortbow) as a structural
+      // scaffold and override only the caller-specified fields. Falls back to full from-scratch
+      // construction (Tier 3, the previous behavior) only if that live template can't be fetched.
+      const attackTemplate = await fetchLiveTemplate(
+        'dnd-players-handbook.equipment',
+        data.attackType === 'ranged' ? 'Shortbow' : 'Dagger',
+        'attack'
+      );
+
+      const baseDamagePart = {
+        types: [(data.damageParts as any[])[0].type],
+        number: (data.damageParts as any[])[0].number,
+        denomination: (data.damageParts as any[])[0].denomination,
+        bonus:
+          (data.damageParts as any[])[0].bonus !== undefined
+            ? String((data.damageParts as any[])[0].bonus)
+            : '',
+        scaling: { mode: '', number: 1 },
+        custom: { enabled: false },
       };
+
+      let itemData: Record<string, any>;
+
+      if (attackTemplate) {
+        const activity = attackTemplate.activity;
+        activity._id = activityId;
+        activity.name = '';
+        activity.img = '';
+        activity.sort = 0;
+        activity.description = {};
+        activity.effects = [];
+        activity.activation = {
+          ...activity.activation,
+          type: data.activationType ?? 'action',
+          value: 1,
+          condition: '',
+          override: false,
+        };
+        activity.attack = {
+          ...activity.attack,
+          ability: data.effectiveAbility,
+          bonus: data.attackBonus > 0 ? String(data.attackBonus) : '',
+          type: { value: data.attackType ?? 'melee', classification },
+        };
+        activity.damage = {
+          ...activity.damage,
+          includeBase: true,
+          parts: activityDamageParts,
+        };
+
+        itemData = {
+          name: data.featureName,
+          type: 'weapon',
+          system: {
+            ...(foundry.utils as any).deepClone(attackTemplate.itemSystem),
+            description: { value: data.description ?? '', chat: '', unidentified: '' },
+            source: {
+              custom: '',
+              book: data.sourceBook ?? '',
+              page: data.sourcePage ?? '',
+              license: '',
+              rules: sourceRules,
+            },
+            quantity: 1,
+            weight: { value: 0, units: 'lb' },
+            price: { value: 0, denomination: 'gp' },
+            equipped: data.equipped !== false,
+            activation: {
+              type: data.activationType ?? 'action',
+              value: 1,
+              condition: '',
+              override: false,
+            },
+            range: rangeObj,
+            damage: { base: baseDamagePart },
+            type: { value: data.weaponClass ?? 'natural', baseItem: '' },
+            properties: data.properties as string[],
+            proficient: 1,
+            uses: buildUsesField(data.uses),
+            ...masteryField,
+            activities: { [activityId]: activity },
+          },
+        };
+      } else {
+        // Tier 3 — no live template available, build fully from scratch.
+        itemData = {
+          name: data.featureName,
+          type: 'weapon',
+          system: {
+            description: {
+              value: data.description ?? '',
+              chat: '',
+              unidentified: '',
+            },
+            source: {
+              custom: '',
+              book: data.sourceBook ?? '',
+              page: data.sourcePage ?? '',
+              license: '',
+              rules: sourceRules,
+            },
+            quantity: 1,
+            weight: { value: 0, units: 'lb' },
+            price: { value: 0, denomination: 'gp' },
+            attunement: '',
+            equipped: data.equipped !== false,
+            rarity: '',
+            identified: true,
+            activation: {
+              type: data.activationType ?? 'action',
+              value: 1,
+              condition: '',
+              override: false,
+            },
+            duration: { value: '', units: '' },
+            cover: null,
+            target: {
+              template: {
+                count: '',
+                contiguous: false,
+                type: '',
+                size: '',
+                width: '',
+                height: '',
+                units: '',
+              },
+              affects: { count: '', type: '', choice: false, special: '' },
+              prompt: true,
+              override: false,
+            },
+            range: rangeObj,
+            uses: buildUsesField(data.uses),
+            damage: { base: baseDamagePart },
+            type: { value: data.weaponClass ?? 'natural', baseItem: '' },
+            properties: data.properties as string[],
+            proficient: 1,
+            magicalBonus: null,
+            ...masteryField,
+            activities: {
+              [activityId]: {
+                _id: activityId,
+                type: 'attack',
+                name: '',
+                img: '',
+                sort: 0,
+                description: {},
+                activation: {
+                  type: data.activationType ?? 'action',
+                  value: 1,
+                  condition: '',
+                  override: false,
+                },
+                duration: { units: '', value: '', override: false },
+                target: {
+                  template: {
+                    count: '',
+                    contiguous: false,
+                    type: '',
+                    size: '',
+                    width: '',
+                    height: '',
+                    units: '',
+                  },
+                  affects: { count: '', type: '', choice: false, special: '' },
+                  prompt: true,
+                  override: false,
+                },
+                range: { units: 'self', override: false },
+                uses: { spent: 0, max: '', recovery: [] },
+                consumption: {
+                  targets: [],
+                  scaling: { allowed: false, max: '' },
+                  spellSlot: true,
+                },
+                attack: {
+                  bonus: data.attackBonus > 0 ? String(data.attackBonus) : '',
+                  critical: { threshold: null },
+                  flat: false,
+                  type: {
+                    value: data.attackType ?? 'melee',
+                    classification: classification,
+                  },
+                  ...abilityField,
+                },
+                damage: {
+                  critical: { bonus: '' },
+                  includeBase: true,
+                  parts: activityDamageParts,
+                },
+                effects: [],
+                save: { ability: '', dc: { formula: '', calculation: '' } },
+              },
+            },
+          },
+        };
+      }
 
       // 9. Create the item on the actor
       const created = (await actor.createEmbeddedDocuments('Item', [itemData]))[0];
@@ -8820,96 +9593,197 @@ export class FoundryDataAccess {
       // 6. Slug identifier
       const identifier = slugify(data.featureName as string);
 
-      // 7. Build item data — schema verified against dnd5e 5.1.8 Banshee Wail
-      const itemData = {
-        name: data.featureName,
-        type: 'feat',
-        img: 'systems/dnd5e/icons/svg/items/feature.svg',
-        system: {
-          description: { value: data.description ?? '', chat: '' },
-          identifier,
-          source: {
-            revision: 1,
-            rules: data.sourceRules ?? '2014',
-            custom: '',
-            book: data.sourceBook ?? '',
-            page: data.sourcePage ?? '',
-            license: '',
+      // 7. Build item data — Tier 2: compose two live templates, since no single real feat
+      // happens to have a `damage`-type activity in this compendium (2024 conversions moved
+      // Banshee's Wail — the previous hand-typed template's own source — to a `save`-type
+      // activity instead; `damage`-type activities do still exist, just on spells like Magic
+      // Missile). Use a real feat item (Fire Breath) for the outer item-level boilerplate, and
+      // Magic Missile's `damage`-type activity as the activity scaffold, overriding the
+      // spell-specific consumption/fields that don't belong on a monster feature.
+      const featShellTemplate = await fetchLiveTemplate(
+        'dnd-monster-manual.actors',
+        'Adult Red Dragon',
+        'save'
+      );
+      const damageActivityTemplate = await fetchLiveTemplate(
+        'dnd-players-handbook.spells',
+        'Magic Missile',
+        'damage'
+      );
+
+      let itemData: Record<string, any>;
+
+      if (featShellTemplate && damageActivityTemplate) {
+        const activity = damageActivityTemplate.activity;
+        activity._id = activityId;
+        activity.name = '';
+        activity.sort = 0;
+        activity.description = {};
+        activity.effects = [];
+        activity.activation = {
+          ...activity.activation,
+          type: data.activationType ?? 'action',
+          value: 1,
+          override: false,
+        };
+        // Spell-specific consumption (spell slots) doesn't apply to a monster feature.
+        activity.consumption = { scaling: { allowed: false }, spellSlot: false, targets: [] };
+        activity.range = { units: 'self', override: false };
+        activity.target = {
+          ...activity.target,
+          template: {
+            ...activity.target?.template,
+            contiguous: false,
+            units: data.areaUnits ?? 'ft',
+            count: '',
+            type: mappedAreaType,
+            size: String(data.areaSize),
+            width: '',
+            height: '',
           },
-          type: { value: 'monster', subtype: '' },
-          uses: { spent: 0, recovery: [], max: '' },
-          advancement: [],
-          crewed: false,
-          enchant: {},
-          prerequisites: { items: [], repeatable: false, level: null },
-          properties: [],
-          requirements: '',
-          activities: {
-            [activityId]: {
-              _id: activityId,
-              type: 'damage', // activity type: damage — no attack roll, no save
-              name: '',
-              sort: 0,
-              activation: {
-                type: data.activationType ?? 'action',
-                value: 1,
-                override: false,
-                // NO condition — not present in real dnd5e 5.1.8 schema
-              },
-              consumption: {
-                scaling: { allowed: false },
-                spellSlot: true, // confirmed: true in real Banshee Wail schema
-                targets: [], // no uses management in V1
-              },
-              description: {}, // empty object — confirmed from real schema
-              duration: {
-                units: 'inst',
-                concentration: false,
-                override: false,
-              },
-              effects: [],
-              range: { units: 'self', override: false }, // NO value, NO special
-              uses: { spent: 0, recovery: [] }, // NO max field
-              target: {
-                template: {
-                  contiguous: false,
-                  units: data.areaUnits ?? 'ft',
-                  count: '',
-                  type: mappedAreaType,
-                  size: String(data.areaSize),
-                  width: '',
-                  height: '',
+          affects: {
+            count: '',
+            type: data.affectsType ?? 'creature',
+            choice: false,
+            special: '',
+          },
+        };
+        activity.damage = {
+          ...activity.damage,
+          parts: (
+            data.damageParts as Array<{
+              number: number;
+              denomination: number;
+              type: string;
+              bonus?: number;
+            }>
+          ).map(p => ({
+            types: [p.type],
+            number: p.number,
+            denomination: p.denomination,
+            bonus: p.bonus !== undefined ? String(p.bonus) : '',
+            scaling: { mode: '', number: 1 },
+            custom: { enabled: false },
+          })),
+        };
+
+        itemData = {
+          name: data.featureName,
+          type: 'feat',
+          img: 'systems/dnd5e/icons/svg/items/feature.svg',
+          system: {
+            ...(foundry.utils as any).deepClone(featShellTemplate.itemSystem),
+            description: { value: data.description ?? '', chat: '' },
+            identifier,
+            source: {
+              revision: 1,
+              rules: data.sourceRules ?? '2014',
+              custom: '',
+              book: data.sourceBook ?? '',
+              page: data.sourcePage ?? '',
+              license: '',
+            },
+            type: { value: 'monster', subtype: '' },
+            uses: buildUsesField(data.uses),
+            properties: [],
+            requirements: '',
+            activities: { [activityId]: activity },
+          },
+          effects: [],
+        };
+      } else {
+        // Tier 3 — no live template available, build fully from scratch.
+        itemData = {
+          name: data.featureName,
+          type: 'feat',
+          img: 'systems/dnd5e/icons/svg/items/feature.svg',
+          system: {
+            description: { value: data.description ?? '', chat: '' },
+            identifier,
+            source: {
+              revision: 1,
+              rules: data.sourceRules ?? '2014',
+              custom: '',
+              book: data.sourceBook ?? '',
+              page: data.sourcePage ?? '',
+              license: '',
+            },
+            type: { value: 'monster', subtype: '' },
+            uses: buildUsesField(data.uses),
+            advancement: [],
+            crewed: false,
+            enchant: {},
+            prerequisites: { items: [], repeatable: false, level: null },
+            properties: [],
+            requirements: '',
+            activities: {
+              [activityId]: {
+                _id: activityId,
+                type: 'damage',
+                name: '',
+                sort: 0,
+                activation: {
+                  type: data.activationType ?? 'action',
+                  value: 1,
+                  override: false,
                 },
-                affects: {
-                  count: '',
-                  type: data.affectsType ?? 'creature',
-                  choice: false,
-                  special: '',
+                consumption: {
+                  scaling: { allowed: false },
+                  spellSlot: true,
+                  targets: [],
                 },
-                override: false,
-                prompt: true,
+                description: {},
+                duration: {
+                  units: 'inst',
+                  concentration: false,
+                  override: false,
+                },
+                effects: [],
+                range: { units: 'self', override: false },
+                uses: { spent: 0, recovery: [] },
+                target: {
+                  template: {
+                    contiguous: false,
+                    units: data.areaUnits ?? 'ft',
+                    count: '',
+                    type: mappedAreaType,
+                    size: String(data.areaSize),
+                    width: '',
+                    height: '',
+                  },
+                  affects: {
+                    count: '',
+                    type: data.affectsType ?? 'creature',
+                    choice: false,
+                    special: '',
+                  },
+                  override: false,
+                  prompt: true,
+                },
+                damage: {
+                  critical: { allow: false },
+                  parts: (
+                    data.damageParts as Array<{
+                      number: number;
+                      denomination: number;
+                      type: string;
+                      bonus?: number;
+                    }>
+                  ).map(p => ({
+                    types: [p.type],
+                    number: p.number,
+                    denomination: p.denomination,
+                    bonus: p.bonus !== undefined ? String(p.bonus) : '',
+                    scaling: { mode: '', number: 1 },
+                    custom: { enabled: false },
+                  })),
+                },
               },
-              damage: {
-                critical: { allow: false }, // only this key — no bonus, no dice
-                parts: (
-                  data.damageParts as Array<{ number: number; denomination: number; type: string }>
-                ).map(p => ({
-                  types: [p.type],
-                  number: p.number,
-                  denomination: p.denomination,
-                  bonus: '',
-                  scaling: { mode: '', number: 1 }, // mode: '' required — from real schema
-                  custom: { enabled: false }, // NO formula field
-                })),
-                // NO onSave — damage activity has no save concept
-              },
-              // NO save block
-              // NO attack block
             },
           },
-        },
-        effects: [],
-      };
+          effects: [],
+        };
+      }
 
       // 7. Create embedded item
       const [created] = (await actor.createEmbeddedDocuments('Item', [itemData])) as any[];
@@ -8993,7 +9867,7 @@ export class FoundryDataAccess {
             license: '',
           },
           type: { value: 'monster', subtype: '' },
-          uses: { spent: 0, recovery: [], max: '' },
+          uses: buildUsesField(data.uses),
           advancement: [],
           crewed: false,
           enchant: {},
@@ -9087,26 +9961,36 @@ export class FoundryDataAccess {
 
       // 5. Attack activity damage parts: damageParts[1+] (base is in system.damage.base)
       const activityDamageParts = (
-        data.damageParts as Array<{ number: number; denomination: number; type: string }>
+        data.damageParts as Array<{
+          number: number;
+          denomination: number;
+          type: string;
+          bonus?: number;
+        }>
       )
         .slice(1)
         .map(p => ({
           types: [p.type],
           number: p.number,
           denomination: p.denomination,
-          bonus: '',
+          bonus: p.bonus !== undefined ? String(p.bonus) : '',
           scaling: { mode: '', number: 1 },
           custom: { enabled: false },
         }));
 
       // 6. Save activity damage parts: ALL saveDamageParts (no base — independent)
       const saveActivityDamageParts = (
-        data.saveDamageParts as Array<{ number: number; denomination: number; type: string }>
+        data.saveDamageParts as Array<{
+          number: number;
+          denomination: number;
+          type: string;
+          bonus?: number;
+        }>
       ).map(p => ({
         types: [p.type],
         number: p.number,
         denomination: p.denomination,
-        bonus: '',
+        bonus: p.bonus !== undefined ? String(p.bonus) : '',
         scaling: { mode: '', number: 1 },
         custom: { enabled: false },
       }));
@@ -9120,167 +10004,286 @@ export class FoundryDataAccess {
       // 8. Conditional 2024-only fields (same rules as Tipo A)
       const sourceRules: string = data.sourceRules ?? '2014';
       const masteryField = sourceRules === '2024' ? { mastery: '' } : {};
-      const abilityField = sourceRules === '2024' ? { ability: data.effectiveAbility } : {};
+      // Attack ability must always be written regardless of rules edition — it was previously
+      // gated behind sourceRules === '2024' alongside the genuinely-2024-only mastery/classification
+      // fields, which silently dropped it for the default 2014 case and left attack.ability as the
+      // hardcoded empty string below, falling back to a wrong default at the sheet level.
+      const abilityField = { ability: data.effectiveAbility };
       const classification = sourceRules === '2014' ? 'weapon' : '';
 
-      // 9. Build item data
-      const itemData: Record<string, any> = {
-        name: data.featureName,
-        type: 'weapon',
-        system: {
-          description: {
-            value: data.description ?? '',
-            chat: '',
-            unidentified: '',
-          },
-          source: {
-            custom: '',
-            book: data.sourceBook ?? '',
-            page: data.sourcePage ?? '',
-            license: '',
-            rules: sourceRules,
-          },
-          quantity: 1,
-          weight: { value: 0, units: 'lb' },
-          price: { value: 0, denomination: 'gp' },
-          attunement: '',
-          equipped: data.equipped !== false,
-          rarity: '',
-          identified: true,
-          activation: {
-            type: data.activationType ?? 'action',
-            value: 1,
-            condition: '',
-            override: false,
-          },
-          duration: { value: '', units: '' },
-          cover: null,
-          target: {
-            template: {
-              count: '',
-              contiguous: false,
-              type: '',
-              size: '',
-              width: '',
-              height: '',
-              units: '',
-            },
-            affects: { count: '', type: '', choice: false, special: '' },
-            prompt: true,
-            override: false,
-          },
-          range: rangeObj,
-          uses: { value: null, max: '', recovery: [], prompt: true },
-          damage: {
-            base: {
-              types: [(data.damageParts as any[])[0].type],
-              number: (data.damageParts as any[])[0].number,
-              denomination: (data.damageParts as any[])[0].denomination,
-              bonus: '',
-              scaling: { mode: '', number: 1 },
-              custom: { enabled: false },
-            },
-          },
-          type: { value: data.weaponClass ?? 'natural', baseItem: '' },
-          properties: data.properties as string[],
-          proficient: 1,
-          magicalBonus: null,
-          ...masteryField,
-          activities: {
-            // ── Activity 1: attack (sort 0) ───────────────────────────────
-            [attackActivityId]: {
-              _id: attackActivityId,
-              type: 'attack',
-              name: '',
-              img: '',
-              sort: 0,
-              description: {},
-              activation: {
-                type: data.activationType ?? 'action',
-                value: 1,
-                condition: '',
-                override: false,
-              },
-              duration: { units: '', value: '', override: false },
-              target: {
-                template: {
-                  count: '',
-                  contiguous: false,
-                  type: '',
-                  size: '',
-                  width: '',
-                  height: '',
-                  units: '',
-                },
-                affects: { count: '', type: '', choice: false, special: '' },
-                prompt: true,
-                override: false,
-              },
-              range: { units: 'self', override: false },
-              uses: { spent: 0, max: '', recovery: [] },
-              consumption: { targets: [], scaling: { allowed: false, max: '' }, spellSlot: true },
-              attack: {
-                ability: '',
-                bonus: data.attackBonus > 0 ? String(data.attackBonus) : '',
-                critical: { threshold: null },
-                flat: false,
-                type: { value: data.attackType ?? 'melee', classification },
-                ...abilityField,
-              },
-              damage: {
-                critical: { bonus: '' },
-                includeBase: true,
-                parts: activityDamageParts,
-              },
-              effects: [],
-              save: { ability: '', dc: { formula: '', calculation: '' } },
-            },
+      // 9. Build item data — Tier 2: clone a real weapon (attack activity) and a real save-based
+      // monster feature (save activity) as structural scaffolds, override only caller-specified
+      // fields. Falls back to full from-scratch construction if either live template is missing.
+      const attackTemplate = await fetchLiveTemplate(
+        'dnd-players-handbook.equipment',
+        data.attackType === 'ranged' ? 'Shortbow' : 'Dagger',
+        'attack'
+      );
+      const saveTemplate = await fetchLiveTemplate(
+        'dnd-monster-manual.actors',
+        'Adult Red Dragon',
+        'save'
+      );
 
-            // ── Activity 2: save (sort 1) ─────────────────────────────────
-            [saveActivityId]: {
-              _id: saveActivityId,
-              type: 'save',
-              name: '',
-              sort: 1,
-              description: {}, // {} — not { chatFlavor: '' } (real schema confirmed)
-              activation: {
-                type: data.activationType ?? 'action',
-                value: 1,
-                override: false,
-                // NO condition — per real schema
+      const baseDamagePart = {
+        types: [(data.damageParts as any[])[0].type],
+        number: (data.damageParts as any[])[0].number,
+        denomination: (data.damageParts as any[])[0].denomination,
+        bonus:
+          (data.damageParts as any[])[0].bonus !== undefined
+            ? String((data.damageParts as any[])[0].bonus)
+            : '',
+        scaling: { mode: '', number: 1 },
+        custom: { enabled: false },
+      };
+
+      let itemData: Record<string, any>;
+
+      if (attackTemplate && saveTemplate) {
+        const attackActivity = attackTemplate.activity;
+        attackActivity._id = attackActivityId;
+        attackActivity.name = '';
+        attackActivity.img = '';
+        attackActivity.sort = 0;
+        attackActivity.description = {};
+        attackActivity.effects = [];
+        attackActivity.activation = {
+          ...attackActivity.activation,
+          type: data.activationType ?? 'action',
+          value: 1,
+          condition: '',
+          override: false,
+        };
+        attackActivity.attack = {
+          ...attackActivity.attack,
+          ability: data.effectiveAbility,
+          bonus: data.attackBonus > 0 ? String(data.attackBonus) : '',
+          type: { value: data.attackType ?? 'melee', classification },
+        };
+        attackActivity.damage = {
+          ...attackActivity.damage,
+          includeBase: true,
+          parts: activityDamageParts,
+        };
+
+        const saveActivity = saveTemplate.activity;
+        saveActivity._id = saveActivityId;
+        saveActivity.name = '';
+        saveActivity.img = '';
+        saveActivity.sort = 1;
+        saveActivity.description = {};
+        saveActivity.effects = [];
+        saveActivity.activation = {
+          ...saveActivity.activation,
+          type: data.activationType ?? 'action',
+          value: 1,
+          override: false,
+        };
+        saveActivity.target = {
+          ...saveActivity.target,
+          affects: { count: '1', type: 'creature', choice: false, special: '' },
+        };
+        saveActivity.damage = {
+          ...saveActivity.damage,
+          onSave: data.saveOnSave ?? 'none',
+          parts: saveActivityDamageParts,
+        };
+        saveActivity.save = {
+          ...saveActivity.save,
+          ability: [data.saveAbility],
+          dc: { calculation: '', formula: String(data.saveDC) },
+        };
+
+        itemData = {
+          name: data.featureName,
+          type: 'weapon',
+          system: {
+            ...(foundry.utils as any).deepClone(attackTemplate.itemSystem),
+            description: { value: data.description ?? '', chat: '', unidentified: '' },
+            source: {
+              custom: '',
+              book: data.sourceBook ?? '',
+              page: data.sourcePage ?? '',
+              license: '',
+              rules: sourceRules,
+            },
+            quantity: 1,
+            weight: { value: 0, units: 'lb' },
+            price: { value: 0, denomination: 'gp' },
+            equipped: data.equipped !== false,
+            activation: {
+              type: data.activationType ?? 'action',
+              value: 1,
+              condition: '',
+              override: false,
+            },
+            range: rangeObj,
+            damage: { base: baseDamagePart },
+            type: { value: data.weaponClass ?? 'natural', baseItem: '' },
+            properties: data.properties as string[],
+            proficient: 1,
+            uses: buildUsesField(data.uses),
+            ...masteryField,
+            activities: {
+              [attackActivityId]: attackActivity,
+              [saveActivityId]: saveActivity,
+            },
+          },
+        };
+      } else {
+        // Tier 3 — no live template available, build fully from scratch.
+        itemData = {
+          name: data.featureName,
+          type: 'weapon',
+          system: {
+            description: {
+              value: data.description ?? '',
+              chat: '',
+              unidentified: '',
+            },
+            source: {
+              custom: '',
+              book: data.sourceBook ?? '',
+              page: data.sourcePage ?? '',
+              license: '',
+              rules: sourceRules,
+            },
+            quantity: 1,
+            weight: { value: 0, units: 'lb' },
+            price: { value: 0, denomination: 'gp' },
+            attunement: '',
+            equipped: data.equipped !== false,
+            rarity: '',
+            identified: true,
+            activation: {
+              type: data.activationType ?? 'action',
+              value: 1,
+              condition: '',
+              override: false,
+            },
+            duration: { value: '', units: '' },
+            cover: null,
+            target: {
+              template: {
+                count: '',
+                contiguous: false,
+                type: '',
+                size: '',
+                width: '',
+                height: '',
+                units: '',
               },
-              duration: { units: 'inst', concentration: false, override: false },
-              effects: [],
-              range: { units: 'self', override: false },
-              uses: { spent: 0, recovery: [] }, // NO max
-              consumption: { scaling: { allowed: false }, spellSlot: true, targets: [] },
-              target: {
-                template: {
-                  count: '',
-                  contiguous: false,
-                  type: '',
-                  size: '',
-                  width: '',
-                  height: '',
-                  units: '',
+              affects: { count: '', type: '', choice: false, special: '' },
+              prompt: true,
+              override: false,
+            },
+            range: rangeObj,
+            uses: buildUsesField(data.uses),
+            damage: { base: baseDamagePart },
+            type: { value: data.weaponClass ?? 'natural', baseItem: '' },
+            properties: data.properties as string[],
+            proficient: 1,
+            magicalBonus: null,
+            ...masteryField,
+            activities: {
+              // ── Activity 1: attack (sort 0) ───────────────────────────────
+              [attackActivityId]: {
+                _id: attackActivityId,
+                type: 'attack',
+                name: '',
+                img: '',
+                sort: 0,
+                description: {},
+                activation: {
+                  type: data.activationType ?? 'action',
+                  value: 1,
+                  condition: '',
+                  override: false,
                 },
-                affects: { count: '1', type: 'creature', choice: false, special: '' },
-                override: false,
-                prompt: true,
+                duration: { units: '', value: '', override: false },
+                target: {
+                  template: {
+                    count: '',
+                    contiguous: false,
+                    type: '',
+                    size: '',
+                    width: '',
+                    height: '',
+                    units: '',
+                  },
+                  affects: { count: '', type: '', choice: false, special: '' },
+                  prompt: true,
+                  override: false,
+                },
+                range: { units: 'self', override: false },
+                uses: { spent: 0, max: '', recovery: [] },
+                consumption: {
+                  targets: [],
+                  scaling: { allowed: false, max: '' },
+                  spellSlot: true,
+                },
+                attack: {
+                  bonus: data.attackBonus > 0 ? String(data.attackBonus) : '',
+                  critical: { threshold: null },
+                  flat: false,
+                  type: { value: data.attackType ?? 'melee', classification },
+                  ...abilityField,
+                },
+                damage: {
+                  critical: { bonus: '' },
+                  includeBase: true,
+                  parts: activityDamageParts,
+                },
+                effects: [],
+                save: { ability: '', dc: { formula: '', calculation: '' } },
               },
-              damage: {
-                onSave: data.saveOnSave ?? 'none',
-                parts: saveActivityDamageParts,
-                // NO includeBase — save damage is independent from weapon base damage
-              },
-              save: {
-                ability: [data.saveAbility],
-                dc: { calculation: '', formula: String(data.saveDC) },
+
+              // ── Activity 2: save (sort 1) ─────────────────────────────────
+              [saveActivityId]: {
+                _id: saveActivityId,
+                type: 'save',
+                name: '',
+                sort: 1,
+                description: {}, // {} — not { chatFlavor: '' } (real schema confirmed)
+                activation: {
+                  type: data.activationType ?? 'action',
+                  value: 1,
+                  override: false,
+                  // NO condition — per real schema
+                },
+                duration: { units: 'inst', concentration: false, override: false },
+                effects: [],
+                range: { units: 'self', override: false },
+                uses: { spent: 0, recovery: [] }, // NO max
+                consumption: { scaling: { allowed: false }, spellSlot: true, targets: [] },
+                target: {
+                  template: {
+                    count: '',
+                    contiguous: false,
+                    type: '',
+                    size: '',
+                    width: '',
+                    height: '',
+                    units: '',
+                  },
+                  affects: { count: '1', type: 'creature', choice: false, special: '' },
+                  override: false,
+                  prompt: true,
+                },
+                damage: {
+                  onSave: data.saveOnSave ?? 'none',
+                  parts: saveActivityDamageParts,
+                  // NO includeBase — save damage is independent from weapon base damage
+                },
+                save: {
+                  ability: [data.saveAbility],
+                  dc: { calculation: '', formula: String(data.saveDC) },
+                },
               },
             },
           },
-        },
-      };
+        };
+      }
 
       // 10. Create the item on the actor
       const created = (await actor.createEmbeddedDocuments('Item', [itemData]))[0];
@@ -10036,6 +11039,146 @@ export class FoundryDataAccess {
   }
 
   /**
+   * Create, update, or delete an ActiveEffect on an Actor or one of its embedded Items.
+   */
+  async manageEffects(data: {
+    action: 'create' | 'update' | 'delete';
+    actorIdentifier: string;
+    parentType: 'actor' | 'item';
+    parentItemIdentifier?: string;
+    effectId?: string;
+    effectData?: Record<string, any>;
+  }): Promise<any> {
+    this.validateFoundryState();
+
+    if (!['create', 'update', 'delete'].includes(data.action)) {
+      throw new Error(`Unsupported effect action: ${data.action}`);
+    }
+    if (!['actor', 'item'].includes(data.parentType)) {
+      throw new Error(`Unsupported effect parentType: ${data.parentType}`);
+    }
+
+    const actor =
+      game.actors?.get(data.actorIdentifier) ??
+      game.actors?.find(
+        (candidate: any) => candidate.name?.toLowerCase() === data.actorIdentifier.toLowerCase()
+      );
+    if (!actor) {
+      throw new Error(`Actor not found: ${data.actorIdentifier}`);
+    }
+
+    let parent: any = actor;
+    let parentItem: any;
+    if (data.parentType === 'item') {
+      if (!data.parentItemIdentifier) {
+        throw new Error('parentItemIdentifier is required when parentType is "item"');
+      }
+      parentItem =
+        actor.items?.get(data.parentItemIdentifier) ??
+        actor.items?.find(
+          (item: any) => item.name?.toLowerCase() === data.parentItemIdentifier!.toLowerCase()
+        );
+      if (!parentItem) {
+        throw new Error(`Item not found on actor "${actor.name}": ${data.parentItemIdentifier}`);
+      }
+      parent = parentItem;
+    }
+
+    const parentMetadata =
+      data.parentType === 'item'
+        ? { scope: 'item', parentItemId: parentItem.id, parentItemName: parentItem.name }
+        : { scope: 'actor' };
+    // ActiveEffect#toObject() is already plain data. Avoid sanitizeData here because
+    // an effect change's `key` field is meaningful gameplay data, not a credential.
+    const serializeEffect = (effect: any): Record<string, any> =>
+      (effect?.toObject?.() ?? effect?._source ?? {}) as Record<string, any>;
+    const getEffect = (effectId: string): any =>
+      parent.effects?.get?.(effectId) ??
+      parent.effects?.contents?.find((effect: any) => effect.id === effectId) ??
+      (Array.isArray(parent.effects)
+        ? parent.effects.find((effect: any) => effect.id === effectId)
+        : undefined);
+
+    if (data.action === 'create') {
+      if (
+        !data.effectData ||
+        typeof data.effectData.name !== 'string' ||
+        data.effectData.name.trim().length === 0
+      ) {
+        throw new Error('effectData.name is required for create and must be a non-empty string');
+      }
+
+      const created = await parent.createEmbeddedDocuments('ActiveEffect', [data.effectData]);
+      const effect = created?.[0];
+      if (!effect) {
+        throw new Error('Foundry failed to create the ActiveEffect');
+      }
+
+      return {
+        success: true,
+        action: 'create',
+        entityType: 'effect',
+        effect: serializeEffect(effect),
+        ...parentMetadata,
+      };
+    }
+
+    if (!data.effectId) {
+      throw new Error(`effectId is required for ${data.action}`);
+    }
+
+    const existingEffect = getEffect(data.effectId);
+    if (!existingEffect) {
+      const parentDescription =
+        data.parentType === 'item'
+          ? `Item "${parentItem.name}" on actor "${actor.name}"`
+          : `actor "${actor.name}"`;
+      throw new Error(`ActiveEffect ${data.effectId} not found on ${parentDescription}`);
+    }
+
+    if (data.action === 'update') {
+      if (!data.effectData || Object.keys(data.effectData).length === 0) {
+        throw new Error('effectData is required for update and must contain at least one field');
+      }
+      for (const idField of ['_id', 'id'] as const) {
+        if (
+          Object.prototype.hasOwnProperty.call(data.effectData, idField) &&
+          data.effectData[idField] !== data.effectId
+        ) {
+          throw new Error(`effectData.${idField} must match effectId when provided`);
+        }
+      }
+
+      const updated = await parent.updateEmbeddedDocuments('ActiveEffect', [
+        { _id: data.effectId, ...data.effectData },
+      ]);
+      const effect = updated?.[0] ?? getEffect(data.effectId);
+      if (!effect) {
+        throw new Error(`Foundry failed to return updated ActiveEffect ${data.effectId}`);
+      }
+
+      return {
+        success: true,
+        action: 'update',
+        entityType: 'effect',
+        effect: serializeEffect(effect),
+        ...parentMetadata,
+      };
+    }
+
+    const effectName = existingEffect.name || existingEffect.label || 'Unknown Effect';
+    await parent.deleteEmbeddedDocuments('ActiveEffect', [data.effectId]);
+    return {
+      success: true,
+      action: 'delete',
+      entityType: 'effect',
+      effectId: data.effectId,
+      effectName,
+      ...parentMetadata,
+    };
+  }
+
+  /**
    * Update one or more items embedded in an actor.
    */
   async updateActorItems(
@@ -10205,15 +11348,109 @@ function npcFormatCR(value: number): string {
 
 function npcBuildSkillsBlock(
   skills: Array<{ skill: string; proficiency: string }>
-): Record<string, { value: number }> {
-  const result: Record<string, { value: number }> = {};
+): Record<string, { value: number; ability?: string }> {
+  const result: Record<string, { value: number; ability?: string }> = {};
+  // Read governing ability live from CONFIG.DND5E.skills — the currently-loaded system/rules
+  // config (full core books, not a hardcoded SRD snapshot) — rather than a static map, so this
+  // stays correct even if the system's skill-ability associations ever change.
+  const dnd5eConfig: any = (globalThis as any).CONFIG?.DND5E;
   for (const { skill, proficiency } of skills) {
     const key = NPC_SKILL_MAP[skill];
     if (key) {
-      result[key] = { value: proficiency === 'expert' ? 2 : 1 };
+      const entry: { value: number; ability?: string } = {
+        value: proficiency === 'expert' ? 2 : 1,
+      };
+      const liveAbility: string | undefined = dnd5eConfig?.skills?.[key]?.ability;
+      if (liveAbility) entry.ability = liveAbility;
+      result[key] = entry;
     }
   }
   return result;
+}
+
+// =============================================================================
+// Live compendium templates — Tier 2 of the build strategy for hand-built features.
+//
+// Tom's instruction (2026-09-05): if a feature is standard, take it straight from what already
+// exists; if it's custom, build it on top of the closest real thing available; only build fully
+// from scratch if there's genuinely no reasonable template. Hand-typing an entire Activity's data
+// shape from a remembered/hardcoded snapshot (the previous approach — one such snapshot was
+// explicitly "verified against dnd5e 5.1.8 Banshee Wail" per a comment left in this file) goes
+// stale as the system/module versions move on: confirmed live on 2026-09-05 that the *current*
+// (5.3.3, 2024-converted) Banshee's "Deathly Wail" is now a `save`-type activity, not the `damage`
+// type the old hardcoded template assumed — the exact kind of drift this approach exists to avoid.
+//
+// This fetches a real, live item from an installed compendium and returns its full item-level
+// system data plus one embedded activity of the requested type, to use as a structural scaffold —
+// callers override only the specific fields that make the feature custom (ability, damage, range,
+// etc.) and keep everything else (module-added boilerplate — Midi-QOL fields, region behavior,
+// whatever a future system update adds — none of which this file has to know about or keep in
+// sync by hand). Returns null if the compendium/item/activity-of-that-type isn't found, so callers
+// fall back to full from-scratch construction (Tier 3) rather than fail outright.
+// =============================================================================
+
+async function fetchLiveTemplate(
+  packId: string,
+  itemName: string,
+  activityType: string
+): Promise<{ itemSystem: Record<string, any>; activity: Record<string, any> } | null> {
+  try {
+    const pack = (game as any).packs?.get(packId);
+    if (!pack) return null;
+    const index = await pack.getIndex();
+    const entry = index.find((e: any) => e.name === itemName);
+    if (!entry) return null;
+    const doc = await pack.getDocument(entry._id);
+    const raw = doc.toObject();
+    const activityEntry = Object.values(raw.system?.activities ?? {}).find(
+      (a: any) => a.type === activityType
+    ) as Record<string, any> | undefined;
+    if (!activityEntry) return null;
+    return {
+      itemSystem: raw.system,
+      activity: (foundry.utils as any).deepClone(activityEntry),
+    };
+  } catch (err) {
+    console.warn(
+      `[${MODULE_ID}] fetchLiveTemplate failed for ${packId}/${itemName} (${activityType}) — falling back to from-scratch construction`,
+      err
+    );
+    return null;
+  }
+}
+
+// =============================================================================
+// Limited-use tracker — item-level `system.uses`, confirmed live (2026-09-05) against real
+// compendium examples rather than guessed: Adult Red Dragon's "Fire Breath" stores its
+// Recharge 5-6 as `{max:"1", recovery:[{period:"recharge", type:"recoverAll", formula:"5"}]}`
+// at the ITEM level (its own Activity's `uses` field stays empty) — confirmed the same shape
+// recurs across other monsters' recharge abilities (Vampire's Charm, Marilith's Teleport, Pit
+// Fiend's Hellfire Spellcasting). Per-day abilities (Archmage's Misty Step/Protective Magic,
+// Githyanki Knight's Misty Step) use `{max:"N", recovery:[{period:"day", type:"recoverAll"}]}`.
+// Note "recharge" as a period value doesn't appear in CONFIG.DND5E.limitedUsePeriods at all
+// (only day/dawn/dusk/lr/sr/turn/turnStart/turnEnd/initiative are listed there) — it's handled
+// as a special case elsewhere in the system, so this was only discoverable by reading real
+// stored data, not by inspecting the config schema.
+// =============================================================================
+
+function buildUsesField(uses?: { max: number; per: 'day' | 'recharge'; rechargeOn?: number }): {
+  max: string;
+  recovery: any[];
+  spent: number;
+} {
+  if (!uses) return { max: '', recovery: [], spent: 0 };
+  if (uses.per === 'recharge') {
+    return {
+      max: String(uses.max),
+      recovery: [{ period: 'recharge', type: 'recoverAll', formula: String(uses.rechargeOn ?? 6) }],
+      spent: 0,
+    };
+  }
+  return {
+    max: String(uses.max),
+    recovery: [{ period: 'day', type: 'recoverAll' }],
+    spent: 0,
+  };
 }
 
 // =============================================================================

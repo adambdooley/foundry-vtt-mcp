@@ -414,7 +414,7 @@
 }
 
 /* Form Footer */
-.form-footer {
+.eci-settings .form-footer {
   display: flex;
   justify-content: flex-end;
   padding-top: 1rem;

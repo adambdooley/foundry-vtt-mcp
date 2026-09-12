@@ -97,7 +97,9 @@ VIAddVersionKey "LegalCopyright" "© 2024 Foundry MCP Bridge"
 ; Pages
 !insertmacro MUI_PAGE_WELCOME
 !insertmacro MUI_PAGE_LICENSE "LICENSE.txt"
+!define MUI_PAGE_CUSTOMFUNCTION_PRE DirectoryPagePre
 !insertmacro MUI_PAGE_DIRECTORY
+!define MUI_PAGE_CUSTOMFUNCTION_PRE ComponentsPagePre
 !insertmacro MUI_PAGE_COMPONENTS
 
 ; Custom GPU Selection Page
@@ -123,6 +125,9 @@ Var ComfyUIDownloadName
 Var GPUType
 Var AutoDetectionResult
 Var InstallationSuccess
+Var ExistingInstallDir
+Var IsUpgrade
+Var UpgradeComponentsInitialized
 
 ; Custom GPU selection page variables
 Var Dialog
@@ -145,8 +150,65 @@ Function .onInit
   ; Initialize installation success flag
   StrCpy $InstallationSuccess "false"
 
+  ; Reuse an existing installation directory for in-place upgrades.
+  StrCpy $IsUpgrade "false"
+  StrCpy $UpgradeComponentsInitialized "false"
+  Call DetectExistingInstallation
+
   ; Set Foundry module section as checked by default
   !insertmacro SelectSection SecFoundryModule
+FunctionEnd
+
+Function DirectoryPagePre
+  ; An upgrade must continue in the detected installation directory.
+  StrCmp $IsUpgrade "true" 0 show_directory_page
+  Abort
+
+  show_directory_page:
+  Return
+FunctionEnd
+
+Function DetectExistingInstallation
+  StrCpy $ExistingInstallDir ""
+
+  ; New installers record the installation directory explicitly.
+  ReadRegStr $0 HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\FoundryMCPServer" "InstallLocation"
+  StrCmp $0 "" check_legacy_uninstall_string
+  IfFileExists "$0\Uninstall.exe" existing_install_found check_legacy_uninstall_string
+
+  check_legacy_uninstall_string:
+  ; Older releases only recorded UninstallString. Their value is the path to
+  ; Uninstall.exe, optionally quoted, so derive and validate its parent folder.
+  ReadRegStr $0 HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\FoundryMCPServer" "UninstallString"
+  StrCmp $0 "" check_default_install
+
+  StrCpy $1 $0 1
+  StrCmp $1 '$\"' 0 legacy_uninstall_parent
+  StrCpy $0 $0 "" 1
+  StrLen $1 $0
+  IntOp $1 $1 - 1
+  StrCpy $2 $0 1 $1
+  StrCmp $2 '$\"' 0 legacy_uninstall_parent
+  StrCpy $0 $0 $1
+
+  legacy_uninstall_parent:
+  ${GetParent} "$0" $1
+  IfFileExists "$1\Uninstall.exe" 0 check_default_install
+  StrCpy $0 $1
+  Goto existing_install_found
+
+  check_default_install:
+  ; Final compatibility fallback for releases installed at the historical default.
+  StrCpy $0 "$LOCALAPPDATA\FoundryMCPServer"
+  IfFileExists "$0\Uninstall.exe" existing_install_found no_existing_install
+
+  existing_install_found:
+  StrCpy $ExistingInstallDir $0
+  StrCpy $INSTDIR $ExistingInstallDir
+  StrCpy $IsUpgrade "true"
+
+  no_existing_install:
+  Return
 FunctionEnd
 
 Function DetectFoundryInstallation
@@ -800,10 +862,11 @@ Section "Foundry MCP Server" SecMain
   
   ; Add to Windows Programs list
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\FoundryMCPServer" "DisplayName" "Foundry MCP Server"
-  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\FoundryMCPServer" "UninstallString" "$INSTDIR\Uninstall.exe"
+  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\FoundryMCPServer" "UninstallString" '$\"$INSTDIR\Uninstall.exe$\"'
+  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\FoundryMCPServer" "InstallLocation" "$INSTDIR"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\FoundryMCPServer" "DisplayIcon" "$INSTDIR\icon.ico"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\FoundryMCPServer" "Publisher" "Foundry MCP Bridge"
-  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\FoundryMCPServer" "DisplayVersion" "0.5.0"
+  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\FoundryMCPServer" "DisplayVersion" "${VERSION_BASE}"
   WriteRegDWORD HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\FoundryMCPServer" "NoModify" 1
   WriteRegDWORD HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\FoundryMCPServer" "NoRepair" 1
   
@@ -901,6 +964,15 @@ Section "ComfyUI Map Generation" SecComfyUI
   ; Will download additional 15.7GB for ComfyUI + AI models
   SectionSetSize ${SecComfyUI} 16515072
 
+  ; Never overwrite an existing ComfyUI tree. This preserves models, custom
+  ; nodes, configuration, and generated data even if the component is selected.
+  IfFileExists "$INSTDIR\ComfyUI\*.*" preserve_existing_comfyui install_comfyui
+
+  preserve_existing_comfyui:
+    DetailPrint "Existing ComfyUI installation found - preserving it unchanged"
+    Goto comfyui_done
+
+  install_comfyui:
   DetailPrint "Installing ComfyUI for AI-powered map generation..."
 
   ; Note: ComfyUI portable build includes its own Python runtime, so no separate Python installation needed
@@ -925,10 +997,6 @@ Section "ComfyUI Map Generation" SecComfyUI
 
   comfy_portable_download:
     DetailPrint "This may take several minutes depending on your internet connection..."
-
-    ; Clean up any existing ComfyUI installation
-    DetailPrint "Cleaning up any existing ComfyUI installation..."
-    RMDir /r "$INSTDIR\ComfyUI"
 
     ; Download ComfyUI portable Windows build (no git required)
     DetailPrint "Downloading ComfyUI Windows portable build from GitHub (~2GB)..."
@@ -1135,7 +1203,24 @@ Section "ComfyUI Map Generation" SecComfyUI
 
   DetailPrint "ComfyUI installation complete!"
 
+  comfyui_done:
 SectionEnd
+
+Function ComponentsPagePre
+  ; Section defaults are finalized after .onInit. Clear SF_SELECTED immediately
+  ; before the Components page is first rendered so upgrades do not opt in to
+  ; ComfyUI, while preserving any later manual selection when navigating back.
+  StrCmp $IsUpgrade "true" 0 components_page_done
+  StrCmp $UpgradeComponentsInitialized "true" components_page_done
+
+  SectionGetFlags ${SecComfyUI} $0
+  IntOp $0 $0 & ${SECTION_OFF}
+  SectionSetFlags ${SecComfyUI} $0
+  StrCpy $UpgradeComponentsInitialized "true"
+
+  components_page_done:
+  Return
+FunctionEnd
 
 ;--------------------------------
 ; Section Descriptions

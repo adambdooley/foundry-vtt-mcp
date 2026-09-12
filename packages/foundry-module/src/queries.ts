@@ -30,6 +30,7 @@ export class QueryHandlers {
 
     // Character/Actor queries
     CONFIG.queries[`${modulePrefix}.getCharacterInfo`] = this.handleGetCharacterInfo.bind(this);
+    CONFIG.queries[`${modulePrefix}.getCharacterEntity`] = this.handleGetCharacterEntity.bind(this);
     CONFIG.queries[`${modulePrefix}.listActors`] = this.handleListActors.bind(this);
 
     // Compendium queries
@@ -43,6 +44,9 @@ export class QueryHandlers {
     CONFIG.queries[`${modulePrefix}.getActiveScene`] = this.handleGetActiveScene.bind(this);
     CONFIG.queries[`${modulePrefix}.list-scenes`] = this.handleListScenes.bind(this);
     CONFIG.queries[`${modulePrefix}.switch-scene`] = this.handleSwitchScene.bind(this);
+    CONFIG.queries[`${modulePrefix}.update-scene-music`] = this.handleUpdateSceneMusic.bind(this);
+    CONFIG.queries[`${modulePrefix}.manage-playlists`] = this.handleManagePlaylists.bind(this);
+    CONFIG.queries[`${modulePrefix}.control-playlist`] = this.handleControlPlaylist.bind(this);
 
     // World queries
     CONFIG.queries[`${modulePrefix}.getWorldInfo`] = this.handleGetWorldInfo.bind(this);
@@ -134,6 +138,7 @@ export class QueryHandlers {
     CONFIG.queries[`${modulePrefix}.deleteActors`] = this.handleDeleteActors.bind(this);
     CONFIG.queries[`${modulePrefix}.updateActorItems`] = this.handleUpdateActorItems.bind(this);
     CONFIG.queries[`${modulePrefix}.deleteActorItems`] = this.handleDeleteActorItems.bind(this);
+    CONFIG.queries[`${modulePrefix}.manageEffects`] = this.handleManageEffects.bind(this);
 
     // Phase 7: Token manipulation queries
     CONFIG.queries[`${modulePrefix}.move-token`] = this.handleMoveToken.bind(this);
@@ -219,6 +224,37 @@ export class QueryHandlers {
     } catch (error) {
       throw new Error(
         `Failed to get character info: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  /**
+   * Handle character entity request
+   */
+  private async handleGetCharacterEntity(data: {
+    characterIdentifier: string;
+    entityIdentifier: string;
+  }): Promise<any> {
+    try {
+      // SECURITY: Silent GM validation
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) {
+        return { error: 'Access denied', success: false };
+      }
+
+      this.dataAccess.validateFoundryState();
+
+      if (!data.characterIdentifier) {
+        throw new Error('characterIdentifier is required');
+      }
+      if (!data.entityIdentifier) {
+        throw new Error('entityIdentifier is required');
+      }
+
+      return await this.dataAccess.getCharacterEntity(data);
+    } catch (error) {
+      throw new Error(
+        `Failed to get character entity: ${error instanceof Error ? error.message : 'Unknown error'}`
       );
     }
   }
@@ -1130,6 +1166,57 @@ export class QueryHandlers {
     } catch (error) {
       throw new Error(
         `Failed to create actor from data: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  private async handleUpdateSceneMusic(data: any): Promise<any> {
+    try {
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) {
+        return { error: 'Access denied', success: false };
+      }
+      if (!data?.scene_identifier) {
+        throw new Error('scene_identifier is required');
+      }
+      return await this.dataAccess.updateSceneMusic(data);
+    } catch (error) {
+      throw new Error(
+        `Failed to update scene music: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  private async handleManagePlaylists(data: any): Promise<any> {
+    try {
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) {
+        return { error: 'Access denied', success: false };
+      }
+      if (!data?.action) {
+        throw new Error('action is required (create | update | delete | describe)');
+      }
+      return await this.dataAccess.managePlaylists(data);
+    } catch (error) {
+      throw new Error(
+        `Failed to manage playlists: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  private async handleControlPlaylist(data: any): Promise<any> {
+    try {
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) {
+        return { error: 'Access denied', success: false };
+      }
+      if (!data?.playlist || !data?.command) {
+        throw new Error('playlist and command are required');
+      }
+      return await this.dataAccess.controlPlaylist(data);
+    } catch (error) {
+      throw new Error(
+        `Failed to control playlist: ${error instanceof Error ? error.message : 'Unknown error'}`
       );
     }
   }
@@ -2149,5 +2236,19 @@ export class QueryHandlers {
     if (!gmCheck.allowed) return { error: 'Access denied', success: false };
     this.dataAccess.validateFoundryState();
     return this.dataAccess.deleteActorItems(data.actorIdentifier, data.itemIds);
+  }
+
+  private async handleManageEffects(data: {
+    action: 'create' | 'update' | 'delete';
+    actorIdentifier: string;
+    parentType: 'actor' | 'item';
+    parentItemIdentifier?: string;
+    effectId?: string;
+    effectData?: Record<string, any>;
+  }): Promise<any> {
+    const gmCheck = this.validateGMAccess();
+    if (!gmCheck.allowed) return { error: 'Access denied', success: false };
+    this.dataAccess.validateFoundryState();
+    return this.dataAccess.manageEffects(data);
   }
 }
