@@ -3956,6 +3956,24 @@ export class FoundryDataAccess {
         return obj.map(item => this.removeSensitiveFields(item, visited, depth + 1));
       }
 
+      // Map-like collections (including Foundry's Collection, which extends Map —
+      // e.g. dnd5e's Item#system.activities) store their entries outside of own
+      // enumerable properties. Object.keys() below always sees none for these,
+      // which would silently serialize every Map-shaped field as {} regardless
+      // of its actual contents. Convert entries to a plain object first instead.
+      if (obj instanceof Map) {
+        const sanitizedMap: Record<string, any> = {};
+        for (const [key, value] of obj.entries()) {
+          sanitizedMap[String(key)] = this.removeSensitiveFields(value, visited, depth + 1);
+        }
+        return sanitizedMap;
+      }
+      if (obj instanceof Set) {
+        return Array.from(obj.values()).map(value =>
+          this.removeSensitiveFields(value, visited, depth + 1)
+        );
+      }
+
       // Create a new sanitized object
       const sanitized: any = {};
 
@@ -11051,7 +11069,11 @@ export class FoundryDataAccess {
   async updateActorItems(
     actorIdentifier: string,
     itemUpdates: Array<{ id: string; name?: string; img?: string; system?: Record<string, any> }>
-  ): Promise<{ updated: Array<{ id: string; name: string }>; total: number }> {
+  ): Promise<{
+    updated: Array<{ id: string; name: string }>;
+    total: number;
+    warnings?: string[];
+  }> {
     const actor =
       (game.actors.get(actorIdentifier) as any) ??
       (game.actors.find(
@@ -11059,22 +11081,596 @@ export class FoundryDataAccess {
       ) as any);
     if (!actor) throw new Error(`Actor not found: ${actorIdentifier}`);
 
-    const updated: Array<{ id: string; name: string }> = [];
+    const seenItemIds = new Set<string>();
+    const duplicateItemIds = new Set<string>();
+    for (const update of itemUpdates) {
+      if (seenItemIds.has(update.id)) duplicateItemIds.add(update.id);
+      seenItemIds.add(update.id);
+    }
+    if (duplicateItemIds.size > 0) {
+      throw new Error(
+        `Duplicate Item IDs are not supported in update-items: ${Array.from(duplicateItemIds).join(
+          ', '
+        )}`
+      );
+    }
 
-    for (const u of itemUpdates) {
+    const isRecord = (value: unknown): value is Record<string, any> =>
+      value !== null && typeof value === 'object' && !Array.isArray(value);
+
+    type ActivityCreateOperation = {
+      id: string;
+      type: string;
+      data: Record<string, any>;
+      expectedSource?: Record<string, any>;
+    };
+    type ActivityUpdateOperation = {
+      id: string;
+      updates: Record<string, any>;
+      expectedSource?: Record<string, any>;
+    };
+    type ActivityDeleteOperation = { id: string };
+
+    const resolvedUpdates = itemUpdates.map(u => {
       const item = actor.items.get(u.id) as any;
       if (!item) throw new Error(`Item ${u.id} not found on actor "${actor.name}"`);
 
+      const snapshot = item.toObject();
       const patch: Record<string, any> = {};
+      const activityCreates: ActivityCreateOperation[] = [];
+      const activityUpdates: ActivityUpdateOperation[] = [];
+      const activityDeletes: ActivityDeleteOperation[] = [];
       if (u.name !== undefined) patch.name = u.name;
       if (u.img !== undefined) patch.img = u.img;
-      if (u.system !== undefined) patch.system = u.system;
+      if (u.system !== undefined) {
+        const system = (foundry.utils as any).deepClone(u.system);
+        const supportsNativeActivityOperations =
+          Boolean((CONFIG as any).DND5E?.activityTypes) ||
+          typeof item.createActivity === 'function' ||
+          typeof item.updateActivity === 'function' ||
+          typeof item.deleteActivity === 'function';
 
-      await item.update(patch);
-      updated.push({ id: item.id, name: u.name ?? item.name });
+        if (!supportsNativeActivityOperations) {
+          patch.system = system;
+        } else {
+          const remainingSystem: Record<string, any> = {};
+          const activityEntries: Array<[string, unknown]> = [];
+          for (const [key, value] of Object.entries(system)) {
+            if (key === 'activities' && isRecord(value)) {
+              activityEntries.push(...Object.entries(value));
+            } else if (key.startsWith('activities.-=')) {
+              activityEntries.push([key.slice('activities.'.length), value]);
+            } else {
+              remainingSystem[key] = value;
+            }
+          }
+          if (Object.keys(remainingSystem).length > 0) patch.system = remainingSystem;
+
+          const existingActivities = isRecord(snapshot.system?.activities)
+            ? snapshot.system.activities
+            : {};
+          const activityIds = new Set<string>();
+          for (const [rawActivityId, value] of activityEntries) {
+            const deleting = rawActivityId.startsWith('-=');
+            const activityId = deleting ? rawActivityId.slice(2) : rawActivityId;
+            if (!activityId) throw new Error(`Item ${item.id} has an empty Activity ID`);
+            if (activityIds.has(activityId)) {
+              throw new Error(`Duplicate Activity ID in Item ${item.id} update: ${activityId}`);
+            }
+            activityIds.add(activityId);
+
+            if (deleting) {
+              activityDeletes.push({ id: activityId });
+              continue;
+            }
+            if (!isRecord(value)) {
+              throw new Error(`Activity ${activityId} update must be an object`);
+            }
+            if (value._id !== undefined && value._id !== activityId) {
+              throw new Error(
+                `Activity ${activityId} validation errors: internal _id must be matching its object key (received ${String(
+                  value._id
+                )})`
+              );
+            }
+
+            const activityData = (foundry.utils as any).deepClone(value);
+            if (Object.prototype.hasOwnProperty.call(existingActivities, activityId)) {
+              activityUpdates.push({ id: activityId, updates: activityData });
+            } else {
+              const type = activityData.type;
+              if (typeof type !== 'string' || !type) {
+                throw new Error(`New Activity ${activityId} requires a valid type`);
+              }
+              activityData._id ??= activityId;
+              activityCreates.push({ id: activityId, type, data: activityData });
+            }
+          }
+        }
+      }
+
+      return {
+        item,
+        patch,
+        snapshot,
+        expectedSource: undefined as Record<string, any> | undefined,
+        activityCreates,
+        activityUpdates,
+        activityDeletes,
+        resultName: u.name ?? item.name,
+      };
+    });
+
+    const createIsolatedActor = (itemSource: Record<string, any>): any => {
+      const ActorDocumentClass = (CONFIG as any).Actor?.documentClass;
+      if (typeof ActorDocumentClass !== 'function') {
+        throw new Error(`Actor ${actor.id} does not support isolated preflight validation`);
+      }
+
+      const actorSource = (foundry.utils as any).deepClone(actor.toObject());
+      // Limit the detached graph to the target Item. This keeps corrupt data on an
+      // unrelated embedded Item from preventing an otherwise valid repair/update.
+      actorSource.items = [(foundry.utils as any).deepClone(itemSource)];
+
+      // Move an invalid target Item into Foundry's invalid-document collection so
+      // the detached parent remains usable and the Item can still be repaired.
+      return new ActorDocumentClass(actorSource, {
+        strict: false,
+        fallback: false,
+        dropInvalidEmbedded: true,
+      });
+    };
+
+    const getIsolatedItem = (isolatedActor: any, itemId: string): any => {
+      const isolatedItem =
+        isolatedActor?.getEmbeddedDocument?.('Item', itemId, { invalid: true }) ??
+        isolatedActor?.items?.get(itemId);
+      if (!isolatedItem || typeof isolatedItem.updateSource !== 'function') {
+        throw new Error(`Item ${itemId} does not support isolated preflight validation`);
+      }
+      return isolatedItem;
+    };
+
+    const getActivityDocument = (item: any, activityId: string): any =>
+      item?.system?.activities?.get?.(activityId);
+
+    const getActivitySource = (item: any, activityId: string): Record<string, any> | undefined => {
+      const activity = getActivityDocument(item, activityId);
+      if (activity?.toObject) return activity.toObject();
+      const itemSource = item?.toObject?.();
+      const activities = itemSource?.system?.activities;
+      return isRecord(activities) && isRecord(activities[activityId])
+        ? activities[activityId]
+        : undefined;
+    };
+
+    // Re-reads this Actor through Foundry's low-level DatabaseBackend "get" operation
+    // instead of the client-cached `actor`/`item` references that createActivity() just
+    // mutated in place. A live Foundry world keeps every world Actor loaded and synced
+    // via socket broadcast, so the normal `actor.items.get(...)` accessor can reflect a
+    // client-side apply of a broadcast even when the corresponding server-side write did
+    // not durably persist. This asks the server to look up its own current copy fresh.
+    // Not available/typed on every Foundry version, so callers must treat a thrown error
+    // or empty result as "independent verification unavailable", not as a negative result.
+    const fetchIndependentItemSource = async (
+      itemId: string
+    ): Promise<Record<string, any> | undefined> => {
+      const ActorDocumentClass = (CONFIG as any).Actor?.documentClass;
+      const database = ActorDocumentClass?.database;
+      if (typeof database?.get !== 'function') {
+        throw new Error('Independent Actor lookup is not supported on this Foundry version');
+      }
+      const results = await database.get(
+        ActorDocumentClass,
+        { query: { _id: actor.id } },
+        (game as any).user
+      );
+      const rawActorSource = Array.isArray(results) ? results[0] : results;
+      if (!rawActorSource) {
+        throw new Error(`Independent lookup returned no Actor for: ${actor.id}`);
+      }
+      const actorSource =
+        typeof rawActorSource.toObject === 'function' ? rawActorSource.toObject() : rawActorSource;
+      const items = Array.isArray(actorSource?.items) ? actorSource.items : [];
+      const itemSource = items.find((candidate: any) => candidate?._id === itemId);
+      if (!itemSource) return undefined;
+      return isRecord(itemSource) ? itemSource : undefined;
+    };
+
+    // Foundry V13 diffObject is directional and lacks V14's bidirectional option.
+    // Comparing both directions detects additions, changes, and removals on both.
+    const hasStructuralDiff = (left: unknown, right: unknown): boolean => {
+      const forward = (foundry.utils as any).diffObject(left, right);
+      if (Object.keys(forward ?? {}).length > 0) return true;
+
+      const reverse = (foundry.utils as any).diffObject(right, left);
+      return Object.keys(reverse ?? {}).length > 0;
+    };
+
+    const valuesEqual = (expected: unknown, actual: unknown): boolean => {
+      if (isRecord(expected) && isRecord(actual)) {
+        return !hasStructuralDiff(expected, actual);
+      }
+      if (Array.isArray(expected) && Array.isArray(actual)) {
+        return !hasStructuralDiff(expected, actual);
+      }
+      return Object.is(expected, actual);
+    };
+
+    const matchesExpectedChanges = (
+      actual: Record<string, any> | undefined,
+      expected: Record<string, any> | undefined,
+      changes: Record<string, any>
+    ): boolean => {
+      for (const [rawKey, requestedValue] of Object.entries(changes)) {
+        const dotIndex = rawKey.indexOf('.');
+        if (dotIndex >= 0) {
+          const head = rawKey.slice(0, dotIndex);
+          const tail = rawKey.slice(dotIndex + 1);
+          if (
+            !matchesExpectedChanges(
+              isRecord(actual?.[head]) ? actual?.[head] : undefined,
+              isRecord(expected?.[head]) ? expected?.[head] : undefined,
+              { [tail]: requestedValue }
+            )
+          ) {
+            return false;
+          }
+          continue;
+        }
+
+        if (rawKey.startsWith('-=')) {
+          const deletedKey = rawKey.slice(2);
+          if (Object.prototype.hasOwnProperty.call(actual ?? {}, deletedKey)) return false;
+          continue;
+        }
+
+        const actualValue = actual?.[rawKey];
+        const expectedValue = expected?.[rawKey];
+        if (isRecord(requestedValue)) {
+          if (Object.keys(requestedValue).length === 0) {
+            if (!valuesEqual(expectedValue, actualValue)) return false;
+          } else if (
+            !matchesExpectedChanges(
+              isRecord(actualValue) ? actualValue : undefined,
+              isRecord(expectedValue) ? expectedValue : undefined,
+              requestedValue
+            )
+          ) {
+            return false;
+          }
+        } else if (!valuesEqual(expectedValue, actualValue)) {
+          return false;
+        }
+      }
+      return true;
+    };
+
+    type RequestedPath = {
+      path: string[];
+      deletion: boolean;
+      requestedValue: unknown;
+    };
+
+    const collectRequestedPaths = (
+      changes: Record<string, any>,
+      prefix: string[] = []
+    ): RequestedPath[] => {
+      const requestedPaths: RequestedPath[] = [];
+      for (const [rawKey, requestedValue] of Object.entries(changes)) {
+        const segments = rawKey.split('.');
+        const finalSegment = segments[segments.length - 1];
+        const deletion = finalSegment.startsWith('-=');
+        if (deletion) segments[segments.length - 1] = finalSegment.slice(2);
+        const path = [...prefix, ...segments];
+
+        if (!deletion && isRecord(requestedValue) && Object.keys(requestedValue).length > 0) {
+          requestedPaths.push(...collectRequestedPaths(requestedValue, path));
+        } else {
+          requestedPaths.push({ path, deletion, requestedValue });
+        }
+      }
+      return requestedPaths;
+    };
+
+    const getPathState = (
+      source: Record<string, any> | undefined,
+      path: string[]
+    ): { exists: boolean; value: unknown } => {
+      let current: unknown = source;
+      for (const segment of path) {
+        if (!isRecord(current) || !Object.prototype.hasOwnProperty.call(current, segment)) {
+          return { exists: false, value: undefined };
+        }
+        current = current[segment];
+      }
+      return { exists: true, value: current };
+    };
+
+    const pathStatesEqual = (
+      left: { exists: boolean; value: unknown },
+      right: { exists: boolean; value: unknown }
+    ): boolean =>
+      left.exists === right.exists && (!left.exists || valuesEqual(left.value, right.value));
+
+    const assertExpectedApplication = (
+      label: string,
+      changes: Record<string, any>,
+      originalSource: Record<string, any>,
+      expectedBefore: Record<string, any>,
+      expectedSource: Record<string, any>,
+      expectedChanges: Record<string, any> | undefined
+    ): void => {
+      const unsatisfiedPaths = collectRequestedPaths(changes).filter(requestedPath => {
+        const originalState = getPathState(originalSource, requestedPath.path);
+        if (requestedPath.deletion) return originalState.exists;
+        return (
+          !originalState.exists || !valuesEqual(requestedPath.requestedValue, originalState.value)
+        );
+      });
+
+      if (unsatisfiedPaths.length > 0 && Object.keys(expectedChanges ?? {}).length === 0) {
+        throw new Error(`Isolated ${label} ignored the requested update`);
+      }
+      for (const requestedPath of unsatisfiedPaths) {
+        if (
+          pathStatesEqual(
+            getPathState(expectedBefore, requestedPath.path),
+            getPathState(expectedSource, requestedPath.path)
+          )
+        ) {
+          throw new Error(
+            `Isolated ${label} did not apply requested update path: ${requestedPath.path.join('.')}`
+          );
+        }
+      }
+    };
+
+    // Preflight every ordinary Item patch and native Activity operation before any
+    // live Document method is called.
+    for (const resolvedUpdate of resolvedUpdates) {
+      const { item, patch, snapshot, activityCreates, activityUpdates, activityDeletes } =
+        resolvedUpdate;
+      const preflightActor = createIsolatedActor(snapshot);
+      const validationItem = getIsolatedItem(preflightActor, item.id);
+      if (Object.keys(patch).length > 0) {
+        validationItem.updateSource((foundry.utils as any).deepClone(patch), {
+          dryRun: true,
+          fallback: false,
+        });
+      }
+
+      const expectedActor = createIsolatedActor(snapshot);
+      const expectedItem = getIsolatedItem(expectedActor, item.id);
+      const expectedBefore = expectedItem.toObject();
+      const expectedChanges =
+        Object.keys(patch).length > 0
+          ? expectedItem.updateSource((foundry.utils as any).deepClone(patch), {
+              fallback: false,
+            })
+          : {};
+      const expectedSource = expectedItem.toObject();
+      assertExpectedApplication(
+        `Item model for ${item.id}`,
+        patch,
+        snapshot,
+        expectedBefore,
+        expectedSource,
+        expectedChanges
+      );
+      resolvedUpdate.expectedSource = expectedSource;
+
+      for (const operation of activityCreates) {
+        if (typeof item.createActivity !== 'function') {
+          throw new Error(`Item ${item.id} does not support Activity creation`);
+        }
+        const activityConfig = (CONFIG as any).DND5E?.activityTypes?.[operation.type];
+        const ActivityDocumentClass = activityConfig?.documentClass;
+        if (typeof ActivityDocumentClass !== 'function') {
+          throw new Error(
+            `Activity type ${operation.type} not found in CONFIG.DND5E.activityTypes`
+          );
+        }
+
+        const createData = (foundry.utils as any).deepClone(operation.data);
+        const activity = new ActivityDocumentClass(
+          { type: operation.type, ...(foundry.utils as any).deepClone(operation.data) },
+          { parent: expectedItem }
+        );
+        if (typeof activity._preCreate !== 'function') {
+          throw new Error(`Activity type ${operation.type} does not support pre-create validation`);
+        }
+        if (activity._preCreate(createData) === false) {
+          throw new Error(`Activity creation was cancelled during preflight: ${operation.id}`);
+        }
+        const activitySource = activity.toObject();
+        if (activity.id !== operation.id || activitySource?._id !== operation.id) {
+          throw new Error(`Activity model did not preserve requested ID: ${operation.id}`);
+        }
+        delete activitySource.sort;
+        operation.expectedSource = activitySource;
+      }
+
+      for (const operation of activityUpdates) {
+        if (typeof item.updateActivity !== 'function') {
+          throw new Error(`Item ${item.id} does not support Activity updates`);
+        }
+        const validationActivity = getActivityDocument(validationItem, operation.id);
+        const expectedActivity = getActivityDocument(expectedItem, operation.id);
+        if (!validationActivity || !expectedActivity) {
+          throw new Error(`Activity ${operation.id} not found on Item ${item.id}`);
+        }
+        validationActivity.updateSource((foundry.utils as any).deepClone(operation.updates), {
+          dryRun: true,
+          fallback: false,
+        });
+        const activityBefore = expectedActivity.toObject();
+        const activityChanges = expectedActivity.updateSource(
+          (foundry.utils as any).deepClone(operation.updates),
+          { fallback: false }
+        );
+        const activitySource = expectedActivity.toObject();
+        assertExpectedApplication(
+          `Activity model ${operation.id}`,
+          operation.updates,
+          activityBefore,
+          activityBefore,
+          activitySource,
+          activityChanges
+        );
+        operation.expectedSource = activitySource;
+      }
+
+      if (activityDeletes.length > 0 && typeof item.deleteActivity !== 'function') {
+        throw new Error(`Item ${item.id} does not support Activity deletion`);
+      }
     }
 
-    return { updated, total: updated.length };
+    const completedItemIds: string[] = [];
+    const attemptedItemIds = new Set<string>();
+    const unverifiedActivityCreates: string[] = [];
+    try {
+      for (const {
+        item,
+        patch,
+        expectedSource,
+        activityCreates,
+        activityUpdates,
+        activityDeletes,
+      } of resolvedUpdates) {
+        const hasPersistenceOperations =
+          Object.keys(patch).length > 0 ||
+          activityCreates.length > 0 ||
+          activityUpdates.length > 0 ||
+          activityDeletes.length > 0;
+        if (hasPersistenceOperations) attemptedItemIds.add(String(item.id));
+
+        if (Object.keys(patch).length > 0) {
+          const updatedItem = await item.update((foundry.utils as any).deepClone(patch));
+          const currentItem = actor.items.get(item.id) ?? updatedItem ?? item;
+          const currentSource = currentItem.toObject();
+          if (!matchesExpectedChanges(currentSource, expectedSource, patch)) {
+            throw new Error(`Foundry did not apply the requested Item update for: ${item.id}`);
+          }
+        }
+
+        for (const operation of activityCreates) {
+          await item.createActivity(
+            operation.type,
+            (foundry.utils as any).deepClone(operation.data),
+            { renderSheet: false }
+          );
+          // Verify against an independent, server-round-tripped read rather than the
+          // `item` reference createActivity() just mutated in place — that reference can
+          // reflect a client-side socket-applied update even when the server's own write
+          // for a brand-new key did not durably persist.
+          let createdSource: Record<string, any> | undefined;
+          let verifiedIndependently = false;
+          try {
+            const independentItemSource = await fetchIndependentItemSource(item.id);
+            const independentActivities = independentItemSource?.system?.activities;
+            createdSource = isRecord(independentActivities)
+              ? independentActivities[operation.id]
+              : undefined;
+            verifiedIndependently = true;
+          } catch {
+            // Independent verification isn't available on this Foundry version. Fall
+            // back to the cached reference: it can still catch an outright failure (the
+            // Activity is absent even in the client's own optimistic model), but a match
+            // here does not prove the write survived to durable storage.
+            createdSource = getActivitySource(item, operation.id);
+          }
+
+          if (
+            !createdSource ||
+            !matchesExpectedChanges(
+              createdSource,
+              operation.expectedSource,
+              operation.expectedSource ?? {}
+            )
+          ) {
+            throw new Error(`Foundry did not create the requested Activity: ${operation.id}`);
+          }
+
+          if (!verifiedIndependently) {
+            unverifiedActivityCreates.push(`${item.id}:${operation.id}`);
+          }
+        }
+
+        for (const operation of activityUpdates) {
+          await item.updateActivity(
+            operation.id,
+            (foundry.utils as any).deepClone(operation.updates)
+          );
+          const currentActivity = getActivitySource(item, operation.id);
+          if (
+            !currentActivity ||
+            !matchesExpectedChanges(currentActivity, operation.expectedSource, operation.updates)
+          ) {
+            throw new Error(`Foundry did not update the requested Activity: ${operation.id}`);
+          }
+        }
+
+        for (const operation of activityDeletes) {
+          await item.deleteActivity(operation.id);
+          if (getActivitySource(item, operation.id)) {
+            throw new Error(`Foundry did not delete the requested Activity: ${operation.id}`);
+          }
+        }
+        completedItemIds.push(String(item.id));
+      }
+    } catch (error) {
+      const dirtyItemIds: string[] = [];
+      const unverifiableItemIds: string[] = [];
+
+      for (const { item, snapshot } of resolvedUpdates) {
+        if (!attemptedItemIds.has(String(item.id))) continue;
+        try {
+          const currentItem = actor.items.get(item.id) ?? item;
+          const current = currentItem.toObject();
+          if (hasStructuralDiff(snapshot, current)) dirtyItemIds.push(item.id);
+        } catch {
+          unverifiableItemIds.push(item.id);
+        }
+      }
+
+      if (dirtyItemIds.length > 0 || unverifiableItemIds.length > 0) {
+        const message = error instanceof Error ? error.message : 'Unknown persistence error';
+        const completedInfo =
+          completedItemIds.length > 0
+            ? ` Completed and verified Item updates before failure: ${completedItemIds.join(', ')}.`
+            : '';
+        const dirtyInfo =
+          dirtyItemIds.length > 0
+            ? ` Partial item update may have occurred for: ${dirtyItemIds.join(
+                ', '
+              )}. Verify the affected Item state in Foundry.`
+            : '';
+        const unverifiableInfo =
+          unverifiableItemIds.length > 0
+            ? ` The persisted state could not be verified for: ${unverifiableItemIds.join(
+                ', '
+              )}. Inspect the affected Item state in Foundry.`
+            : '';
+        throw new Error(`${message}${dirtyInfo}${unverifiableInfo}${completedInfo}`);
+      }
+
+      throw error;
+    }
+
+    const updated = resolvedUpdates.map(({ item, resultName }) => ({
+      id: item.id,
+      name: resultName,
+    }));
+    const warnings =
+      unverifiedActivityCreates.length > 0
+        ? [
+            `Activity creation could not be independently verified for: ${unverifiedActivityCreates.join(
+              ', '
+            )}. The client-side Item model reflects the new Activity, but this Foundry version does not support an independent server round-trip check, so durable persistence was not confirmed. Inspect the affected Item state in Foundry.`,
+          ]
+        : undefined;
+    return { updated, total: updated.length, ...(warnings ? { warnings } : {}) };
   }
 
   /**
