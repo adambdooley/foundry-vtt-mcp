@@ -4,6 +4,10 @@ import { transactionManager } from './transaction-manager.js';
 // Local type definitions to avoid shared package import issues
 interface CharacterInfo {
   id: string;
+  actorId?: string;
+  tokenId?: string;
+  sceneId?: string;
+  isToken?: boolean;
   name: string;
   type: string;
   img?: string;
@@ -1714,16 +1718,73 @@ export class FoundryDataAccess {
    * Get character/actor information by name or ID
    */
   async getCharacterInfo(identifier: string): Promise<CharacterInfo> {
+    const tokenUuidMatch = /^Scene\.([^.]+)\.Token\.([^.]+)$/.exec(identifier);
+    const scenes = Array.from(
+      ((game.scenes as any)?.contents ?? game.scenes ?? []) as Iterable<any>
+    );
     let actor: Actor | undefined;
+    let token: any;
+    let scene: any;
+
+    // A full Token UUID is unambiguous and takes precedence over Actor lookup.
+    if (tokenUuidMatch) {
+      const [, sceneId, tokenId] = tokenUuidMatch;
+      const uuidResolver = (globalThis as any).fromUuid;
+      const document =
+        typeof uuidResolver === 'function'
+          ? await uuidResolver(identifier)
+          : scenes.find(candidate => candidate.id === sceneId)?.tokens?.get(tokenId);
+
+      if (!document) {
+        throw new Error(`Token not found: ${identifier}`);
+      }
+      if (document.documentName !== 'Token') {
+        throw new Error(`UUID does not resolve to a TokenDocument: ${identifier}`);
+      }
+
+      token = document;
+      scene = document.parent;
+      actor = document.actor;
+      if (!actor) {
+        throw new Error(`Token has no Actor: ${identifier}`);
+      }
+    }
 
     // Try to find by ID first, then by name
-    if (identifier.length === 16) {
+    if (!actor && identifier.length === 16) {
       // Foundry ID length
       actor = game.actors.get(identifier);
     }
 
     if (!actor) {
       actor = game.actors.find(a => a.name?.toLowerCase() === identifier.toLowerCase());
+    }
+
+    // Bare Token IDs are only safe when unique across all available Scenes.
+    if (!actor) {
+      const tokenMatches = scenes.flatMap(candidateScene => {
+        const candidateToken = candidateScene.tokens?.get(identifier);
+        return candidateToken ? [{ token: candidateToken, scene: candidateScene }] : [];
+      });
+
+      if (tokenMatches.length > 1) {
+        const sceneIds = tokenMatches
+          .map(match => match.scene.id)
+          .sort()
+          .join(', ');
+        throw new Error(
+          `Token ID "${identifier}" is ambiguous across Scenes (${sceneIds}); use a full Token UUID`
+        );
+      }
+
+      if (tokenMatches.length === 1) {
+        token = tokenMatches[0].token;
+        scene = tokenMatches[0].scene;
+        actor = token.actor;
+        if (!actor) {
+          throw new Error(`Token has no Actor: ${identifier}`);
+        }
+      }
     }
 
     if (!actor) {
@@ -1733,6 +1794,10 @@ export class FoundryDataAccess {
     // Build character data structure
     const characterData: CharacterInfo = {
       id: actor.id || '',
+      actorId: actor.id || '',
+      isToken: !!token,
+      ...(token?.id ? { tokenId: token.id } : {}),
+      ...(scene?.id ? { sceneId: scene.id } : {}),
       name: actor.name || '',
       type: actor.type,
       ...(actor.img ? { img: actor.img } : {}),

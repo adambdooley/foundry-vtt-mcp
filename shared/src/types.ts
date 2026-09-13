@@ -19,6 +19,10 @@ export interface MCPResponse {
  */
 export interface CharacterInfo {
   id: string;
+  actorId?: string;
+  tokenId?: string;
+  sceneId?: string;
+  isToken?: boolean;
   name: string;
   type: string;
   img?: string;
