@@ -299,6 +299,16 @@ export class PF2eAdapter implements SystemAdapter {
       }
     }
 
+    // Languages (system.details.languages: { value: slug[], details: free text })
+    const languages = system.details?.languages;
+    if (languages) {
+      const known = Array.isArray(languages.value) ? languages.value : [];
+      const details = typeof languages.details === 'string' ? languages.details.trim() : '';
+      if (known.length > 0 || details) {
+        stats.languages = { value: known, ...(details ? { details } : {}) };
+      }
+    }
+
     // Creature-specific info
     if (actorData.type === 'npc') {
       const traits = system.traits?.value || [];
