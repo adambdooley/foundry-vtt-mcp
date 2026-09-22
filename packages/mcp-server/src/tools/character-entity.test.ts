@@ -154,3 +154,31 @@ describe('CharacterTools.handleGetCharacterEntity', () => {
     });
   });
 });
+
+describe('CharacterTools.handleGetCharacter representation metadata', () => {
+  it('preserves synthetic Token identity metadata in the public response', async () => {
+    const queryResult = {
+      id: 'YZk06eI9NHTN9PuN',
+      actorId: 'YZk06eI9NHTN9PuN',
+      tokenId: 'token00000000001',
+      sceneId: 'scene00000000001',
+      isToken: true,
+      name: 'MCP Test Actor',
+      type: 'character',
+      system: {},
+      items: [],
+      effects: [],
+    };
+    const { tools } = makeCharacterTools(queryResult);
+
+    const result = await tools.handleGetCharacter({ identifier: 'token00000000001' });
+
+    expect(result).toMatchObject({
+      id: 'YZk06eI9NHTN9PuN',
+      actorId: 'YZk06eI9NHTN9PuN',
+      tokenId: 'token00000000001',
+      sceneId: 'scene00000000001',
+      isToken: true,
+    });
+  });
+});

@@ -764,6 +764,10 @@ export class CharacterTools {
   private async formatCharacterResponse(characterData: any): Promise<any> {
     const response: any = {
       id: characterData.id,
+      actorId: characterData.actorId ?? characterData.id,
+      isToken: characterData.isToken ?? false,
+      ...(characterData.tokenId ? { tokenId: characterData.tokenId } : {}),
+      ...(characterData.sceneId ? { sceneId: characterData.sceneId } : {}),
       name: characterData.name,
       type: characterData.type,
       basicInfo: await this.extractBasicInfo(characterData),
