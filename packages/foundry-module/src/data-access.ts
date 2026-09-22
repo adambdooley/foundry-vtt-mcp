@@ -7125,6 +7125,154 @@ export class FoundryDataAccess {
     return undefined;
   }
 
+  /** Resolve player names or user IDs to user IDs, ignoring any that match nothing. */
+  private resolveWhisperTargets(targets: string[]): string[] {
+    const users = Array.from((game.users as any) || []);
+    return targets
+      .map(target => {
+        const user: any =
+          users.find((u: any) => u.id === target) ||
+          users.find((u: any) => u.name?.toLowerCase() === target.toLowerCase()) ||
+          users.find((u: any) => u.name?.toLowerCase().includes(target.toLowerCase()));
+        return user?.id;
+      })
+      .filter((id): id is string => !!id);
+  }
+
+  /**
+   * Post an in-character line spoken by an actor or a specific token.
+   *
+   * Delivery is a floating chat bubble by default, a chat-log message when `chatLog` is
+   * set, and always a chat-log message when whispering, since a bubble is visible to
+   * everyone on the scene. With a language and Polyglot active, a chat-log message is
+   * tagged via Polyglot's own flag so it scrambles for viewers who lack that language:
+   * Polyglot only auto-assigns `flags.polyglot.language` when the flag isn't already
+   * present (see its preCreateChatMessage hook), so setting it at creation is respected.
+   * Bubbles carry the language in their broadcast options instead, which Polyglot's bubble
+   * class reads per viewer. Without Polyglot the language is noted as plain text.
+   */
+  async createChatMessage(data: {
+    actorIdentifier?: string;
+    tokenId?: string;
+    content: string;
+    language?: string;
+    chatLog?: boolean;
+    whisperTo?: string[];
+  }): Promise<any> {
+    this.validateFoundryState();
+
+    if (!data.content || typeof data.content !== 'string') {
+      throw new Error('content is required and must be a string');
+    }
+
+    // A token id is exact, so it wins over a name lookup - this is what lets several
+    // tokens sharing one actor (guards, bandits) be addressed individually.
+    let token: any = null;
+    let actor: any = null;
+    if (data.tokenId) {
+      token = (canvas as any)?.scene?.tokens?.get(data.tokenId) ?? null;
+      if (!token) {
+        throw new Error(`Token not found on the current scene: ${data.tokenId}`);
+      }
+      actor = token.actor;
+    } else if (data.actorIdentifier) {
+      actor = this.findActorByIdentifier(data.actorIdentifier);
+      if (!actor) {
+        throw new Error(`Actor not found: ${data.actorIdentifier}`);
+      }
+      [token] = (actor.getActiveTokens(false, false) as any[]) || [];
+    } else {
+      throw new Error('Either actorIdentifier or tokenId is required');
+    }
+
+    // Two shapes of the same token are needed below and they are not interchangeable:
+    // bubbles.broadcast() wants the placeable, while ChatMessage.getSpeaker() must get the
+    // TokenDocument - it reads `token.parent?.id` for the speaker's scene, and a placeable
+    // has no `.parent`, so passing one yields scene: null and Foundry's sayBubble() then
+    // silently skips the bubble because `speaker.scene === canvas.scene.id` never matches.
+    const tokenDoc: any = token?.document ?? token;
+    const tokenObject: any = token?.object ?? token;
+
+    const polyglotActive = !!(game.modules as any)?.get?.('polyglot')?.active;
+    const applyPolyglot = !!(data.language && polyglotActive);
+
+    const whisperIds = data.whisperTo?.length ? this.resolveWhisperTargets(data.whisperTo) : [];
+    if (data.whisperTo?.length && whisperIds.length === 0) {
+      throw new Error(`No matching players for whisperTo: ${data.whisperTo.join(', ')}`);
+    }
+    // A whisper has to be a real message; a bubble would show the line to the whole table.
+    const useChatLog = !!data.chatLog || whisperIds.length > 0;
+
+    if (!useChatLog) {
+      if (!token) {
+        throw new Error(
+          `"${actor?.name ?? data.actorIdentifier}" has no placed token on the current scene - ` +
+            `bubble delivery needs a token to anchor to. Place one, or pass chatLog: true.`
+        );
+      }
+
+      // broadcast() (not say()) so every client viewing the scene shows the bubble; say() is
+      // local to this browser. pan:false keeps the GM's camera from jumping to each speaker,
+      // and requireVisible:true means a player only sees bubbles over tokens they can see.
+      // Deliberately not awaited: the returned promise waits on the previous bubble's
+      // fade-out for this token, which never resolves in a throttled or hidden tab and would
+      // hang the call. A failure here is logged rather than thrown.
+      Promise.resolve(
+        (canvas as any).hud.bubbles.broadcast(tokenObject, data.content, {
+          pan: false,
+          requireVisible: true,
+          // Polyglot replaces CONFIG.Canvas.chatBubblesClass and reads options.language
+          // directly, and broadcast() forwards options to every client over the socket,
+          // so each viewer scrambles by their own known languages with no ChatMessage
+          // involved. Without Polyglot this option is simply ignored.
+          ...(applyPolyglot ? { language: data.language } : {}),
+        })
+      ).catch((err: unknown) =>
+        console.warn(`[${MODULE_ID}] Chat bubble failed for ${actor?.name}:`, err)
+      );
+
+      return {
+        success: true,
+        id: null,
+        speakerName: tokenDoc?.name || actor?.name,
+        polyglotApplied: applyPolyglot,
+        delivery: 'bubble',
+      };
+    }
+
+    const messageData: Record<string, any> = {
+      content: data.content,
+      speaker: tokenDoc
+        ? ChatMessage.getSpeaker({ token: tokenDoc, actor })
+        : ChatMessage.getSpeaker({ actor }),
+      style: (CONST as any).CHAT_MESSAGE_STYLES?.IC ?? (CONST as any).CHAT_MESSAGE_TYPES?.IC,
+    };
+
+    if (applyPolyglot) {
+      messageData.flags = { polyglot: { language: data.language } };
+    }
+    if (whisperIds.length > 0) {
+      messageData.whisper = whisperIds;
+    }
+
+    // Created the way the chat box creates a line typed as a token: core draws a bubble only
+    // for the in-character mode, timed by its own word count, and Polyglot scrambles it from
+    // the message's language flag. A whisper stays out of that mode, so it gets no bubble.
+    const chatMessage = await ChatMessage.create(
+      messageData,
+      (whisperIds.length > 0 ? {} : { messageMode: 'ic' }) as any
+    );
+
+    return {
+      success: true,
+      id: chatMessage?.id,
+      speakerName: messageData.speaker?.alias || actor?.name,
+      polyglotApplied: applyPolyglot,
+      delivery: whisperIds.length > 0 ? 'whisper' : 'chatLog',
+      ...(whisperIds.length > 0 ? { whisperedTo: whisperIds.length } : {}),
+    };
+  }
+
   /**
    * Get friendly NPCs from current scene
    */
