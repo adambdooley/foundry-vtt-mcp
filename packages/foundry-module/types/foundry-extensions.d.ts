@@ -40,6 +40,7 @@ declare global {
     on(event: string, fn: Function): void;
     once(event: string, fn: Function): void;
     call(event: string, ...args: any[]): void;
+    callAll(event: string, ...args: any[]): void;
   }
 
   interface UI {

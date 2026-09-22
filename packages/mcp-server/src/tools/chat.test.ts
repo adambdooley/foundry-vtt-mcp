@@ -38,6 +38,7 @@ describe('create-chat-message tool definition', () => {
     expect(props.language).toBeDefined();
     expect(props.chatLog).toBeDefined();
     expect(props.whisperTo).toBeDefined();
+    expect(props.banter).toBeDefined();
   });
 
   // Bubble timing is Foundry's own; a caller that needs more control uses a companion module.
@@ -46,8 +47,14 @@ describe('create-chat-message tool definition', () => {
     expect(props.bubbleDurationMs).toBeUndefined();
   });
 
-  it('requires only content, since either identifier may name the speaker', () => {
-    expect(definition().inputSchema.required).toEqual(['content']);
+  it('does not mark content as required, since a call may carry only a banter payload', () => {
+    expect(definition().inputSchema.required ?? []).not.toContain('content');
+  });
+
+  it('leaves the passthrough payload untyped so a companion module owns its shape', () => {
+    const banter = (definition().inputSchema.properties as Record<string, any>).banter;
+    expect(banter.type).toBe('object');
+    expect(banter.properties).toBeUndefined();
   });
 });
 
@@ -96,17 +103,44 @@ describe('handleCreateChatMessage', () => {
     );
   });
 
-  it('returns whatever the bridge returned', async () => {
-    const ack = { success: true, id: 'msg9', delivery: 'bubble' };
+  it('passes an opaque banter payload through without inspecting it', async () => {
+    const { tools, query } = makeTools();
+    const banter = { v: 1, op: 'enqueue', conversation: { id: 'A', lines: [] } };
+    await tools.handleCreateChatMessage({ tokenId: 'tok_a1f', content: 'x', banter });
+
+    expect(query).toHaveBeenCalledWith(
+      'foundry-mcp-bridge.createChatMessage',
+      expect.objectContaining({ banter })
+    );
+  });
+
+  it('returns whatever the bridge returned, including a companion module ack', async () => {
+    const ack = { success: true, id: 'msg9', delivery: 'bubble', banter: { seq: 43 } };
     const { tools } = makeTools(async () => ack);
     await expect(
       tools.handleCreateChatMessage({ tokenId: 'tok_a1f', content: 'x' })
     ).resolves.toEqual(ack);
   });
 
-  it('rejects a call naming no speaker', async () => {
+  it('rejects a spoken line naming no speaker', async () => {
     const { tools, query } = makeTools();
     await expect(tools.handleCreateChatMessage({ content: 'x' })).rejects.toThrow();
+    expect(query).not.toHaveBeenCalled();
+  });
+
+  it('accepts a banter payload alone, with no line and no speaker', async () => {
+    const { tools, query } = makeTools();
+    const banter = { v: 1, op: 'status' };
+    await tools.handleCreateChatMessage({ banter });
+
+    expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.createChatMessage', { banter });
+  });
+
+  it('rejects a call with neither a line nor a banter payload', async () => {
+    const { tools, query } = makeTools();
+    await expect(tools.handleCreateChatMessage({ actorIdentifier: 'Wenet' })).rejects.toThrow(
+      /content or banter/
+    );
     expect(query).not.toHaveBeenCalled();
   });
 

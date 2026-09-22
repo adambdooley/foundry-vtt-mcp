@@ -219,4 +219,56 @@ describe('FoundryDataAccess.createChatMessage', () => {
 
     expect(create.mock.calls[0][0].content).toBe('Not by me.');
   });
+
+  describe('banter passthrough', () => {
+    it('relays a payload sent alone, without needing a speaker or posting anything', async () => {
+      const { dataAccess, create, broadcast, callAll } = setupFoundry();
+      const payload = { v: 1, op: 'status' };
+
+      const result = await dataAccess.createChatMessage({ banter: payload });
+
+      expect(callAll).toHaveBeenCalledOnce();
+      expect(callAll.mock.calls[0][0]).toMatch(/\.passthrough$/);
+      expect(callAll.mock.calls[0][1]).toBe(payload);
+      expect(create).not.toHaveBeenCalled();
+      expect(broadcast).not.toHaveBeenCalled();
+      expect(result).toEqual({ success: true, id: null, delivery: 'none' });
+    });
+
+    it("returns a listening module's response in the ack", async () => {
+      const { dataAccess, callAll } = setupFoundry();
+      callAll.mockImplementation((_event: string, _payload: unknown, collected: unknown[]) => {
+        collected.push(Promise.resolve({ seq: 43, queueDepth: 58 }));
+      });
+
+      const result = await dataAccess.createChatMessage({ banter: { op: 'status' } });
+
+      expect(result.banter).toEqual({ seq: 43, queueDepth: 58 });
+    });
+
+    it('relays a payload alongside a spoken line and still delivers the line', async () => {
+      const { dataAccess, broadcast, callAll } = setupFoundry();
+      callAll.mockImplementation((_event: string, _payload: unknown, collected: unknown[]) => {
+        collected.push({ seq: 44 });
+      });
+
+      const result = await dataAccess.createChatMessage({
+        actorIdentifier: 'Wenet',
+        content: 'Sit down.',
+        banter: { op: 'appendTo' },
+      });
+
+      expect(broadcast).toHaveBeenCalledOnce();
+      expect(result).toMatchObject({ delivery: 'bubble', banter: { seq: 44 } });
+    });
+
+    it('rejects a call with neither content nor a payload', async () => {
+      const { dataAccess, callAll } = setupFoundry();
+
+      await expect(dataAccess.createChatMessage({ actorIdentifier: 'Wenet' })).rejects.toThrow(
+        /content or banter/
+      );
+      expect(callAll).not.toHaveBeenCalled();
+    });
+  });
 });

@@ -7125,6 +7125,18 @@ export class FoundryDataAccess {
     return undefined;
   }
 
+  /**
+   * Relay an opaque payload to any module listening on the passthrough hook, and return
+   * its response. Listeners push a value (or a promise) onto the collector; with no
+   * companion module installed it stays empty and the result is undefined.
+   */
+  private async forwardPassthrough(payload: Record<string, any>): Promise<any> {
+    const collected: any[] = [];
+    Hooks.callAll(`${MODULE_ID}.passthrough`, payload, collected);
+    const settled = await Promise.all(collected);
+    return settled.find(value => value !== undefined);
+  }
+
   /** Resolve player names or user IDs to user IDs, ignoring any that match nothing. */
   private resolveWhisperTargets(targets: string[]): string[] {
     const users = Array.from((game.users as any) || []);
@@ -7154,15 +7166,31 @@ export class FoundryDataAccess {
   async createChatMessage(data: {
     actorIdentifier?: string;
     tokenId?: string;
-    content: string;
+    content?: string;
     language?: string;
     chatLog?: boolean;
     whisperTo?: string[];
+    banter?: Record<string, any>;
   }): Promise<any> {
     this.validateFoundryState();
 
-    if (!data.content || typeof data.content !== 'string') {
-      throw new Error('content is required and must be a string');
+    if (data.content !== undefined && typeof data.content !== 'string') {
+      throw new Error('content must be a string');
+    }
+
+    // A call can carry only a companion payload (a queue operation or a status read) with
+    // nothing to say, in which case no speaker is needed and nothing is posted.
+    if (!data.content) {
+      if (!data.banter) {
+        throw new Error('Either content or banter is required');
+      }
+      const banterOnlyResult = await this.forwardPassthrough(data.banter);
+      return {
+        success: true,
+        id: null,
+        delivery: 'none',
+        ...(banterOnlyResult !== undefined ? { banter: banterOnlyResult } : {}),
+      };
     }
 
     // A token id is exact, so it wins over a name lookup - this is what lets several
@@ -7192,6 +7220,10 @@ export class FoundryDataAccess {
     // silently skips the bubble because `speaker.scene === canvas.scene.id` never matches.
     const tokenDoc: any = token?.document ?? token;
     const tokenObject: any = token?.object ?? token;
+
+    // Hand any companion payload over before delivering the line, so a module that queues
+    // or rewrites lines sees it in order.
+    const banterResult = data.banter ? await this.forwardPassthrough(data.banter) : undefined;
 
     const polyglotActive = !!(game.modules as any)?.get?.('polyglot')?.active;
     const applyPolyglot = !!(data.language && polyglotActive);
@@ -7237,6 +7269,7 @@ export class FoundryDataAccess {
         speakerName: tokenDoc?.name || actor?.name,
         polyglotApplied: applyPolyglot,
         delivery: 'bubble',
+        ...(banterResult !== undefined ? { banter: banterResult } : {}),
       };
     }
 
@@ -7270,6 +7303,7 @@ export class FoundryDataAccess {
       polyglotApplied: applyPolyglot,
       delivery: whisperIds.length > 0 ? 'whisper' : 'chatLog',
       ...(whisperIds.length > 0 ? { whisperedTo: whisperIds.length } : {}),
+      ...(banterResult !== undefined ? { banter: banterResult } : {}),
     };
   }
 

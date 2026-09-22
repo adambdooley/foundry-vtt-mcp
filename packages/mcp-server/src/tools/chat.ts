@@ -45,7 +45,8 @@ export class ChatTools {
               type: 'string',
               description:
                 'The message text, in the language actually being spoken (not translated or ' +
-                'bracketed).',
+                'bracketed). Required unless `banter` is given, in which case the call may carry ' +
+                'the payload alone and nothing is posted.',
             },
             language: {
               type: 'string',
@@ -71,8 +72,16 @@ export class ChatTools {
                 'delivered as a chat-log message, since a bubble would be visible to everyone, so ' +
                 'passing this implies chatLog: true.',
             },
+            banter: {
+              type: 'object',
+              description:
+                'Optional opaque payload forwarded to a companion module, if one is installed and ' +
+                'listening. Ignored when no companion module handles it. Its shape is defined by ' +
+                'that module, not by this tool. Sent without `content`, the call posts nothing ' +
+                'and only relays the payload, which is how a companion module receives queue ' +
+                'operations or status reads that have no line to speak.',
+            },
           },
-          required: ['content'],
         },
       },
     ];
@@ -83,19 +92,24 @@ export class ChatTools {
       .object({
         actorIdentifier: z.string().optional(),
         tokenId: z.string().optional(),
-        content: z.string().min(1),
+        content: z.string().min(1).optional(),
         language: z.string().optional(),
         chatLog: z.boolean().optional(),
         whisperTo: z.array(z.string()).optional(),
+        banter: z.record(z.any()).optional(),
       })
-      .refine(v => v.actorIdentifier || v.tokenId, {
-        message: 'Either actorIdentifier or tokenId is required',
+      .refine(v => v.content || v.banter, {
+        message: 'Either content or banter is required',
+      })
+      .refine(v => !v.content || v.actorIdentifier || v.tokenId, {
+        message: 'A spoken line needs actorIdentifier or tokenId',
       });
 
     const parsed = schema.parse(args);
+    const speaker = parsed.tokenId ?? parsed.actorIdentifier ?? 'banter payload';
 
     this.logger.info('Creating chat message', {
-      speaker: parsed.tokenId ?? parsed.actorIdentifier,
+      speaker,
       whispered: !!parsed.whisperTo?.length,
     });
 
@@ -106,7 +120,7 @@ export class ChatTools {
     } catch (error) {
       this.logger.error('Failed to create chat message', { error });
       throw new Error(
-        `Failed to create chat message for "${parsed.tokenId ?? parsed.actorIdentifier}": ` +
+        `Failed to create chat message for "${speaker}": ` +
           `${error instanceof Error ? error.message : 'Unknown error'}`
       );
     }
