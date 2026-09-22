@@ -62,13 +62,14 @@ export class CharacterTools {
       {
         name: 'get-character',
         description:
-          'Retrieve character information optimized for minimal token usage. Returns: full stats (abilities, skills, saves, AC, HP), action names, active effects/conditions (name only), and ALL items with minimal metadata (name, type, equipped status) without descriptions. PF2e-specific: includes traits arrays for items/actions, action costs, rarity, and level. D&D 5e-specific: includes attunement status. Perfect for filtering (e.g., "deviant" trait feats, "fire" trait spells in PF2e), checking equipment, or identifying what to investigate further. Use get-character-entity to fetch full details for specific items, actions, spells, or effects.',
+          'Retrieve character information optimized for minimal token usage. Returns: full stats (abilities, skills, saves, AC, HP), action names, active effects/conditions (name only), and ALL items with minimal metadata (name, type, equipped status) without descriptions. PF2e-specific: includes traits arrays for items/actions, action costs, rarity, and level. D&D 5e-specific: includes attunement status. Perfect for filtering (e.g., "deviant" trait feats, "fire" trait spells in PF2e), checking equipment, or identifying what to investigate further. Use get-character-entity to fetch full details for specific items, actions, spells, or effects. For an unlinked token (e.g. a summon or a copy of a shared NPC) pass its token ID or token UUID to get that token\'s own effective stats and effects rather than the base actor\'s.',
         inputSchema: {
           type: 'object',
           properties: {
             identifier: {
               type: 'string',
-              description: 'Character name or ID to look up',
+              description:
+                "Character name or actor ID, or a token ID / token UUID (Scene.<id>.Token.<id>) to read an unlinked token's own state",
             },
           },
           required: ['identifier'],
