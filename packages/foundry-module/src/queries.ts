@@ -92,6 +92,9 @@ export class QueryHandlers {
     CONFIG.queries[`${modulePrefix}.findPlayers`] = this.handleFindPlayers.bind(this);
     CONFIG.queries[`${modulePrefix}.findActor`] = this.handleFindActor.bind(this);
 
+    // In-character chat: bubbles, chat-log lines and whispers
+    CONFIG.queries[`${modulePrefix}.createChatMessage`] = this.handleCreateChatMessage.bind(this);
+
     // WFRP4e actor stat-block update
     CONFIG.queries[`${modulePrefix}.updateWfrp4eActor`] = this.handleUpdateWfrp4eActor.bind(this);
     CONFIG.queries[`${modulePrefix}.addWfrp4eItems`] = this.handleAddWfrp4eItems.bind(this);
@@ -949,6 +952,24 @@ export class QueryHandlers {
     } catch (error) {
       throw new Error(
         `Failed to get actor ownership: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  async handleCreateChatMessage(data: any): Promise<any> {
+    try {
+      // SECURITY: Silent GM validation
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) {
+        return { error: 'Access denied', success: false };
+      }
+
+      this.dataAccess.validateFoundryState();
+
+      return await this.dataAccess.createChatMessage(data);
+    } catch (error) {
+      throw new Error(
+        `Failed to create chat message: ${error instanceof Error ? error.message : 'Unknown error'}`
       );
     }
   }
