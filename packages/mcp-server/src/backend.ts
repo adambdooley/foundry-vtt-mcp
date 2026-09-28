@@ -21,6 +21,7 @@ import { CharacterTools } from './tools/character.js';
 import { CompendiumTools } from './tools/compendium.js';
 
 import { SceneTools } from './tools/scene.js';
+import { DocumentTools } from './tools/documents.js';
 import { PlaylistTools } from './tools/playlist.js';
 
 import { ActorCreationTools } from './tools/actor-creation.js';
@@ -1193,6 +1194,7 @@ async function startBackend(): Promise<void> {
   const compendiumTools = new CompendiumTools({ foundryClient, logger, systemRegistry });
 
   const sceneTools = new SceneTools({ foundryClient, logger });
+  const documentTools = new DocumentTools({ foundryClient, logger });
   const playlistTools = new PlaylistTools({ foundryClient, logger });
 
   const actorCreationTools = new ActorCreationTools({ foundryClient, logger });
@@ -1451,6 +1453,8 @@ async function startBackend(): Promise<void> {
     ...mapGenerationTools.getToolDefinitions(),
 
     ...playlistTools.getToolDefinitions(),
+
+    ...documentTools.getToolDefinitions(),
   ];
 
   // Start Foundry connector (owns app port 31415)
@@ -1786,6 +1790,10 @@ async function startBackend(): Promise<void> {
                   break;
 
                 default:
+                  if (DocumentTools.TOOL_NAMES.includes(name)) {
+                    result = await documentTools.handle(name, args);
+                    break;
+                  }
                   throw new Error(`Unknown tool: ${name}`);
               }
 

@@ -1,6 +1,8 @@
 import { MODULE_ID } from './constants.js';
 import { FoundryDataAccess } from './data-access.js';
 import { ComfyUIManager } from './comfyui-manager.js';
+import { registerDocumentHandlers } from './document-tools.js';
+import { registerScriptHandlers } from './script-runner.js';
 
 export class QueryHandlers {
   public dataAccess: FoundryDataAccess;
@@ -50,6 +52,10 @@ export class QueryHandlers {
 
     // World queries
     CONFIG.queries[`${modulePrefix}.getWorldInfo`] = this.handleGetWorldInfo.bind(this);
+
+    // Generic document + settings queries (any document by UUID, any pack, settings)
+    registerDocumentHandlers();
+    registerScriptHandlers();
 
     // Utility queries
     CONFIG.queries[`${modulePrefix}.ping`] = this.handlePing.bind(this);

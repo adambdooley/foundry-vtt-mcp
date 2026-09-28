@@ -249,6 +249,15 @@ export class ModuleSettings {
       default: true,
     });
 
+    game.settings.register(this.moduleId, 'allowScriptExecution', {
+      name: 'Allow Script Execution',
+      hint: 'Let the AI model run JavaScript in this GM client (run-script tool). Full access to the world: enable only on a trusted local setup.',
+      scope: 'world',
+      config: true,
+      type: Boolean,
+      default: false,
+    });
+
     // ============================================================================
     // SECTION 3: SAFETY CONTROLS - Limits on AI model's Actions
     // ============================================================================
