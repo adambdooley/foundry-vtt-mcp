@@ -4,10 +4,21 @@
  * GM-only; writes are gated by the existing `allowWriteOperations` setting.
  */
 import { MODULE_ID } from './constants.js';
+import { permissionManager } from './permissions.js';
 
 const MAX_RESULT_CHARS = 200_000;
+const MAX_QUERY_LIMIT = 500;
 /** Permission switches the AI must never flip itself. */
 const PROTECTED_SETTINGS = ['allowWriteOperations', 'allowScriptExecution'];
+/** Core settings that would widen player permissions or change enabled modules. */
+const PROTECTED_CORE_SETTINGS = ['core.permissions', 'core.moduleConfiguration'];
+/**
+ * Document types the generic tools never read or write: users (roles, password hashes)
+ * and raw settings (which would bypass the protected switches above).
+ */
+const RESTRICTED_DOCUMENTS = ['User', 'Setting'];
+/** Setting keys whose values are hidden from get-settings (API keys, tokens…). */
+const SECRET_SETTING = /key|token|secret|password/i;
 
 type Handler = (data: any) => Promise<any>;
 
@@ -15,10 +26,30 @@ export function assertGM(): void {
   if (!game.user?.isGM) throw new Error('Access denied: GM only');
 }
 
-export function assertWrite(): void {
+export function assertWrite(operation: 'modifyWorld' | 'deleteData' = 'modifyWorld'): void {
   assertGM();
-  if (!game.settings.get(MODULE_ID, 'allowWriteOperations')) {
-    throw new Error('Write operations are disabled in the Foundry MCP Bridge settings');
+  const check = permissionManager.checkWritePermission(operation);
+  if (!check.allowed) {
+    throw new Error(
+      `Write operations are disabled in the Foundry MCP Bridge settings (${check.reason ?? operation})`
+    );
+  }
+}
+
+function assertAllowedType(documentName: string | undefined): void {
+  if (documentName && RESTRICTED_DOCUMENTS.includes(documentName)) {
+    throw new Error(`${documentName} documents cannot be accessed through the generic tools`);
+  }
+}
+
+/** Script macros are code: creating or editing one needs the script execution switch. */
+function assertMacroAllowed(documentName: string, data: any, existingType?: string): void {
+  if (documentName !== 'Macro') return;
+  const type = data?.type ?? existingType ?? 'script';
+  if (type === 'script' && !game.settings.get(MODULE_ID, 'allowScriptExecution')) {
+    throw new Error(
+      'Script macros can only be created or edited when "Allow Script Execution" is enabled'
+    );
   }
 }
 
@@ -44,14 +75,25 @@ async function resolve(uuid: string): Promise<any> {
   if (!uuid) throw new Error('uuid is required');
   const doc: any = await fromUuid(uuid);
   if (!doc) throw new Error(`Document not found: ${uuid}`);
+  assertAllowedType(doc.documentName);
   return doc;
 }
 
-async function unlockIfNeeded(doc: any, unlockPack?: boolean): Promise<void> {
+/** Run a write on a document, temporarily unlocking its compendium when asked to. */
+async function withUnlockedPack<T>(
+  doc: any,
+  unlockPack: boolean | undefined,
+  fn: () => Promise<T>
+): Promise<T> {
   const pack = doc.pack ? game.packs.get(doc.pack) : null;
-  if (!pack?.locked) return;
+  if (!pack?.locked) return fn();
   if (!unlockPack) throw new Error(`Compendium ${pack.collection} is locked: pass unlockPack=true`);
   await pack.configure({ locked: false });
+  try {
+    return await fn();
+  } finally {
+    await pack.configure({ locked: true });
+  }
 }
 
 function folderId(name: string | null | undefined, type: string): string | null | undefined {
@@ -67,7 +109,11 @@ function folderId(name: string | null | undefined, type: string): string | null 
 /** A world document type (Actor, Item, Scene…) or a compendium id. */
 function collectionFor(source: string): { docs: () => Promise<any[]>; type: string } {
   const pack = game.packs.get(source);
-  if (pack) return { docs: () => pack.getDocuments(), type: pack.documentName };
+  if (pack) {
+    assertAllowedType(pack.documentName);
+    return { docs: () => pack.getDocuments(), type: pack.documentName };
+  }
+  assertAllowedType(source);
   const coll = game.collections.get(source);
   if (!coll) {
     throw new Error(
@@ -111,8 +157,9 @@ async function queryDocuments(data: {
     }
     return true;
   });
-  const start = data.offset ?? 0;
-  const page = all.slice(start, start + (data.limit ?? 50));
+  const start = Math.max(0, Math.trunc(Number(data.offset)) || 0);
+  const size = Math.min(MAX_QUERY_LIMIT, Math.max(1, Math.trunc(Number(data.limit)) || 50));
+  const page = all.slice(start, start + size);
   const fields = data.fields?.length ? data.fields : ['name', 'type', 'folder'];
   return limit({
     documentName: type,
@@ -130,9 +177,11 @@ async function createDocument(data: {
   folder?: string;
 }): Promise<any> {
   assertWrite();
+  assertAllowedType(data.documentName);
   const cls: any = (CONFIG as any)[data.documentName]?.documentClass;
   if (!cls) throw new Error(`Unknown document type: ${data.documentName}`);
   const src = { ...(data.data ?? {}) };
+  assertMacroAllowed(data.documentName, src);
   const fid = folderId(data.folder, data.documentName);
   if (fid !== undefined) src.folder = fid;
   const options: any = {};
@@ -151,13 +200,12 @@ async function updateDocument(data: {
   const doc = await resolve(data.uuid);
   if (!data.changes || typeof data.changes !== 'object')
     throw new Error('changes object is required');
-  await unlockIfNeeded(doc, data.unlockPack);
-  await doc.update(data.changes);
-  return {
-    success: true,
-    uuid: doc.uuid,
-    updatedKeys: Object.keys(foundry.utils.flattenObject(data.changes)),
-  };
+  const updatedKeys = Object.keys(foundry.utils.flattenObject(data.changes));
+  if (updatedKeys.includes('command') || updatedKeys.includes('type')) {
+    assertMacroAllowed(doc.documentName, data.changes, doc.type);
+  }
+  await withUnlockedPack(doc, data.unlockPack, () => doc.update(data.changes));
+  return { success: true, uuid: doc.uuid, updatedKeys };
 }
 
 async function duplicateDocument(data: {
@@ -169,6 +217,7 @@ async function duplicateDocument(data: {
   const doc = await resolve(data.uuid);
   const src = doc.toObject();
   delete src._id;
+  assertMacroAllowed(doc.documentName, src);
   if (data.name) src.name = data.name;
   const fid = folderId(data.folder, doc.documentName);
   if (fid !== undefined) src.folder = fid;
@@ -177,11 +226,10 @@ async function duplicateDocument(data: {
 }
 
 async function deleteDocument(data: { uuid: string; unlockPack?: boolean }): Promise<any> {
-  assertWrite();
+  assertWrite('deleteData');
   const doc = await resolve(data.uuid);
-  await unlockIfNeeded(doc, data.unlockPack);
   const info = { uuid: doc.uuid, name: doc.name };
-  await doc.delete();
+  await withUnlockedPack(doc, data.unlockPack, () => doc.delete());
   return { success: true, deleted: info };
 }
 
@@ -194,7 +242,7 @@ async function getSettings(data: { namespace?: string; keys?: string[] }): Promi
     if (data.keys?.length && !data.keys.includes(id) && !data.keys.includes(s.key)) continue;
     let value: any;
     try {
-      value = game.settings.get(s.namespace, s.key);
+      value = SECRET_SETTING.test(s.key) ? '[hidden]' : game.settings.get(s.namespace, s.key);
     } catch {
       value = '[unreadable]';
     }
@@ -206,8 +254,12 @@ async function getSettings(data: { namespace?: string; keys?: string[] }): Promi
 async function setSetting(data: { namespace: string; key: string; value: any }): Promise<any> {
   assertWrite();
   if (!data.namespace || !data.key) throw new Error('namespace and key are required');
-  if (data.namespace === MODULE_ID && PROTECTED_SETTINGS.includes(data.key)) {
-    throw new Error(`${data.key} can only be changed by the GM in the module settings`);
+  const id = `${data.namespace}.${data.key}`;
+  if (
+    (data.namespace === MODULE_ID && PROTECTED_SETTINGS.includes(data.key)) ||
+    PROTECTED_CORE_SETTINGS.includes(id)
+  ) {
+    throw new Error(`${id} can only be changed by the GM in Foundry's own settings`);
   }
   if (!(game.settings as any).settings.has(`${data.namespace}.${data.key}`)) {
     throw new Error(`Unknown setting: ${data.namespace}.${data.key}`);

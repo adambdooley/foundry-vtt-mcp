@@ -1,3 +1,17 @@
+## Unreleased
+
+### New Features
+
+- **Generic document tools** (any system, world or compendium)
+  - `get-document` / `query-documents`: read any document by UUID (journal pages of every type, scenes, actors, items, playlists, macros, folders…) or list a world collection / compendium with name filter, exact `where` matches on dot paths, field selection and pagination
+  - `create-document` / `update-document` / `duplicate-document` / `delete-document`: full CRUD on any document class, including embedded documents via `parent` (pages, tokens, walls, notes, items on actors) and compendium documents via `pack`; locked packs need an explicit `unlockPack`
+  - Folders can be given by name or id; results over 200k characters are truncated with a hint instead of flooding the context
+  - Writes reuse the existing **Allow Write Operations** switch; every handler is GM-only
+- **Settings tools**: `get-settings` (filter by namespace or keys; values of keys that look like secrets are hidden) and `set-setting`; the bridge's own permission switches, `core.permissions` and `core.moduleConfiguration` cannot be changed by the model
+- **Safety guards**: `User` and `Setting` documents are out of reach of the generic tools (no password hashes, no bypass of the switches through the raw Setting document); creating or editing a script macro needs **Allow Script Execution**; writes go through `permissionManager` (`modifyWorld` / `deleteData`); `unlockPack` re-locks the compendium afterwards
+- **`run-script`**: runs an async JavaScript body in the GM client with the full Foundry API and returns JSON (documents, Maps, Sets and collections are serialised, cycles guarded; `log()` collects messages). Behind a new **Allow Script Execution** setting, **off by default**, that only the GM can enable
+- Tested on Foundry v14.368 with dnd5e 6.0.5 (a full French translation of an adventure module and scene rebuilds were done through these tools)
+
 ## v0.8.4 (2026-09-12)
 
 ### New Features

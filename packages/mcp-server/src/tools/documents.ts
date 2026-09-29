@@ -33,7 +33,7 @@ export class DocumentTools {
       {
         name: 'get-document',
         description:
-          'Read any Foundry document (world or compendium, any type: journal pages including map/image pages, scenes, actors, items, playlists, macros, folders…) as raw data.',
+          'Read any Foundry document (world or compendium, any type: journal pages including map/image pages, scenes, actors, items, playlists, macros, folders…) as raw data. User and Setting documents are not accessible.',
         inputSchema: {
           type: 'object',
           properties: { uuid: { type: 'string', description: UUID_HINT }, fields },
@@ -102,7 +102,7 @@ export class DocumentTools {
       {
         name: 'duplicate-document',
         description:
-          'Copy any document with all its content (pages, images, links, embedded items). Optionally rename and move it to a folder.',
+          'Copy any document with all its content (pages, images, links, embedded items). Optionally rename and move it to a folder. A compendium document is copied into the world.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -164,7 +164,7 @@ export class DocumentTools {
       {
         name: 'run-script',
         description:
-          'Run JavaScript in the GM Foundry client with the full API (game, canvas, ui, foundry, CONFIG, fromUuid…). Body of an async function: use await and `return` a JSON-serialisable value; `log(...)` collects messages. Requires "Allow Script Execution" in the bridge settings. Tell the user what the script does before running anything destructive.',
+          'Run JavaScript in the GM Foundry client with the full API (game, canvas, ui, foundry, CONFIG, fromUuid…). Body of an async function: use await and `return` a JSON-serialisable value; `log(...)` collects messages. Requires "Allow Script Execution" in the bridge settings. There is no timeout: an infinite loop freezes the GM client. Tell the user what the script does before running anything destructive.',
         inputSchema: {
           type: 'object',
           properties: { code: { type: 'string', description: 'JavaScript function body' } },

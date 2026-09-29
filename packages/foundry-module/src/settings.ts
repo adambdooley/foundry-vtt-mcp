@@ -251,7 +251,7 @@ export class ModuleSettings {
 
     game.settings.register(this.moduleId, 'allowScriptExecution', {
       name: 'Allow Script Execution',
-      hint: 'Let the AI model run JavaScript in this GM client (run-script tool). Full access to the world: enable only on a trusted local setup.',
+      hint: 'Let the AI model run JavaScript in this GM client (run-script tool) and create or edit script macros. Full access to the world, no timeout: enable only on a trusted local setup.',
       scope: 'world',
       config: true,
       type: Boolean,

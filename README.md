@@ -181,6 +181,15 @@ Once connected, ask Claude Desktop:
 - **46** manage-actors (create / update / delete / place actors; update / delete embedded items — any system)
 - **47** wfrp4e-update-actor (WFRP4e Only)
 - **48** wfrp4e-add-items (WFRP4e Only)
+- **49** get-document (any document by UUID, world or compendium, optional field selection)
+- **50** query-documents (list / filter any world collection or compendium, paginated)
+- **51** create-document (any document class, embedded via `parent`, compendium via `pack`)
+- **52** update-document (dot-path changes on any document)
+- **53** duplicate-document (deep copy with optional rename / folder)
+- **54** delete-document (irreversible; the model is told to confirm first)
+- **55** get-settings (read system / module / core settings)
+- **56** set-setting (bridge permission switches are protected)
+- **57** run-script (JavaScript in the GM client, requires **Allow Script Execution**)
 
 ## Settings
 
@@ -192,6 +201,7 @@ Once connected, ask Claude Desktop:
 - **Connection Type** Can be set to Auto for automatic detection of connection type. Can also be set to force either WebRTC for Internet connections or Websocket for Local connections.
 - **Websocket Server Host** IP Address of Claude Desktop MCP Server location. Only used for local network websocket connections. Remote Servers use WebRT. Defaults to localhost.
 - **Allow Write Operations** This will prevent Claude from making any changes to world content and restrict it to reading only
+- **Allow Script Execution** Off by default. Lets Claude run JavaScript in the GM client through `run-script` (full access to the world). Enable it only on a setup you trust; Claude cannot switch it on itself.
 - **Max Actors Per Request** This is a failsafe to stop a massive amount of actors being created from one single request. It does not limit the amount of characters being created by multiple requests
 - **Show Connection Messages** This can turn off the banner messages for connections for Foundry MCP Bridge
 - **Auto-Reconnect on Disconnect** Will automatically attempt to reconnect if the connection is lost
