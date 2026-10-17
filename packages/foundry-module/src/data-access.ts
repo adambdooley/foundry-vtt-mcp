@@ -1,6 +1,21 @@
 import { MODULE_ID, ERROR_MESSAGES, TOKEN_DISPOSITIONS } from './constants.js';
 import { permissionManager } from './permissions.js';
 import { transactionManager } from './transaction-manager.js';
+
+// The same five characters foundry.utils.escapeHTML replaces in v14, kept local because
+// that helper isn't confirmed in v13, this module's minimum.
+const HTML_ESCAPES: Record<string, string> = {
+  '&': '&amp;',
+  '<': '&lt;',
+  '>': '&gt;',
+  '"': '&quot;',
+  "'": '&#x27;',
+};
+
+/** Escape text so it renders as written when Foundry inserts it as HTML. */
+function escapeHTML(text: string): string {
+  return text.replace(/[&<>"']/g, c => HTML_ESCAPES[c]);
+}
 // Local type definitions to avoid shared package import issues
 interface CharacterInfo {
   id: string;
@@ -7125,18 +7140,44 @@ export class FoundryDataAccess {
     return undefined;
   }
 
-  /** Resolve player names or user IDs to user IDs, ignoring any that match nothing. */
+  /**
+   * Resolve player names or user IDs to user IDs, failing if any target is not exactly one
+   * user. Foundry keeps user names unique but compares them case-sensitively, so "Taco" and
+   * "TaCo" can coexist: an exact-case name wins, and ignoring case is only a fallback when
+   * it finds a single user.
+   */
   private resolveWhisperTargets(targets: string[]): string[] {
-    const users = Array.from((game.users as any) || []);
-    return targets
-      .map(target => {
-        const user: any =
-          users.find((u: any) => u.id === target) ||
-          users.find((u: any) => u.name?.toLowerCase() === target.toLowerCase()) ||
-          users.find((u: any) => u.name?.toLowerCase().includes(target.toLowerCase()));
-        return user?.id;
-      })
-      .filter((id): id is string => !!id);
+    const users: any[] = Array.from((game.users as any) || []);
+    const unmatched: string[] = [];
+    const ambiguous: string[] = [];
+    const ids: string[] = [];
+
+    for (const target of targets) {
+      const exact = users.find(u => u.id === target) ?? users.find(u => u.name === target);
+      if (exact) {
+        ids.push(exact.id);
+        continue;
+      }
+      const caseless = users.filter(u => u.name?.toLowerCase() === target.toLowerCase());
+      if (caseless.length === 1) {
+        ids.push(caseless[0].id);
+      } else if (caseless.length > 1) {
+        ambiguous.push(`"${target}" (${caseless.map(u => u.name).join(', ')})`);
+      } else {
+        unmatched.push(target);
+      }
+    }
+
+    const problems = [
+      ...(unmatched.length ? [`No matching players for whisperTo: ${unmatched.join(', ')}`] : []),
+      ...(ambiguous.length
+        ? [`Ambiguous whisperTo names, use the exact name or user ID: ${ambiguous.join('; ')}`]
+        : []),
+    ];
+    if (problems.length) {
+      throw new Error(problems.join('. '));
+    }
+    return ids;
   }
 
   /**
@@ -7149,7 +7190,10 @@ export class FoundryDataAccess {
    * Polyglot only auto-assigns `flags.polyglot.language` when the flag isn't already
    * present (see its preCreateChatMessage hook), so setting it at creation is respected.
    * Bubbles carry the language in their broadcast options instead, which Polyglot's bubble
-   * class reads per viewer. Without Polyglot the language is noted as plain text.
+   * class reads per viewer. Without Polyglot the line plays as written.
+   *
+   * Content is plain text: bubbles and chat-log messages render as HTML on every client,
+   * so any markup is escaped and shows as the characters sent.
    */
   async createChatMessage(data: {
     actorIdentifier?: string;
@@ -7161,9 +7205,16 @@ export class FoundryDataAccess {
   }): Promise<any> {
     this.validateFoundryState();
 
+    const permissionCheck = permissionManager.checkWritePermission('createChatMessage');
+    if (!permissionCheck.allowed) {
+      throw new Error(`${ERROR_MESSAGES.ACCESS_DENIED}: ${permissionCheck.reason}`);
+    }
+    permissionManager.auditPermissionCheck('createChatMessage', permissionCheck, data);
+
     if (!data.content || typeof data.content !== 'string') {
       throw new Error('content is required and must be a string');
     }
+    const content = escapeHTML(data.content);
 
     // A token id is exact, so it wins over a name lookup - this is what lets several
     // tokens sharing one actor (guards, bandits) be addressed individually.
@@ -7197,9 +7248,6 @@ export class FoundryDataAccess {
     const applyPolyglot = !!(data.language && polyglotActive);
 
     const whisperIds = data.whisperTo?.length ? this.resolveWhisperTargets(data.whisperTo) : [];
-    if (data.whisperTo?.length && whisperIds.length === 0) {
-      throw new Error(`No matching players for whisperTo: ${data.whisperTo.join(', ')}`);
-    }
     // A whisper has to be a real message; a bubble would show the line to the whole table.
     const useChatLog = !!data.chatLog || whisperIds.length > 0;
 
@@ -7218,7 +7266,7 @@ export class FoundryDataAccess {
       // fade-out for this token, which never resolves in a throttled or hidden tab and would
       // hang the call. A failure here is logged rather than thrown.
       Promise.resolve(
-        (canvas as any).hud.bubbles.broadcast(tokenObject, data.content, {
+        (canvas as any).hud.bubbles.broadcast(tokenObject, content, {
           pan: false,
           requireVisible: true,
           // Polyglot replaces CONFIG.Canvas.chatBubblesClass and reads options.language
@@ -7241,7 +7289,7 @@ export class FoundryDataAccess {
     }
 
     const messageData: Record<string, any> = {
-      content: data.content,
+      content,
       speaker: tokenDoc
         ? ChatMessage.getSpeaker({ token: tokenDoc, actor })
         : ChatMessage.getSpeaker({ actor }),

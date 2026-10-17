@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { FoundryDataAccess } from './data-access.js';
 
-function setupFoundry(options: { polyglot?: boolean } = {}) {
+function setupFoundry(options: { polyglot?: boolean; allowWriteOperations?: boolean } = {}) {
   const scene: any = { id: 'scene-1', tokens: new Map() };
 
   // A placeable Token and its TokenDocument are different objects: only the
@@ -41,10 +41,19 @@ function setupFoundry(options: { polyglot?: boolean } = {}) {
     user: { id: 'gm', name: 'Gamemaster' },
     actors,
     scenes: [scene],
+    // Foundry refuses a duplicate user name, but compares names case-sensitively
+    // (User._preCreateOperation, v14), so "Taco" and "TaCo" can both exist.
     users: [
       { id: 'gm', name: 'Gamemaster' },
       { id: 'user-2', name: 'Catterick' },
+      { id: 'user-alice', name: 'Alice' },
+      { id: 'user-taco', name: 'Taco' },
+      { id: 'user-taco-2', name: 'TaCo' },
     ],
+    settings: {
+      get: (_module: string, key: string) =>
+        key === 'allowWriteOperations' ? (options.allowWriteOperations ?? true) : undefined,
+    },
     modules: {
       get: (id: string) => (id === 'polyglot' && options.polyglot ? { active: true } : undefined),
     },
@@ -218,5 +227,151 @@ describe('FoundryDataAccess.createChatMessage', () => {
     });
 
     expect(create.mock.calls[0][0].content).toBe('Not by me.');
+  });
+
+  // Bubbles and chat-log messages are rendered as HTML on every connected client, so a
+  // line is treated as plain text: markup shows up as the characters that were sent.
+  describe('plain-text content', () => {
+    const raw = '<img src=x onerror="alert(1)"><b>Run</b> & don\'t look back';
+    const escaped =
+      '&lt;img src=x onerror=&quot;alert(1)&quot;&gt;&lt;b&gt;Run&lt;/b&gt; &amp; don&#x27;t look back';
+
+    it('escapes HTML in a bubble', async () => {
+      const { dataAccess, broadcast } = setupFoundry();
+
+      await dataAccess.createChatMessage({ actorIdentifier: 'Wenet', content: raw });
+
+      expect(broadcast.mock.calls[0][1]).toBe(escaped);
+    });
+
+    it('escapes HTML in a chat-log message', async () => {
+      const { dataAccess, create } = setupFoundry();
+
+      await dataAccess.createChatMessage({ actorIdentifier: 'Wenet', content: raw, chatLog: true });
+
+      expect(create.mock.calls[0][0].content).toBe(escaped);
+    });
+
+    it('escapes HTML in a whisper', async () => {
+      const { dataAccess, create } = setupFoundry();
+
+      await dataAccess.createChatMessage({
+        actorIdentifier: 'Wenet',
+        content: raw,
+        whisperTo: ['Catterick'],
+      });
+
+      expect(create.mock.calls[0][0].content).toBe(escaped);
+    });
+
+    it('escapes HTML in a line Polyglot will scramble', async () => {
+      const { dataAccess, broadcast } = setupFoundry({ polyglot: true });
+
+      await dataAccess.createChatMessage({
+        actorIdentifier: 'Wenet',
+        content: raw,
+        language: 'necril',
+      });
+
+      expect(broadcast.mock.calls[0][1]).toBe(escaped);
+    });
+  });
+
+  // A whisper is private, so a target either resolves to exactly one user or the whole
+  // call fails: a near-miss must never reach the wrong player, and a name that resolves
+  // to nobody must never be dropped quietly while the rest go through.
+  describe('whisper targets', () => {
+    function whisperTo(targets: string[]) {
+      const setup = setupFoundry();
+      const result = setup.dataAccess.createChatMessage({
+        actorIdentifier: 'Wenet',
+        content: 'Come alone.',
+        whisperTo: targets,
+      });
+      return { ...setup, result };
+    }
+
+    it('matches a user by exact id', async () => {
+      const { result, create } = whisperTo(['user-2']);
+
+      await result;
+      expect(create.mock.calls[0][0].whisper).toEqual(['user-2']);
+    });
+
+    it.each(['Alice', 'ALICE', 'alice'])('matches "%s" to Alice regardless of case', async name => {
+      const { result, create } = whisperTo([name]);
+
+      await result;
+      expect(create.mock.calls[0][0].whisper).toEqual(['user-alice']);
+    });
+
+    it('does not match part of a name ("Al" for Alice)', async () => {
+      const { result, create } = whisperTo(['Al']);
+
+      await expect(result).rejects.toThrow(/Al/);
+      expect(create).not.toHaveBeenCalled();
+    });
+
+    it('fails the whole whisper when any one name does not resolve, naming it', async () => {
+      const { result, create, broadcast } = whisperTo(['Catterick', 'Nobody']);
+
+      await expect(result).rejects.toThrow(/Nobody/);
+      expect(create).not.toHaveBeenCalled();
+      expect(broadcast).not.toHaveBeenCalled();
+    });
+
+    it('lists every name that did not resolve', async () => {
+      const { result } = whisperTo(['Nobody', 'Catterick', 'Ghost']);
+
+      await expect(result).rejects.toThrow(/Nobody.*Ghost/);
+    });
+
+    // Foundry's uniqueness check is case-sensitive, so case alone can tell users apart.
+    it('prefers the exact-case name when two users differ only by case', async () => {
+      const first = whisperTo(['Taco']);
+      await first.result;
+      expect(first.create.mock.calls[0][0].whisper).toEqual(['user-taco']);
+
+      const second = whisperTo(['TaCo']);
+      await second.result;
+      expect(second.create.mock.calls[0][0].whisper).toEqual(['user-taco-2']);
+    });
+
+    it('refuses a name that matches two users only by ignoring case', async () => {
+      const { result, create } = whisperTo(['taco']);
+
+      await expect(result).rejects.toThrow(/taco.*(ambiguous|Taco.*TaCo)/i);
+      expect(create).not.toHaveBeenCalled();
+    });
+  });
+
+  // Speaking writes to every client's canvas or the world's chat log, so it obeys the
+  // same "Allow Write Operations" switch as every other write tool.
+  describe('write permission', () => {
+    it.each([
+      ['a bubble', {}],
+      ['a chat-log message', { chatLog: true }],
+      ['a whisper', { whisperTo: ['Catterick'] }],
+    ])('refuses %s when write operations are disabled', async (_label, delivery) => {
+      const { dataAccess, create, broadcast } = setupFoundry({ allowWriteOperations: false });
+
+      await expect(
+        dataAccess.createChatMessage({
+          actorIdentifier: 'Wenet',
+          content: 'Sit down.',
+          ...delivery,
+        })
+      ).rejects.toThrow(/disabled/);
+      expect(create).not.toHaveBeenCalled();
+      expect(broadcast).not.toHaveBeenCalled();
+    });
+
+    it('speaks when write operations are enabled', async () => {
+      const { dataAccess, broadcast } = setupFoundry({ allowWriteOperations: true });
+
+      await dataAccess.createChatMessage({ actorIdentifier: 'Wenet', content: 'Sit down.' });
+
+      expect(broadcast).toHaveBeenCalledOnce();
+    });
   });
 });

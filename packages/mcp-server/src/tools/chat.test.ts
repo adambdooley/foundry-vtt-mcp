@@ -2,8 +2,9 @@
  * create-chat-message tool tests.
  *
  * These cover the MCP tool layer: schema shape, validation, and forwarding to
- * the bridge query. Delivery itself (bubbles, chat-log lines, whispers, the
- * duration padding and Polyglot tagging) runs browser-side and is covered in
+ * the bridge query. Delivery itself (bubbles, chat-log lines, whispers, escaping,
+ * whisper resolution, the write permission and Polyglot tagging) runs browser-side
+ * and is covered in
  * foundry-module/src/data-access.create-chat-message.test.ts.
  */
 
@@ -30,7 +31,7 @@ function definition() {
 }
 
 describe('create-chat-message tool definition', () => {
-  it('advertises the speaker, delivery, language, whisper and passthrough fields', () => {
+  it('advertises the speaker, delivery, language and whisper fields', () => {
     const props = definition().inputSchema.properties as Record<string, any>;
     expect(props.actorIdentifier).toBeDefined();
     expect(props.tokenId).toBeDefined();
@@ -48,6 +49,22 @@ describe('create-chat-message tool definition', () => {
 
   it('requires only content, since either identifier may name the speaker', () => {
     expect(definition().inputSchema.required).toEqual(['content']);
+  });
+
+  // The bridge escapes content, so a caller sending markup should know it shows literally.
+  it('describes content as plain text', () => {
+    const props = definition().inputSchema.properties as Record<string, any>;
+    expect(props.content.description).toMatch(/plain text/i);
+  });
+
+  it('describes whisper targets as exact names or ids that must all resolve', () => {
+    const props = definition().inputSchema.properties as Record<string, any>;
+    expect(props.whisperTo.description).toMatch(/exact/i);
+    expect(props.whisperTo.description).toMatch(/fails|error/i);
+  });
+
+  it('says the tool needs write operations allowed', () => {
+    expect(definition().description).toMatch(/Allow Write Operations/);
   });
 });
 

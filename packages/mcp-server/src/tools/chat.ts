@@ -24,7 +24,8 @@ export class ChatTools {
           'Speak an in-character line as an actor or a specific token: a floating speech ' +
           'bubble over the token (the default), a real chat-log message, or a whisper to ' +
           'named players. Pass a language to have Polyglot scramble a chat-log message for ' +
-          "viewers who don't know it. One call posts one line.",
+          "viewers who don't know it. One call posts one line. Requires Allow Write " +
+          'Operations in the bridge module settings.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -44,8 +45,8 @@ export class ChatTools {
             content: {
               type: 'string',
               description:
-                'The message text, in the language actually being spoken (not translated or ' +
-                'bracketed).',
+                'The message text as plain text, in the language actually being spoken (not ' +
+                'translated or bracketed). HTML is escaped and shows literally.',
             },
             language: {
               type: 'string',
@@ -67,7 +68,9 @@ export class ChatTools {
               type: 'array',
               items: { type: 'string' },
               description:
-                'Optional player names or user IDs to whisper this line to. A whisper is always ' +
+                'Optional player names or user IDs to whisper this line to. Each must be an exact ' +
+                'user ID or exact name (case is ignored only when that finds a single user); if ' +
+                'any one does not resolve, the call fails and nothing is sent. A whisper is always ' +
                 'delivered as a chat-log message, since a bubble would be visible to everyone, so ' +
                 'passing this implies chatLog: true.',
             },

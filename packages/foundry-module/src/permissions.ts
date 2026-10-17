@@ -42,6 +42,13 @@ export class PermissionManager {
       settingKey: 'allowWriteOperations',
       requiresGM: false,
     },
+    createChatMessage: {
+      name: 'Create Chat Message',
+      level: PERMISSION_LEVELS.LOW_RISK,
+      description: 'Speak lines as actors in bubbles, the chat log, or whispers',
+      settingKey: 'allowWriteOperations',
+      requiresGM: false,
+    },
     bulkOperations: {
       name: 'Bulk Operations',
       level: PERMISSION_LEVELS.MEDIUM_RISK,
