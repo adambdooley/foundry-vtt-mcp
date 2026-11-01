@@ -639,7 +639,9 @@ class PersistentCreatureIndex {
   private generatePackChecksum(pack: any): string {
     // Simple checksum based on pack metadata and size
     const data = `${pack.metadata.id}-${pack.metadata.label}-${pack.index?.size || 0}`;
-    return btoa(data).slice(0, 16); // Simple hash for demonstration
+    // btoa() throws on non-Latin1 (e.g. Cyrillic pack labels) — encode as UTF-8 first
+    const utf8 = String.fromCharCode(...new TextEncoder().encode(data));
+    return btoa(utf8).slice(0, 16); // Simple hash for demonstration
   }
 
   /**
@@ -1682,6 +1684,20 @@ class PersistentCreatureIndex {
     }
   }
 }
+
+// dnd5e stores short size keys (sm/med/lg/grg); normalize both sides for filtering
+const DND5E_SIZE: Record<string, string> = {
+  tiny: 'tiny',
+  sm: 'small',
+  small: 'small',
+  med: 'medium',
+  medium: 'medium',
+  lg: 'large',
+  large: 'large',
+  huge: 'huge',
+  grg: 'gargantuan',
+  gargantuan: 'gargantuan',
+};
 
 export class FoundryDataAccess {
   private moduleId: string = MODULE_ID;
@@ -3529,7 +3545,10 @@ export class FoundryDataAccess {
 
     // Size filter
     if (criteria.size) {
-      if (creature.size.toLowerCase() !== criteria.size.toLowerCase()) {
+      if (
+        DND5E_SIZE[creature.size.toLowerCase()] !==
+        (DND5E_SIZE[criteria.size.toLowerCase()] ?? criteria.size.toLowerCase())
+      ) {
         return false;
       }
     }
