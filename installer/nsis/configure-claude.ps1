@@ -50,7 +50,17 @@ function Get-ClaudeConfigTargets {
         Create = $true   # safe to create if missing — standalone reads it
     })
 
-    # 2. MSIX virtualised path(s). The package family name contains "Claude"
+    # 2. Third-party mode (Claude via AWS Bedrock or Google Vertex AI) keeps its
+    #    config in %APPDATA%\Claude-3p\ (issue #124). Never created: it is only
+    #    configured when that folder already exists, so standard installs just
+    #    log one skipped target.
+    $targets.Add([PSCustomObject]@{
+        Kind   = "Third-party (Claude-3p)"
+        Dir    = Join-Path $env:APPDATA "Claude-3p"
+        Create = $false
+    })
+
+    # 3. MSIX virtualised path(s). The package family name contains "Claude"
     #    but the exact id varies, so glob for it.
     $packagesRoot = Join-Path $env:LOCALAPPDATA "Packages"
     if (Test-Path $packagesRoot) {
