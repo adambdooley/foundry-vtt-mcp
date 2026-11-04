@@ -510,7 +510,7 @@ jobs:
           See the changelog for the full list.
 
           ### Features
-          - 49 MCP tools for comprehensive Foundry VTT integration
+          - 50 MCP tools for comprehensive Foundry VTT integration
           - Multi-system support: D&D 5e, Pathfinder 2e, DSA5, Cosmere RPG, WFRP4e, and Mongoose Traveller 2e
           - Generic actor CRUD (create/update/delete actors and embedded items) across all systems
           - D&D 5e NPC creation suite: stat blocks, attacks, saves, auras, and spellcasting
