@@ -2,6 +2,8 @@
 
 ### New Features
 
+- **`create-chat-message`** (#114) — speak an in-character line as an actor, or as a specific token when several share one actor: a speech bubble over the token (the default), a chat-log message, or a whisper to named players. Supports Polyglot languages when that module is active. The line is always plain text, every whisper target must match exactly one user, and it needs Allow Write Operations.
+
 - **DSA5 character import from JSON** (#92) — `import-dsa5-actor-from-json` creates a DSA5 actor from a Dark Aid export, an Optolith-style or custom DSA5 JSON, or a raw Foundry actor export, passed inline or as a `.json` / `.tdc` file (10 MB limit). Re-importing with `updateExisting` updates the existing actor, its items and effects instead of creating a duplicate. Item matching against compendiums currently works in German-language worlds only. DSA5 worlds only.
 
 ## v0.8.5 (2026-10-17)
