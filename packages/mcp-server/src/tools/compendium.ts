@@ -1143,7 +1143,12 @@ export class CompendiumTools {
         }
       }
 
-      const size = system.traits?.size?.value || system.traits?.size || system.size || 'medium';
+      const size =
+        creature.size ||
+        system.traits?.size?.value ||
+        system.traits?.size ||
+        system.size ||
+        'medium';
       formatted.size = size;
 
       // PF2e specific: rarity
