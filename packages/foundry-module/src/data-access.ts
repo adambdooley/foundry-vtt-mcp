@@ -8735,7 +8735,7 @@ export class FoundryDataAccess {
       }
 
       // Get the condition configuration for the game system
-      const conditions = (CONFIG as any).statusEffects || [];
+      const conditions = this.getStatusEffectList();
       const condition = conditions.find(
         (c: any) =>
           c.id === data.conditionId || c.name?.toLowerCase() === data.conditionId.toLowerCase()
@@ -8745,7 +8745,26 @@ export class FoundryDataAccess {
         throw new Error(`Condition not found: ${data.conditionId}`);
       }
 
-      if (data.active) {
+      const systemId = (game.system as any)?.id;
+
+      // PF2e opens a damage editor dialog for this one instead of applying anything.
+      if (systemId === 'pf2e' && condition.id === 'persistent-damage') {
+        throw new Error(
+          'Persistent damage needs a damage type and formula, so apply it from the sheet in Foundry'
+        );
+      }
+
+      // DSA5 keeps its original handling below: its conditions carry their own effect data,
+      // and it isn't installed where this change was checked.
+      if (systemId !== 'dsa5' && condition.id && typeof actor.toggleStatusEffect === 'function') {
+        // Foundry's own API, which systems override: PF2e routes its condition slugs to its
+        // Item-based conditions, dnd5e handles exclusive groups, and core removes only the
+        // status's own effect (or effects carrying that status alone). Hand-building an
+        // ActiveEffect did nothing on PF2e, and matching any effect whose statuses merely
+        // contained the id deleted compound effects, such as Paralyzed when removing
+        // Incapacitated on dnd5e.
+        await actor.toggleStatusEffect(condition.id, { active: data.active });
+      } else if (data.active) {
         // Add the condition - handle DSA5 and other systems
         const effectData: any = {
           name: condition.name || condition.label || condition.id,
@@ -8825,13 +8844,24 @@ export class FoundryDataAccess {
   }
 
   /**
+   * CONFIG.statusEffects as a list. Core keeps it as an array (a Proxy that also allows
+   * lookup by id), but PF2e replaces it with a plain object keyed by condition slug, so
+   * array methods on it threw in PF2e worlds.
+   */
+  private getStatusEffectList(): any[] {
+    const effects = (CONFIG as any).statusEffects;
+    if (!effects) return [];
+    return Array.isArray(effects) ? [...effects] : Object.values(effects);
+  }
+
+  /**
    * Get all available conditions for the current game system
    */
   async getAvailableConditions(): Promise<any> {
     this.validateFoundryState();
 
     try {
-      const conditions = (CONFIG as any).statusEffects || [];
+      const conditions = this.getStatusEffectList();
 
       return {
         success: true,
