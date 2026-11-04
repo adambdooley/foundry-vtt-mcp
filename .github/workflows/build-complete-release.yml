@@ -500,12 +500,12 @@ jobs:
           4. Start creating AI-powered campaigns!
 
           ### New in this release
-          - Security fix: bridge queries are now only accepted from GM users. Updating is recommended.
-          - `manage-world-items` can read a world item in full: description, system data and rules
-          - `get-character` can read an unlinked token's own stats and effects by token ID or UUID
-          - PF2e: languages in `get-character`, and rule elements and effect changes now include their `key`
-          - dnd5e: Activity save configuration and Advancement data are no longer dropped from detailed item reads
-          - Clearer Claude Desktop config instructions for manual installs
+          - `create-chat-message`: NPCs can speak in-character lines as speech bubbles, chat-log messages or whispers
+          - DSA5: import characters from Dark Aid, Optolith-style or custom JSON exports
+          - PF2e: the condition tools work again, and conditions are applied properly
+          - dnd5e: removing a condition no longer deletes a larger effect that includes it, such as Paralyzed
+          - The creature index now includes compendiums with non-Latin names, and the dnd5e size filter works
+          - The Windows installer now configures Claude Desktop in third-party mode (AWS Bedrock or Google Vertex AI)
 
           See the changelog for the full list.
 
