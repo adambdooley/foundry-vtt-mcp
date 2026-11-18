@@ -809,7 +809,7 @@ export class CharacterTools {
       type: characterData.type,
       basicInfo: await this.extractBasicInfo(characterData),
       stats: await this.extractStats(characterData),
-      items: this.formatItems(characterData.items || []),
+      items: this.formatItems(characterData.items || [], await this.getAdapterSafe()),
       effects: this.formatEffects(characterData.effects || []),
       hasImage: !!characterData.img,
     };
@@ -1069,7 +1069,15 @@ export class CharacterTools {
     return stats;
   }
 
-  private formatItems(items: any[]): any[] {
+  private async getAdapterSafe(): Promise<SystemAdapter | null> {
+    try {
+      return await this.getAdapter();
+    } catch {
+      return null;
+    }
+  }
+
+  private formatItems(items: any[], adapter?: SystemAdapter | null): any[] {
     // Return ALL items with minimal data
     return items.map(item => {
       // Return minimal data - just enough to identify and filter items
@@ -1116,6 +1124,11 @@ export class CharacterTools {
       // Include attuned status for D&D 5e magic items
       if (item.system?.attunement !== undefined) {
         formattedItem.attunement = item.system.attunement;
+      }
+
+      // System-specific inline fields (e.g. SR3 skill ratings, weapon stats)
+      if (adapter?.formatItemDetails) {
+        Object.assign(formattedItem, adapter.formatItemDetails(item));
       }
 
       return formattedItem;
