@@ -145,6 +145,15 @@ export interface SystemAdapter {
   extractBasicInfo?(actorData: any): any;
 
   /**
+   * Return extra per-item fields to inline in get-character's item list
+   * (e.g. skill rating, weapon damage), so callers need not fetch each item
+   * via get-character-entity. Optional; merged over the generic fields.
+   *
+   * @param item - Raw item data ({ id, name, type, system })
+   */
+  formatItemDetails?(item: any): Record<string, any>;
+
+  /**
    * Return system-specific actor schema notes for the manage-actors "describe" action.
    *
    * Optional: if not implemented, manage-actors describe returns a generic message.
